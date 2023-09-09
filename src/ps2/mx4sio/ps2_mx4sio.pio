@@ -1,0 +1,48 @@
+
+.define PUBLIC PIN_PSX_ACK 16
+.define PUBLIC PIN_PSX_SEL 17
+.define PUBLIC PIN_PSX_CLK 18
+.define PUBLIC PIN_PSX_CMD 19
+.define PUBLIC PIN_PSX_DAT 20
+
+.define PUBLIC PIN_SD_MISO 24
+.define PUBLIC PIN_SD_MOSI 27
+.define PUBLIC PIN_SD_SCK  26
+.define PUBLIC PIN_SD_CS   29
+
+
+.program spi_gateway
+
+.wrap_target
+    mov pins, pins
+.wrap
+
+% c-sdk {
+#include "debug.h"
+
+static inline void spi_gateway_init(PIO pio, uint sm, uint offset, uint pin_in, uint pin_out) {
+    pio_sm_config c = spi_gateway_program_get_default_config(offset);
+
+    sm_config_set_out_pins(&c, pin_out, 1);
+    sm_config_set_in_pins(&c, pin_in);
+  
+    pio_gpio_init(pio, pin_out);
+    gpio_disable_pulls(pin_in);
+    gpio_disable_pulls(pin_out);
+
+
+    pio_sm_set_consecutive_pindirs(pio, sm, pin_out, 1, true);
+    pio_sm_set_consecutive_pindirs(pio, sm, pin_in, 1, false);
+
+    pio_sm_set_clkdiv(pio, sm, 1);
+
+    // Load our configuration, and jump to the start of the program
+    pio_sm_init(pio, sm, offset, &c);
+    // Set the state machine running
+    pio_sm_set_enabled(pio, sm, true);
+
+    debug_printf("Offset: %d, SM: %d, IN: %d, OUT: %d\n", offset, sm, pin_in, pin_out);
+
+}
+
+%}

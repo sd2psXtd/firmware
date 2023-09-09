@@ -28,6 +28,8 @@
 #include "ps2/ps2_psram.h"
 #include "ps2/ps2_exploit.h"
 
+#include "ps2/mx4sio/ps2_mx4sio.h"
+
 /* reboot to bootloader if either button is held on startup
    to make the device easier to flash when assembled inside case */
 static void check_bootloader_reset(void) {
@@ -82,6 +84,18 @@ int main() {
     printf("\n\n\nStarted! Clock %d; bus priority 0x%X\n", (int)clock_get_hz(clk_sys), (unsigned)bus_ctrl_hw->priority);
 
     settings_init();
+
+
+    printf("starting in mx4sio mode\n");
+
+
+    ps2_mx4sio_init();
+    gui_init();
+    while (1) {
+        debug_task();
+        gui_task();
+        input_task();
+    }
 
     if (settings_get_mode() == MODE_PS1) {
         printf("starting in PS1 mode\n");

@@ -47,6 +47,8 @@ add_executable(sd2psx
     src/ps2/ps2_psram.c
     src/ps2/ps2_exploit.c
 
+    src/ps2/mx4sio/ps2_mx4sio.c
+
     src/wear_leveling/wear_leveling.c
     src/wear_leveling/wear_leveling_rp2040_flash.c
 
@@ -120,6 +122,7 @@ target_include_directories(sd2psx PUBLIC
 pico_generate_pio_header(sd2psx ${CMAKE_CURRENT_LIST_DIR}/src/ps1/ps1_mc_spi.pio)
 pico_generate_pio_header(sd2psx ${CMAKE_CURRENT_LIST_DIR}/src/ps2/ps2_mc_spi.pio)
 pico_generate_pio_header(sd2psx ${CMAKE_CURRENT_LIST_DIR}/src/ps2/ps2_qspi.pio)
+pico_generate_pio_header(sd2psx ${CMAKE_CURRENT_LIST_DIR}/src/ps2/mx4sio/ps2_mx4sio.pio)
 
 target_link_libraries(sd2psx
     ssd1306
