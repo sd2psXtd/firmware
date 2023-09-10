@@ -10,10 +10,10 @@ void ps2_mx4sio_init(void)
 
     hw_set_bits(&pio->input_sync_bypass, (1u << PIN_PSX_CLK) | (1u << PIN_PSX_DAT) | (1 << PIN_SD_MISO) | (1 << PIN_PSX_SEL));
     
-    uint offset = pio_add_program(pio, &spi_gateway_program);
+    uint offset = pio_add_program(pio, &clk_simulation_program);
     uint sm = pio_claim_unused_sm(pio, true);
 
-    spi_gateway_init(pio, sm, offset, PIN_PSX_CLK, PIN_SD_SCK);
+    clk_init(pio, sm, offset, PIN_PSX_SEL, PIN_SD_SCK);
     
     offset = pio_add_program(pio, &spi_gateway_program);
     sm = pio_claim_unused_sm(pio, true);

@@ -46,3 +46,56 @@ static inline void spi_gateway_init(PIO pio, uint sm, uint offset, uint pin_in, 
 }
 
 %}
+
+.program clk_simulation
+start:
+WAIT 0 GPIO PIN_PSX_SEL
+SET X, 10
+loop_0:
+nop [30] ; wait only 30 for now
+jmp X--, loop_0
+.wrap_target
+set PINS, 0
+set X, 9
+nop [28]
+loop_1:
+nop [30]
+jmp X--, loop_1
+set PINS, 1
+set X, 9
+nop [27]
+loop_2:
+nop [30]
+jmp X--, loop_2
+jmp PIN, start
+.wrap
+
+
+% c-sdk {
+#include "debug.h"
+
+static inline void clk_init(PIO pio, uint sm, uint offset, uint cs_pin, uint clk_pin) {
+    pio_sm_config c = clk_simulation_program_get_default_config(offset);
+
+    sm_config_set_set_pins(&c, clk_pin, 1);
+    sm_config_set_in_pins(&c, cs_pin);
+    sm_config_set_jmp_pin(&c, cs_pin);
+  
+    pio_gpio_init(pio, clk_pin);
+    gpio_disable_pulls(clk_pin);
+    gpio_disable_pulls(cs_pin);
+
+
+    pio_sm_set_consecutive_pindirs(pio, sm, clk_pin, 1, true);
+    pio_sm_set_consecutive_pindirs(pio, sm, cs_pin, 1, false);
+
+    pio_sm_set_clkdiv(pio, sm, 1);
+
+    // Load our configuration, and jump to the start of the program
+    pio_sm_init(pio, sm, offset, &c);
+    // Set the state machine running
+    pio_sm_set_enabled(pio, sm, true);
+
+}
+
+%}
