@@ -43,6 +43,7 @@ add_executable(sd2psx
     src/ps2/ps2_psram.c
     src/ps2/ps2_exploit.c
     src/ps2/ps2_history_tracker.c
+    src/ps2/ps2_sd2psxman.c
 
     src/game_names/game_names.c
 
