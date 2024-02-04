@@ -21,40 +21,11 @@ void ps2_sd2psxman_task(void) {
         ps2_cardman_state_t prev_state = ps2_cardman_get_state();
 
         switch (sd2psxman_cmd) {
-            case SD2PSXMAN_SET_CARD:
-                if (sd2psxman_mode == SD2PSXMAN_MODE_NUM) {
-                    ps2_cardman_set_idx(sd2psxman_cnum);
-                    debug_printf("set num idx\n");
-                } else if (sd2psxman_mode == SD2PSXMAN_MODE_NEXT) {
-                    ps2_cardman_next_idx();
-                    debug_printf("set next idx\n");
-                } else if (sd2psxman_mode == SD2PSXMAN_MODE_PREV) {
-                    ps2_cardman_prev_idx();
-                    debug_printf("set prev idx\n");
-                }
-                break;
-
-            case SD2PSXMAN_SET_CHANNEL:
-                if (sd2psxman_mode == SD2PSXMAN_MODE_NUM) {
-                    ps2_cardman_set_channel(sd2psxman_cnum);
-                    debug_printf("set num channel\n");
-                } else if (sd2psxman_mode == SD2PSXMAN_MODE_NEXT) {
-                    ps2_cardman_next_channel();
-                    debug_printf("set next channel\n");
-                } else if (sd2psxman_mode == SD2PSXMAN_MODE_PREV) {
-                    ps2_cardman_prev_channel();
-                    debug_printf("set prev channel\n");
-                }
-                break;
+            
 
             case SD2PSXMAN_SET_GAMEID: 
                     ps2_cardman_set_gameid(sd2psxman_gameid); 
                     debug_printf("set next channel\n");
-                break;
-            case SD2PSXMAN_UNMOUNT_BOOTCARD:
-                if (ps2_cardman_get_idx() == 0) {
-                    ps2_cardman_next_idx();
-                }
                 break;
 
             default: break;
