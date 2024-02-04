@@ -1,6 +1,9 @@
 string(TIMESTAMP date "%Y%m%d")
 
-if(NOT EXISTS "${OUTPUT_DIR}/gamedb${SYSTEM}_${date}.o")
+set(GAMEDB_${SYSTEM}_BIN "gamedb${SYSTEM}.dat")
+set(GAMEDB_${SYSTEM}_OBJ "${OUTPUT_DIR}/gamedb${SYSTEM}_${date}.o")
+
+if(NOT EXISTS "${GAMEDB_${SYSTEM}_OBJ}")
 
 find_package (Python3 COMPONENTS Interpreter)
 execute_process (COMMAND "${Python3_EXECUTABLE}" -m venv "${OUTPUT_DIR}/db_builder")
@@ -20,10 +23,6 @@ foreach(file ${files})
 file(REMOVE "${file}")
 endforeach()
 
-
-set(GAMEDB_${SYSTEM}_BIN "gamedb${SYSTEM}.dat")
-set(GAMEDB_${SYSTEM}_OBJ "${OUTPUT_DIR}/gamedb${SYSTEM}_${date}.o")
-
 execute_process(
     COMMAND ${Python3_EXECUTABLE} -m pip install requests unidecode
     WORKING_DIRECTORY ${OUTPUT_DIR}
@@ -40,7 +39,8 @@ execute_process(
     OUTPUT_QUIET
 )
 
-file(CREATE_LINK ${GAMEDB_${SYSTEM}_OBJ} "${OUTPUT_DIR}/gamedb${SYSTEM}.o" SYMBOLIC)
 file(REMOVE_RECURSE "${OUTPUT_DIR}/${SYSTEM}")
 
 endif()
+
+file(CREATE_LINK ${GAMEDB_${SYSTEM}_OBJ} "${OUTPUT_DIR}/gamedb${SYSTEM}.o" SYMBOLIC)

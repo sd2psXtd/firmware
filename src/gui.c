@@ -1,21 +1,18 @@
 #include "gui.h"
 
 #include <game_names/game_names.h>
-#include <inttypes.h>
+#include <ps2/history_tracker/ps2_history_tracker.h>
 #include <stdio.h>
 
 #include "config.h"
 #include "input.h"
 #include "keystore.h"
-#include "lvgl.h"
 #include "oled.h"
 #include "ps1/ps1_cardman.h"
 #include "ps1/ps1_memory_card.h"
-#include "ps1/ps1_odeman.h"
 #include "ps2/card_emu/ps2_memory_card.h"
 #include "ps2/ps2_cardman.h"
 #include "ps2/ps2_dirty.h"
-#include "ps2/ps2_exploit.h"
 #include "settings.h"
 #include "ui_menu.h"
 #include "ui_theme_mono.h"
@@ -710,6 +707,8 @@ void gui_do_ps2_card_switch(void) {
     ps2_cardman_set_progress_cb(NULL);
     ps2_memory_card_enter();
     uint64_t end = time_us_64();
+
+    ps2_history_tracker_card_changed();
     printf("full card switch took = %.2f s\n", (end - start) / 1e6);
 
     UI_GOTO_SCREEN(scr_main);
