@@ -1,4 +1,4 @@
-#include "history_tracker/ps2_history_tracker.h"
+#include "ps2_history_tracker.h"
 
 #include <debug.h>
 #include <game_names/game_names.h>
@@ -7,8 +7,6 @@
 #include <string.h>
 #include <stdbool.h>
 
-#include "card_emu/ps2_sd2psxman.h"
-#include "card_emu/ps2_sd2psxman_commands.h"
 #include "mcfat.h"
 #include "mcio.h"
 #include "ps2_cardman.h"
