@@ -12,6 +12,7 @@
 #include "ps2_cardman.h"
 #include "ps2_dirty.h"
 #include "ps2_psram.h"
+#include "ps2_sd2psxman.h"
 
 //#define USE_INJECT_LOGIC
 
