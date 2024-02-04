@@ -14,7 +14,7 @@ set(LV_CONF_PATH ${CMAKE_CURRENT_SOURCE_DIR}/src/lv_conf.h CACHE STRING "" FORCE
 add_subdirectory(ext/lvgl EXCLUDE_FROM_ALL)
 add_subdirectory(ext/mcfat)
 
-target_compile_definitions(mcfat PRIVATE DMAX_CACHEENTRY=6 MAX_FDHANDLES=1)
+target_compile_definitions(mcfat PRIVATE MAX_CACHEENTRY=2 MAX_FDHANDLES=1)
 
 add_subdirectory(database)
 add_subdirectory(ps2boot)
