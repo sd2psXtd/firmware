@@ -1,4 +1,5 @@
 #include "hardware/gpio.h"
+#include "hardware/regs/addressmap.h"
 #include "hardware/timer.h"
 #include "hardware/flash.h"
 #include "hardware/dma.h"
@@ -6,6 +7,7 @@
 
 #include "config.h"
 #include "ps2_mc_spi.pio.h"
+#include "flashmap.h"
 #include "debug.h"
 #include "keystore.h"
 #include "des.h"
@@ -13,8 +15,12 @@
 #include "ps2_dirty.h"
 #include "ps2_psram.h"
 #include "ps2_pio_qspi.h"
+#include "ps2_cardman.h"
+#include "ps2_exploit.h"
 
+#include <stdbool.h>
 #include <string.h>
+
 
 // #define DEBUG_MC_PROTOCOL
 
@@ -24,6 +30,7 @@ int byte_count;
 volatile int reset;
 int ignore;
 uint8_t flag;
+bool flash_mode = false;
 
 typedef struct {
     uint32_t offset;
@@ -47,6 +54,23 @@ int is_write, is_dma_read;
 uint32_t readptr, writeptr;
 static volatile int mc_exit_request, mc_exit_response, mc_enter_request, mc_enter_response;
 static uint8_t hostkey[9];
+
+static inline void __time_critical_func(read_mc)(uint32_t addr, void *buf, size_t sz) {
+    if (flash_mode) {
+        ps2_exploit_read(addr, buf, sz);
+        ps2_dirty_unlock();
+    } else {
+        psram_read_dma(addr, buf, sz);
+    }
+}
+
+static inline void __time_critical_func(write_mc)(uint32_t addr, void *buf, size_t sz) {
+    if (!flash_mode) {
+        psram_write(addr, buf, sz);
+    } else {
+        ps2_dirty_unlock();
+    }
+}
 
 static inline void __time_critical_func(RAM_pio_sm_drain_tx_fifo)(PIO pio, uint sm) {
     uint instr = (pio->sm[sm].shiftctrl & PIO_SM0_SHIFTCTRL_AUTOPULL_BITS) ? pio_encode_out(pio_null, 32) :
@@ -154,7 +178,7 @@ static inline void __time_critical_func(mc_respond_slow)(uint8_t ch) {
     pio_sm_put_blocking(pio0, dat_writer_slow.sm, ch);
 }
 
-static uint8_t Table[] = {
+static uint8_t EccTable[] = {
 	0x00, 0x87, 0x96, 0x11, 0xa5, 0x22, 0x33, 0xb4,0xb4, 0x33, 0x22, 0xa5, 0x11, 0x96, 0x87, 0x00,
 	0xc3, 0x44, 0x55, 0xd2, 0x66, 0xe1, 0xf0, 0x77,0x77, 0xf0, 0xe1, 0x66, 0xd2, 0x55, 0x44, 0xc3,
 	0xd2, 0x55, 0x44, 0xc3, 0x77, 0xf0, 0xe1, 0x66,0x66, 0xe1, 0xf0, 0x77, 0xc3, 0x44, 0x55, 0xd2,
@@ -172,33 +196,6 @@ static uint8_t Table[] = {
 	0xc3, 0x44, 0x55, 0xd2, 0x66, 0xe1, 0xf0, 0x77,0x77, 0xf0, 0xe1, 0x66, 0xd2, 0x55, 0x44, 0xc3,
 	0x00, 0x87, 0x96, 0x11, 0xa5, 0x22, 0x33, 0xb4,0xb4, 0x33, 0x22, 0xa5, 0x11, 0x96, 0x87, 0x00
 };
-
-void calcECC(uint8_t *ecc, const uint8_t *data)
-{
-	int i, c;
-
-	ecc[0] = ecc[1] = ecc[2] = 0;
-
-	for (i = 0 ; i < 0x80 ; i ++) {
-		c = Table[data[i]];
-
-		ecc[0] ^= c;
-		if (c & 0x80) {
-			ecc[1] ^= ~i;
-			ecc[2] ^= i;
-		}
-	}
-	ecc[0] = ~ecc[0];
-	ecc[0] &= 0x77;
-
-	ecc[1] = ~ecc[1];
-	ecc[1] &= 0x7f;
-
-	ecc[2] = ~ecc[2];
-	ecc[2] &= 0x7f;
-
-	return;
-}
 
 // keysource and key are self generated values
 uint8_t keysource[] = { 0xf5, 0x80, 0x95, 0x3c, 0x4c, 0x84, 0xa9, 0xc0 };
@@ -395,7 +392,9 @@ void ps2_memory_card_exit(void) {
 }
 
 void ps2_memory_card_enter(void) {
-    if (memcard_running)
+    if (flash_mode) {
+        ps2_memory_card_exit();
+    } else if (memcard_running)
         return;
 
     mc_enter_request = 1;
@@ -403,4 +402,14 @@ void ps2_memory_card_enter(void) {
     {}
     mc_enter_request = mc_enter_response = 0;
     memcard_running = 1;
+    flash_mode = false;
+}
+
+void ps2_memory_card_enter_flash(void) {
+    mc_enter_request = 1;
+    while (!mc_enter_response)
+    {}
+    mc_enter_request = mc_enter_response = 0;
+    memcard_running = 1;
+    flash_mode = true;
 }

@@ -105,3 +105,7 @@ extern "C" int sd_mkdir(const char *path) {
 extern "C" int sd_exists(const char *path) {
     return sd.exists(path);
 }
+
+extern "C" int sd_filesize(int fd) {
+    return files[fd].fileSize();;
+}

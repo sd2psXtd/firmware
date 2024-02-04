@@ -2,9 +2,10 @@ name: CMake
 
 on:
   push:
-    branches: [ "main" ]
-  pull_request:
-    branches: [ "main" ]
+    branches:
+      - '*'
+    tags:
+      - 'v*'
 
 env:
   # Customize the CMake build type here (Release, Debug, RelWithDebInfo, etc.)
@@ -21,10 +22,23 @@ jobs:
     - uses: actions/checkout@v3
       with:
          submodules: 'recursive'
+         fetch-depth: '0'
+    - run: |
+        git fetch origin --tags --force
+        TAG=$(git describe --tags --exact-match HEAD --exclude=latest --exclude=nightly) || true
+        if [ $TAG ]
+        then
+          echo "SD2PSX_VERSION=${TAG}" >> $GITHUB_ENV
+          echo "SD2PSX_RLS_TAG=latest" >> $GITHUB_ENV
+          echo "${TAG}"
+        else
+          echo "SD2PSX_VERSION=nightly-$(git rev-parse --short HEAD)" >> $GITHUB_ENV
+          echo "SD2PSX_RLS_TAG=nightly" >> $GITHUB_ENV
+          echo "nightly"
+        fi
+
     - name: add build essential
       run: sudo apt update && sudo apt install -y build-essential gcc-arm-none-eabi
-
-
 
     - name: Configure CMake
       # Configure CMake in a 'build' subdirectory. `CMAKE_BUILD_TYPE` is only required if you are using a single-configuration generator such as make.
@@ -34,7 +48,7 @@ jobs:
     - name: Build
       # Build your program with the given configuration
       run: cmake --build ${{github.workspace}}/build --config ${{env.BUILD_TYPE}}
-      
+
     - name: Configure CMake for Debug USB
       # Configure CMake in a 'build' subdirectory. `CMAKE_BUILD_TYPE` is only required if you are using a single-configuration generator such as make.
       # See https://cmake.org/cmake/help/latest/variable/CMAKE_BUILD_TYPE.html?highlight=cmake_build_type
@@ -43,21 +57,25 @@ jobs:
     - name: Build Debug USB
       # Build your program with the given configuration
       run: cmake --build ${{github.workspace}}/build_usb --config ${{env.BUILD_TYPE}}
-      
+
     - name: Rename Debug USB uf2
       run: mv build_usb/sd2psx.uf2 build/sd2psx_usb_debug.uf2
-      
+
+    - name: Upload artifacts
+      uses: actions/upload-artifact@v3
+      with:
+        name: SD2PSX-${{ github.sha }}
+        path: |
+          build/*.uf2
 
     - uses: marvinpinto/action-automatic-releases@v1.2.1
-      if: github.event_name != 'pull_request'
-      # uses: marvinpinto/action-automatic-releases@919008cf3f741b179569b7a6fb4d8860689ab7f0
+      if: github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/v') #only release on tag or master branch
       with:
         # GitHub secret token
+        title:  "${{ env.SD2PSX_VERSION }}"
         repo_token: "${{ secrets.GITHUB_TOKEN }}"
-        automatic_release_tag: latest
-        prerelease: true
+        automatic_release_tag: ${{ env.SD2PSX_RLS_TAG }}
+        prerelease: ${{ !startsWith(github.ref, 'refs/tags/v') }}
         # Assets to upload to the release
         files: |
           build/*.uf2
-
- 

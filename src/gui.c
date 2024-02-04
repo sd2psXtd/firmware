@@ -18,6 +18,9 @@
 #include "ps2/ps2_memory_card.h"
 #include "ps2/ps2_cardman.h"
 #include "ps2/ps2_dirty.h"
+#include "ps2/ps2_exploit.h"
+
+#include "version/version.h"
 
 #include "ui_theme_mono.h"
 
@@ -26,13 +29,14 @@ static lv_obj_t *g_navbar, *g_progress_bar, *g_progress_text, *g_activity_frame;
 
 static lv_obj_t *scr_switch_nag, *scr_card_switch, *scr_main, *scr_menu, *scr_freepsxboot, *menu, *main_page;
 static lv_style_t style_inv;
-static lv_obj_t *scr_main_idx_lbl, *scr_main_channel_lbl, *src_main_title_lbl, *lbl_civ_err;
+static lv_obj_t *scr_main_idx_lbl, *scr_main_channel_lbl,*src_main_title_lbl, *lbl_civ_err, *lbl_autoboot, *lbl_channel;
 
 static int have_oled;
 static int switching_card;
 static uint64_t switching_card_timeout;
 static int terminated;
 static bool refresh_gui;
+static bool installing_exploit;
 
 #define COLOR_FG      lv_color_white()
 #define COLOR_BG      lv_color_black()
@@ -207,10 +211,11 @@ static void evt_scr_main(lv_event_t *event) {
         // TODO: if there was a card op recently (1s timeout?), should refuse to switch
         // TODO: ps1 support here
         if (key == INPUT_KEY_PREV || key == INPUT_KEY_NEXT || key == INPUT_KEY_BACK || key == INPUT_KEY_ENTER) {
+            uint8_t prevChannel, prevIdx;
             if (settings_get_mode() == MODE_PS1) {
-                ps1_memory_card_exit();
-                ps1_cardman_close();
-
+                prevChannel = ps1_cardman_get_channel();
+                prevIdx = ps1_cardman_get_idx();
+                
                 switch (key) {
                 case INPUT_KEY_PREV:
                     ps1_cardman_prev_channel();
@@ -225,11 +230,15 @@ static void evt_scr_main(lv_event_t *event) {
                     ps1_cardman_next_idx();
                     break;
                 }
-
-                printf("new PS1 card=%d chan=%d\n", ps1_cardman_get_idx(), ps1_cardman_get_channel());
+                if ((prevChannel != ps1_cardman_get_channel()) || (prevIdx != ps1_cardman_get_idx())) {
+                    ps1_memory_card_exit();
+                    ps1_cardman_close();
+                    switching_card = 1;
+                    printf("new PS1 card=%d chan=%d\n", ps1_cardman_get_idx(), ps1_cardman_get_channel());
+                }
             } else {
-                ps2_memory_card_exit();
-                ps2_cardman_close();
+                prevChannel = ps2_cardman_get_channel();
+                prevIdx = ps2_cardman_get_idx();
 
                 switch (key) {
                 case INPUT_KEY_PREV:
@@ -246,10 +255,17 @@ static void evt_scr_main(lv_event_t *event) {
                     break;
                 }
 
-                printf("new PS2 card=%d chan=%d\n", ps2_cardman_get_idx(), ps2_cardman_get_channel());
+                if ((prevChannel != ps2_cardman_get_channel()) || (prevIdx != ps2_cardman_get_idx())) {
+                    ps2_memory_card_exit();
+                    ps2_cardman_close();
+                    switching_card = 1;
+                    printf("new PS2 card=%d chan=%d\n", ps2_cardman_get_idx(), ps2_cardman_get_channel());
+                }
             }
-            switching_card = 1;
-            switching_card_timeout = time_us_64() + 1500 * 1000;
+
+            if (switching_card == 1) {
+                switching_card_timeout = time_us_64() + 1500 * 1000;
+            }
         }
 
     }
@@ -309,6 +325,13 @@ static void evt_go_back(lv_event_t *event) {
     lv_event_stop_bubbling(event);
 }
 
+static void evt_ps2_autoboot(lv_event_t *event) {
+    bool current = settings_get_ps2_autoboot();
+    settings_set_ps2_autoboot(!current);
+    lv_label_set_text(lbl_autoboot, !current ? "Yes" : "No");
+    lv_event_stop_bubbling(event);
+}
+
 static void evt_do_civ_deploy(lv_event_t *event) {
     (void)event;
 
@@ -360,7 +383,7 @@ static void create_main_screen(void) {
     scr_main_idx_lbl = ui_label_create_at(scr_main, 0, 24, "");
     lv_obj_set_align(scr_main_idx_lbl, LV_ALIGN_TOP_RIGHT);
 
-    ui_label_create_at(scr_main, 0, 32, "Channel");
+    lbl_channel = ui_label_create_at(scr_main, 0, 32, "Channel");
 
     scr_main_channel_lbl = ui_label_create_at(scr_main, 0, 32, "");
     lv_obj_set_align(scr_main_channel_lbl, LV_ALIGN_TOP_RIGHT);
@@ -543,12 +566,6 @@ static void create_menu_screen(void) {
     /* ps2 */
     lv_obj_t *ps2_page = ui_menu_subpage_create(menu, "PS2 Settings");
     {
-        /* exploit install */
-        lv_obj_t *exploit_install_page = ui_menu_subpage_create(menu, "Install EXPLOIT.bin");
-        {
-            // TODO: handle exploit install
-        }
-
         /* deploy submenu */
         lv_obj_t *civ_page = ui_menu_subpage_create(menu, "Deploy CIV.bin");
         {
@@ -563,19 +580,35 @@ static void create_menu_screen(void) {
         }
 
         cont = ui_menu_cont_create_nav(ps2_page);
-        ui_label_create_grow_scroll(cont, "Autoboot exploit");
-        ui_label_create(cont, " No");
-
-        cont = ui_menu_cont_create_nav(ps2_page);
-        ui_label_create_grow_scroll(cont, "Install EXPLOIT.bin");
-        ui_label_create(cont, " >");
-        ui_menu_set_load_page_event(menu, cont, exploit_install_page);
+        ui_label_create_grow_scroll(cont, "Autoboot");
+        lbl_autoboot = ui_label_create(cont, settings_get_ps2_autoboot() ? " Yes" : " No");
+        lv_obj_add_event_cb(cont, evt_ps2_autoboot, LV_EVENT_CLICKED, NULL);
 
         cont = ui_menu_cont_create_nav(ps2_page);
         ui_label_create_grow(cont, "Deploy CIV.bin");
         ui_label_create(cont, ">");
         ui_menu_set_load_page_event(menu, cont, civ_page);
         lv_obj_add_event_cb(cont, evt_do_civ_deploy, LV_EVENT_CLICKED, NULL);
+    }
+
+    /* Info submenu */
+    lv_obj_t *info_page = ui_menu_subpage_create(menu, "Info");
+    {
+        cont = ui_menu_cont_create_nav(info_page);
+        ui_label_create_grow_scroll(cont, "Version");
+        ui_label_create(cont, sd2psx_version);
+
+        cont = ui_menu_cont_create_nav(info_page);
+        ui_label_create_grow_scroll(cont, "Commit");
+        ui_label_create(cont, sd2psx_commit);
+
+        cont = ui_menu_cont_create_nav(info_page);
+        ui_label_create_grow_scroll(cont, "Debug");
+#ifdef DEBUG_USB_UART
+        ui_label_create(cont, "Yes");
+#else
+        ui_label_create(cont, "No");
+#endif
     }
 
     /* Main menu */
@@ -600,6 +633,12 @@ static void create_menu_screen(void) {
         ui_label_create_grow(cont, "Display");
         ui_label_create(cont, ">");
         ui_menu_set_load_page_event(menu, cont, display_page);
+
+        cont = ui_menu_cont_create_nav(main_page);
+        ui_label_create_grow_scroll(cont, "Info");
+        ui_label_create(cont, ">");
+        ui_menu_set_load_page_event(menu, cont, info_page);
+
     }
 
     ui_menu_set_page(menu, main_page);
@@ -665,6 +704,7 @@ void gui_init(void) {
 
     create_ui();
     refresh_gui = false;
+    installing_exploit = false;
 }
 
 void gui_request_refresh(void)
@@ -746,8 +786,16 @@ void gui_task(void) {
         if (displayed_card_idx != ps2_cardman_get_idx() || displayed_card_channel != ps2_cardman_get_channel()) {
             displayed_card_idx = ps2_cardman_get_idx();
             displayed_card_channel = ps2_cardman_get_channel();
-            snprintf(card_idx_s, sizeof(card_idx_s), "%d", displayed_card_idx);
-            snprintf(card_channel_s, sizeof(card_channel_s), "%d", displayed_card_channel);
+            if (displayed_card_idx == 0) {
+                snprintf(card_idx_s, sizeof(card_idx_s), "BOOT");
+                snprintf(card_channel_s, sizeof(card_channel_s), " ");
+                lv_label_set_text(lbl_channel, "");
+
+            } else {
+                snprintf(card_idx_s, sizeof(card_idx_s), "%d", displayed_card_idx);
+                snprintf(card_channel_s, sizeof(card_channel_s), "%d", displayed_card_channel);
+                lv_label_set_text(lbl_channel, "Channel");
+            }
             lv_label_set_text(scr_main_idx_lbl, card_idx_s);
             lv_label_set_text(scr_main_channel_lbl, card_channel_s);
         }

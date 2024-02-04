@@ -15,6 +15,7 @@
 #include "sd.h"
 #include "keystore.h"
 #include "settings.h"
+#include "version/version.h"
 
 #include "ps1/ps1_memory_card.h"
 #include "ps1/ps1_dirty.h"
@@ -25,6 +26,7 @@
 #include "ps2/ps2_dirty.h"
 #include "ps2/ps2_cardman.h"
 #include "ps2/ps2_psram.h"
+#include "ps2/ps2_exploit.h"
 
 /* reboot to bootloader if either button is held on startup
    to make the device easier to flash when assembled inside case */
@@ -116,11 +118,15 @@ int main() {
 
         multicore_launch_core1(ps2_memory_card_main);
 
+        if (settings_get_ps2_autoboot())
+            ps2_memory_card_enter_flash();
+
         printf("Starting memory card... ");
         uint64_t start = time_us_64();
         gui_do_ps2_card_switch();
         uint64_t end = time_us_64();
         printf("DONE! (%d us)\n", (int)(end - start));
+        printf("SD2PSX Version %s\n", sd2psx_version);
 
         while (1) {
             debug_task();

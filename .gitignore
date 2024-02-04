@@ -2,4 +2,3 @@ build
 .vscode
 keys.c
 .cache
-gamedbps*.dat

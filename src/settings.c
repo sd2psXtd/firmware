@@ -24,6 +24,7 @@ typedef struct {
 } settings_t;
 
 #define SETTINGS_VERSION_MAGIC (0xABCD0002)
+#define SETTINGS_FLAGS_AUTOBOOT (0b1)
 
 _Static_assert(sizeof(settings_t) == 16, "unexpected padding in the settings structure");
 
@@ -64,10 +65,14 @@ void settings_update_part(void *settings_ptr, uint32_t sz) {
 #define SETTINGS_UPDATE_FIELD(field) settings_update_part(&settings.field, sizeof(settings.field))
 
 int settings_get_ps2_card(void) {
+    if (settings.ps2_card < IDX_MIN)
+        return IDX_MIN;
     return settings.ps2_card;
 }
 
 int settings_get_ps2_channel(void) {
+    if (settings.ps2_channel < CHAN_MIN || settings.ps2_channel > CHAN_MAX)
+        return CHAN_MIN;
     return settings.ps2_channel;
 }
 
@@ -86,10 +91,14 @@ void settings_set_ps2_channel(int chan) {
 }
 
 int settings_get_ps1_card(void) {
+    if (settings.ps1_card < IDX_MIN)
+        return IDX_MIN;
     return settings.ps1_card;
 }
 
 int settings_get_ps1_channel(void) {
+    if (settings.ps1_channel < CHAN_MIN || settings.ps1_channel > CHAN_MAX)
+        return CHAN_MIN;
     return settings.ps1_channel;
 }
 
@@ -121,4 +130,14 @@ void settings_set_mode(int mode) {
         settings.sys_flags |= mode;
         SETTINGS_UPDATE_FIELD(sys_flags);
     }
+}
+
+bool settings_get_ps2_autoboot(void) {
+    return (settings.ps2_flags & SETTINGS_FLAGS_AUTOBOOT);
+}
+
+void settings_set_ps2_autoboot(bool autoboot) {
+    if (autoboot != settings_get_ps2_autoboot())
+        settings.ps2_flags ^= SETTINGS_FLAGS_AUTOBOOT;
+    SETTINGS_UPDATE_FIELD(ps2_flags);
 }

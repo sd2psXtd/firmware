@@ -8,18 +8,15 @@ set(CMAKE_C_STANDARD 11)
 set(CMAKE_CXX_STANDARD 17)
 # set(PICO_COPY_TO_RAM 1)
 
-if (CMAKE_C_BYTE_ORDER EQUAL BIG_ENDIAN)
-    add_compile_definitions("-DBIG_ENDIAN")
-endif()
-
 pico_sdk_init()
 
 set(LV_CONF_PATH ${CMAKE_CURRENT_SOURCE_DIR}/src/lv_conf.h CACHE STRING "" FORCE)
 add_subdirectory(ext/lvgl EXCLUDE_FROM_ALL)
 
 add_subdirectory(database)
+add_subdirectory(ps2boot)
+add_subdirectory(src/version)
 
-                
 add_executable(sd2psx
     src/main.c
     src/debug.c
@@ -44,6 +41,7 @@ add_executable(sd2psx
     src/ps2/ps2_cardman.c
     src/ps2/ps2_pio_qspi.c
     src/ps2/ps2_psram.c
+    src/ps2/ps2_exploit.c
 
     src/wear_leveling/wear_leveling.c
     src/wear_leveling/wear_leveling_rp2040_flash.c
@@ -130,9 +128,11 @@ target_link_libraries(sd2psx
     hardware_dma
     lvgl::lvgl
     gamedb
+    ps2boot
+    sd2psx_version
 )
 
-add_dependencies(sd2psx gamedb)
+add_dependencies(sd2psx gamedb ps2boot)
 set_target_properties(sd2psx PROPERTIES PICO_TARGET_LINKER_SCRIPT ${CMAKE_SOURCE_DIR}/memmap_custom.ld)
 
 pico_add_extra_outputs(sd2psx)

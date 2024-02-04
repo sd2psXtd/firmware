@@ -74,7 +74,7 @@ def createGameList(name_to_serials):
 import xml.etree.ElementTree as ET
 import re
 
-def createDbFile(rootdir):
+def createDbFile(rootdir, outputdir):
     dirname = rootdir.split("/")[-1]
     if len(dirname) < 1:
         dirname = rootdir.split("/")[-2]
@@ -129,7 +129,7 @@ def createDbFile(rootdir):
         game_name_to_offset[gamename] = offset
         offset = offset + len(gamename) + 1
 
-    with open("gamedb{}.dat".format(dirname), "wb") as out:
+    with open("{}/gamedb{}.dat".format(outputdir, dirname), "wb") as out:
         # First: write prefix Indices in the format 
         # 4 Byte: Index Chars, padded with ws in the end
         # 4 Byte: Index Offset within dat
@@ -174,8 +174,9 @@ def downloadDat(path):
 import argparse
 parser = argparse.ArgumentParser()
 parser.add_argument("dirname")
+parser.add_argument("outputdir")
 args = parser.parse_args()
 
 downloadDat(args.dirname)
 
-createDbFile(args.dirname)
+createDbFile(args.dirname, args.outputdir)
