@@ -42,6 +42,9 @@ add_executable(sd2psx
     src/ps2/ps2_pio_qspi.c
     src/ps2/ps2_psram.c
     src/ps2/ps2_exploit.c
+    src/ps2/ps2_history_tracker.c
+
+    src/game_names/game_names.c
 
     src/wear_leveling/wear_leveling.c
     src/wear_leveling/wear_leveling_rp2040_flash.c
