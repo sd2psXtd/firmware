@@ -12,6 +12,7 @@ pico_sdk_init()
 
 set(LV_CONF_PATH ${CMAKE_CURRENT_SOURCE_DIR}/src/lv_conf.h CACHE STRING "" FORCE)
 add_subdirectory(ext/lvgl EXCLUDE_FROM_ALL)
+add_subdirectory(ext/mcfat)
 
 add_subdirectory(database)
 add_subdirectory(ps2boot)
@@ -134,6 +135,7 @@ target_link_libraries(sd2psx
     gamedb
     ps2boot
     sd2psx_version
+    mcfat
 )
 
 add_dependencies(sd2psx gamedb ps2boot)
