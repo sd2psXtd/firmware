@@ -83,7 +83,7 @@ void __time_critical_func(generateResponse)() {
     doubleDesEncrypt(key, CardResponse3);
 }
 
-inline __attribute__((always_inline)) void ps2_mc_auth_probe(void) {
+inline __attribute__((always_inline)) void __time_critical_func(ps2_mc_auth_probe)(void) {
     uint8_t _;
     /* probe support ? */
     mc_respond(0x2B);
@@ -91,7 +91,7 @@ inline __attribute__((always_inline)) void ps2_mc_auth_probe(void) {
     mc_respond(term);
 }
 
-inline __attribute__((always_inline)) void ps2_mc_auth_getIv(void) {
+inline __attribute__((always_inline)) void __time_critical_func(ps2_mc_auth_getIv)(void) {
     uint8_t _;
     debug_printf("iv : %02X %02X %02X %02X %02X %02X %02X %02X\n", ARG8(iv));
 
@@ -119,7 +119,7 @@ inline __attribute__((always_inline)) void ps2_mc_auth_getIv(void) {
     mc_respond(term);
 }
 
-inline __attribute__((always_inline)) void ps2_mc_auth_getSeed(void) {
+inline __attribute__((always_inline)) void __time_critical_func(ps2_mc_auth_getSeed)(void) {
     uint8_t _;
     debug_printf("seed : %02X %02X %02X %02X %02X %02X %02X %02X\n", ARG8(seed));
 
@@ -147,7 +147,7 @@ inline __attribute__((always_inline)) void ps2_mc_auth_getSeed(void) {
     mc_respond(term);
 }
 
-inline __attribute__((always_inline)) void ps2_mc_auth_dummy3(void) {
+inline __attribute__((always_inline)) void __time_critical_func(ps2_mc_auth_dummy3)(void) {
     uint8_t _;
     /* dummy 3 */
     mc_respond(0x2B);
@@ -155,7 +155,7 @@ inline __attribute__((always_inline)) void ps2_mc_auth_dummy3(void) {
     mc_respond(term);
 }
 
-inline __attribute__((always_inline)) void ps2_mc_auth_getNonce(void) {
+inline __attribute__((always_inline)) void __time_critical_func(ps2_mc_auth_getNonce)(void) {
     uint8_t _;
     debug_printf("nonce : %02X %02X %02X %02X %02X %02X %02X %02X\n", ARG8(nonce));
 
@@ -183,7 +183,7 @@ inline __attribute__((always_inline)) void ps2_mc_auth_getNonce(void) {
     mc_respond(term);
 }
 
-inline __attribute__((always_inline)) void ps2_mc_auth_dummy5(void) {
+inline __attribute__((always_inline)) void __time_critical_func(ps2_mc_auth_dummy5)(void) {
     uint8_t _;
     /* dummy 5 */
     mc_respond(0x2B);
@@ -191,7 +191,7 @@ inline __attribute__((always_inline)) void ps2_mc_auth_dummy5(void) {
     mc_respond(term);
 }
 
-inline __attribute__((always_inline)) void ps2_mc_auth_mechaChallenge3(void) {
+inline __attribute__((always_inline)) void __time_critical_func(ps2_mc_auth_mechaChallenge3)(void) {
     uint8_t _;
     /* MechaChallenge3 */
     mc_respond(0xFF);
@@ -220,7 +220,7 @@ inline __attribute__((always_inline)) void ps2_mc_auth_mechaChallenge3(void) {
     debug_printf("MechaChallenge3 : %02X %02X %02X %02X %02X %02X %02X %02X\n", ARG8(MechaChallenge3));
 }
 
-inline __attribute__((always_inline)) void ps2_mc_auth_mechaChallenge2(void) {
+inline __attribute__((always_inline)) void __time_critical_func(ps2_mc_auth_mechaChallenge2)(void) {
     uint8_t _ = 0U;
     /* MechaChallenge2 */
     mc_respond(0xFF);
@@ -249,7 +249,7 @@ inline __attribute__((always_inline)) void ps2_mc_auth_mechaChallenge2(void) {
     debug_printf("MechaChallenge2 : %02X %02X %02X %02X %02X %02X %02X %02X\n", ARG8(MechaChallenge2));
 }
 
-inline __attribute__((always_inline)) void ps2_mc_auth_dummy8(void) {
+inline __attribute__((always_inline)) void __time_critical_func(ps2_mc_auth_dummy8)(void) {
     uint8_t _ = 0U;
     /* dummy 8 */
     mc_respond(0x2B);
@@ -257,7 +257,7 @@ inline __attribute__((always_inline)) void ps2_mc_auth_dummy8(void) {
     mc_respond(term);
 }
 
-inline __attribute__((always_inline)) void ps2_mc_auth_dummy9(void) {
+inline __attribute__((always_inline)) void __time_critical_func(ps2_mc_auth_dummy9)(void) {
     uint8_t _ = 0U;
     /* dummy 9 */
     mc_respond(0x2B);
@@ -265,7 +265,7 @@ inline __attribute__((always_inline)) void ps2_mc_auth_dummy9(void) {
     mc_respond(term);
 }
 
-inline __attribute__((always_inline)) void ps2_mc_auth_dummyA(void) {
+inline __attribute__((always_inline)) void __time_critical_func(ps2_mc_auth_dummyA)(void) {
     uint8_t _ = 0U;
     /* dummy A */
     mc_respond(0x2B);
@@ -273,7 +273,7 @@ inline __attribute__((always_inline)) void ps2_mc_auth_dummyA(void) {
     mc_respond(term);
 }
 
-inline __attribute__((always_inline)) void ps2_mc_auth_mechaChallenge1(void) {
+inline __attribute__((always_inline)) void __time_critical_func(ps2_mc_auth_mechaChallenge1)(void) {
     uint8_t _ = 0;
     /* MechaChallenge1 */
     mc_respond(0xFF);
@@ -302,7 +302,7 @@ inline __attribute__((always_inline)) void ps2_mc_auth_mechaChallenge1(void) {
     debug_printf("MechaChallenge1 : %02X %02X %02X %02X %02X %02X %02X %02X\n", ARG8(MechaChallenge1));
 }
 
-inline __attribute__((always_inline)) void ps2_mc_auth_dummyC(void) {
+inline __attribute__((always_inline)) void __time_critical_func(ps2_mc_auth_dummyC)(void) {
     uint8_t _ = 0;
     /* dummy C */
     mc_respond(0x2B);
@@ -310,7 +310,7 @@ inline __attribute__((always_inline)) void ps2_mc_auth_dummyC(void) {
     mc_respond(term);
 }
 
-inline __attribute__((always_inline)) void ps2_mc_auth_dummyD(void) {
+inline __attribute__((always_inline)) void __time_critical_func(ps2_mc_auth_dummyD)(void) {
     uint8_t _ = 0;
     /* dummy D */
     mc_respond(0x2B);
@@ -318,7 +318,7 @@ inline __attribute__((always_inline)) void ps2_mc_auth_dummyD(void) {
     mc_respond(term);
 }
 
-inline __attribute__((always_inline)) void ps2_mc_auth_dummyE(void) {
+inline __attribute__((always_inline)) void __time_critical_func(ps2_mc_auth_dummyE)(void) {
     uint8_t _ = 0;
     /* dummy E */
     generateResponse();
@@ -330,7 +330,7 @@ inline __attribute__((always_inline)) void ps2_mc_auth_dummyE(void) {
     mc_respond(term);
 }
 
-inline __attribute__((always_inline)) void ps2_mc_auth_cardResponse1(void) {
+inline __attribute__((always_inline)) void __time_critical_func(ps2_mc_auth_cardResponse1)(void) {
     uint8_t _ = 0;
     /* CardResponse1 */
     mc_respond(0x2B);
@@ -356,7 +356,7 @@ inline __attribute__((always_inline)) void ps2_mc_auth_cardResponse1(void) {
     mc_respond(term);
 }
 
-inline __attribute__((always_inline)) void ps2_mc_auth_dummy10(void) {
+inline __attribute__((always_inline)) void __time_critical_func(ps2_mc_auth_dummy10)(void) {
     uint8_t _ = 0;
     /* dummy 10 */
     mc_respond(0x2B);
@@ -364,7 +364,7 @@ inline __attribute__((always_inline)) void ps2_mc_auth_dummy10(void) {
     mc_respond(term);
 }
 
-inline __attribute__((always_inline)) void ps2_mc_auth_cardResponse2(void) {
+inline __attribute__((always_inline)) void __time_critical_func(ps2_mc_auth_cardResponse2)(void) {
     uint8_t _ = 0;
     /* CardResponse2 */
     mc_respond(0x2B);
@@ -390,7 +390,7 @@ inline __attribute__((always_inline)) void ps2_mc_auth_cardResponse2(void) {
     mc_respond(term);
 }
 
-inline __attribute__((always_inline)) void ps2_mc_auth_dummy12(void) {
+inline __attribute__((always_inline)) void __time_critical_func(ps2_mc_auth_dummy12)(void) {
     uint8_t _ = 0;
     /* dummy 12 */
     mc_respond(0x2B);
@@ -398,7 +398,7 @@ inline __attribute__((always_inline)) void ps2_mc_auth_dummy12(void) {
     mc_respond(term);
 }
 
-inline __attribute__((always_inline)) void ps2_mc_auth_cardResponse3(void) {
+inline __attribute__((always_inline)) void __time_critical_func(ps2_mc_auth_cardResponse3)(void) {
     uint8_t _ = 0;
     /* CardResponse3 */
     mc_respond(0x2B);
@@ -424,7 +424,7 @@ inline __attribute__((always_inline)) void ps2_mc_auth_cardResponse3(void) {
     mc_respond(term);
 }
 
-inline __attribute__((always_inline)) void ps2_mc_auth_dummy14(void) {
+inline __attribute__((always_inline)) void __time_critical_func(ps2_mc_auth_dummy14)(void) {
     uint8_t _ = 0;
     /* dummy 14 */
     mc_respond(0x2B);
@@ -432,7 +432,7 @@ inline __attribute__((always_inline)) void ps2_mc_auth_dummy14(void) {
     mc_respond(term);
 }
 
-inline __attribute__((always_inline)) void ps2_mc_sessionKeyEncr(void) {
+inline __attribute__((always_inline)) void __time_critical_func(ps2_mc_sessionKeyEncr)(void) {
     uint8_t _ = 0;
     uint8_t subcmd = 0;
     /* session key encrypt */
@@ -470,7 +470,7 @@ inline __attribute__((always_inline)) void ps2_mc_sessionKeyEncr(void) {
     }
 }
 
-inline __attribute__((always_inline)) void ps2_mc_auth(void) {
+inline __attribute__((always_inline)) void __time_critical_func(ps2_mc_auth)(void) {
     uint8_t subcmd = 0;
     mc_respond(0xFF);
 

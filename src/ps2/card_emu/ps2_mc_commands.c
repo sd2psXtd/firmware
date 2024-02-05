@@ -8,6 +8,9 @@
 #include "ps2_dirty.h"
 #include "ps2_mc_internal.h"
 #include "ps2_pio_qspi.h"
+#include "debug.h"
+
+#define DEBUG_MC_PROTOCOL
 
 uint32_t read_sector, write_sector, erase_sector;
 struct {
@@ -19,21 +22,21 @@ int is_write, is_dma_read;
 uint32_t readptr, writeptr;
 uint8_t *eccptr;
 
-inline __attribute__((always_inline)) void ps2_mc_cmd_0x11(void) {
+inline __attribute__((always_inline)) void __time_critical_func(ps2_mc_cmd_0x11)(void) {
     uint8_t _ = 0U;
     mc_respond(0x2B);
     receiveOrNextCmd(&_);
     mc_respond(term);
 }
 
-inline __attribute__((always_inline)) void ps2_mc_cmd_0x12(void) {
+inline __attribute__((always_inline)) void __time_critical_func(ps2_mc_cmd_0x12)(void) {
     uint8_t _ = 0U;
     mc_respond(0x2B);
     receiveOrNextCmd(&_);
     mc_respond(term);
 }
 
-inline __attribute__((always_inline)) void ps2_mc_cmd_setEraseAddress(void) {
+inline __attribute__((always_inline)) void __time_critical_func(ps2_mc_cmd_setEraseAddress)(void) {
     uint8_t _ = 0;
     /* set address for erase */
     union {
@@ -58,7 +61,7 @@ inline __attribute__((always_inline)) void ps2_mc_cmd_setEraseAddress(void) {
     mc_respond(term);
 }
 
-inline __attribute__((always_inline)) void ps2_mc_cmd_setWriteAddress(void) {
+inline __attribute__((always_inline)) void __time_critical_func(ps2_mc_cmd_setWriteAddress)(void) {
     uint8_t _ = 0;
     /* set address for write */
     union {
@@ -85,7 +88,7 @@ inline __attribute__((always_inline)) void ps2_mc_cmd_setWriteAddress(void) {
     mc_respond(term);
 }
 
-inline __attribute__((always_inline)) void ps2_mc_cmd_setReadAddress(void) {
+inline __attribute__((always_inline)) void __time_critical_func(ps2_mc_cmd_setReadAddress)(void) {
     uint8_t _ = 0U;
     /* set address for read */
     union {
@@ -123,7 +126,7 @@ inline __attribute__((always_inline)) void ps2_mc_cmd_setReadAddress(void) {
     mc_respond(term);
 }
 
-inline __attribute__((always_inline)) void ps2_mc_cmd_getSpecs(void) {
+inline __attribute__((always_inline)) void __time_critical_func(ps2_mc_cmd_getSpecs)(void) {
     uint8_t _ = 0;
     /* GET_SPECS ? */
     mc_respond(0x2B);
@@ -157,7 +160,7 @@ inline __attribute__((always_inline)) void ps2_mc_cmd_getSpecs(void) {
     mc_respond(term);
 }
 
-inline __attribute__((always_inline)) void ps2_mc_cmd_setTerminator(void) {
+inline __attribute__((always_inline)) void __time_critical_func(ps2_mc_cmd_setTerminator)(void) {
     uint8_t _ = 0U;
     /* SET_TERMINATOR */
     mc_respond(0xFF);
@@ -167,7 +170,7 @@ inline __attribute__((always_inline)) void ps2_mc_cmd_setTerminator(void) {
     mc_respond(term);
 }
 
-inline __attribute__((always_inline)) void ps2_mc_cmd_getTerminator(void) {
+inline __attribute__((always_inline)) void __time_critical_func(ps2_mc_cmd_getTerminator)(void) {
     uint8_t _ = 0U;
     /* GET_TERMINATOR */
     mc_respond(0x2B);
@@ -177,7 +180,7 @@ inline __attribute__((always_inline)) void ps2_mc_cmd_getTerminator(void) {
     mc_respond(term);
 }
 
-inline __attribute__((always_inline)) void ps2_mc_cmd_writeData(void) {
+inline __attribute__((always_inline)) void __time_critical_func(ps2_mc_cmd_writeData)(void) {
     uint8_t ck2 = 0U;
     uint8_t _ = 0U;
     /* write data */
@@ -187,7 +190,7 @@ inline __attribute__((always_inline)) void ps2_mc_cmd_writeData(void) {
     mc_respond(0xFF);
 
 #ifdef DEBUG_MC_PROTOCOL
-    debug_printf("> %02X %02X\n", ch, sz);
+    debug_printf("> %02X %02X\n", _, sz);
 #endif
 
     uint8_t ck = 0;
@@ -211,7 +214,7 @@ inline __attribute__((always_inline)) void ps2_mc_cmd_writeData(void) {
     mc_respond(term);
 }
 
-inline __attribute__((always_inline)) void ps2_mc_cmd_readData(void) {
+inline __attribute__((always_inline)) void __time_critical_func(ps2_mc_cmd_readData)(void) {
     uint8_t _ = 0U;
     /* read data */
     uint8_t sz;
@@ -221,7 +224,7 @@ inline __attribute__((always_inline)) void ps2_mc_cmd_readData(void) {
     receiveOrNextCmd(&_);
 
 #ifdef DEBUG_MC_PROTOCOL
-    debug_printf("> %02X %02X\n", ch, sz);
+    debug_printf("> %02X %02X\n", _, sz);
 #endif
 
     uint8_t ck = 0;
@@ -287,7 +290,7 @@ inline __attribute__((always_inline)) void ps2_mc_cmd_readData(void) {
     mc_respond(term);
 }
 
-inline __attribute__((always_inline)) void ps2_mc_cmd_commitData(void) {
+inline __attribute__((always_inline)) void __time_critical_func(ps2_mc_cmd_commitData)(void) {
     uint8_t _ = 0;
     /* commit for read/write? */
     if (is_write) {
@@ -315,7 +318,7 @@ inline __attribute__((always_inline)) void ps2_mc_cmd_commitData(void) {
     mc_respond(term);
 }
 
-inline __attribute__((always_inline)) void ps2_mc_cmd_erase(void) {
+inline __attribute__((always_inline)) void __time_critical_func(ps2_mc_cmd_erase(void)) {
     uint8_t _ = 0U;
     /* do erase */
     if (erase_sector * 512 + 512 * ERASE_SECTORS <= ps2_cardman_get_card_size()) {
@@ -336,7 +339,7 @@ inline __attribute__((always_inline)) void ps2_mc_cmd_erase(void) {
     mc_respond(term);
 }
 
-inline __attribute__((always_inline)) void ps2_mc_cmd_0xBF(void) {
+inline __attribute__((always_inline)) void __time_critical_func(ps2_mc_cmd_0xBF)(void) {
     uint8_t _ = 0U;
     mc_respond(0xFF);
     receiveOrNextCmd(&_);
@@ -345,7 +348,7 @@ inline __attribute__((always_inline)) void ps2_mc_cmd_0xBF(void) {
     mc_respond(term);
 }
 
-inline __attribute__((always_inline)) void ps2_mc_cmd_0xF3(void) {
+inline __attribute__((always_inline)) void __time_critical_func(ps2_mc_cmd_0xF3)(void) {
     uint8_t _ = 0U;
     mc_respond(0xFF);
     receiveOrNextCmd(&_);
@@ -354,7 +357,7 @@ inline __attribute__((always_inline)) void ps2_mc_cmd_0xF3(void) {
     mc_respond(term);
 }
 
-inline __attribute__((always_inline)) void ps2_mc_cmd_keySelect(
+inline __attribute__((always_inline)) void __time_critical_func(ps2_mc_cmd_keySelect)(
     void) {  // TODO: it fails to get detected at all when ps2_magicgate==0, check if it's intentional
     uint8_t _ = 0U;
     /* SIO_MEMCARD_KEY_SELECT */

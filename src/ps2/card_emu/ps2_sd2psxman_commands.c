@@ -10,7 +10,7 @@
 
 #include "debug.h"
 
-inline __attribute__((always_inline)) void ps2_sd2psxman_cmds_ping(void)
+inline __attribute__((always_inline)) void __time_critical_func(ps2_sd2psxman_cmds_ping)(void)
 {
     uint8_t cmd;
     mc_respond(0x0); receiveOrNextCmd(&cmd); //reserved byte
@@ -21,14 +21,14 @@ inline __attribute__((always_inline)) void ps2_sd2psxman_cmds_ping(void)
     debug_printf("received SD2PSXMAN_PING\n");
 }
 
-inline __attribute__((always_inline)) void ps2_sd2psxman_cmds_get_status(void)
+inline __attribute__((always_inline)) void __time_critical_func(ps2_sd2psxman_cmds_get_status)(void)
 {
     uint8_t cmd;
     //TODO
     debug_printf("received SD2PSXMAN_GET_STATUS\n");
 }
 
-inline __attribute__((always_inline)) void ps2_sd2psxman_cmds_get_card(void)
+inline __attribute__((always_inline)) void __time_critical_func(ps2_sd2psxman_cmds_get_card)(void)
 {
     uint8_t cmd;
     int card = ps2_cardman_get_idx();
@@ -39,7 +39,7 @@ inline __attribute__((always_inline)) void ps2_sd2psxman_cmds_get_card(void)
     debug_printf("received SD2PSXMAN_GET_CARD\n");
 }
 
-inline __attribute__((always_inline)) void ps2_sd2psxman_cmds_set_card(void)
+inline __attribute__((always_inline)) void __time_critical_func(ps2_sd2psxman_cmds_set_card)(void)
 {
     uint8_t cmd;
     mc_respond(0x0); receiveOrNextCmd(&cmd); //reserved byte
@@ -56,7 +56,7 @@ inline __attribute__((always_inline)) void ps2_sd2psxman_cmds_set_card(void)
     sd2psxman_cmd = SD2PSXMAN_SET_CARD;  //set after setting mode and cnum
 }
 
-inline __attribute__((always_inline)) void ps2_sd2psxman_cmds_get_channel(void)
+inline __attribute__((always_inline)) void __time_critical_func(ps2_sd2psxman_cmds_get_channel)(void)
 {
     uint8_t cmd;
     int chan = ps2_cardman_get_channel();
@@ -67,7 +67,7 @@ inline __attribute__((always_inline)) void ps2_sd2psxman_cmds_get_channel(void)
     debug_printf("received SD2PSXMAN_GET_CHANNEL\n");
 }
 
-inline __attribute__((always_inline)) void ps2_sd2psxman_cmds_set_channel(void)
+inline __attribute__((always_inline)) void __time_critical_func(ps2_sd2psxman_cmds_set_channel)(void)
 {
     uint8_t cmd;
     mc_respond(0x0); receiveOrNextCmd(&cmd); //reserved byte
@@ -84,7 +84,7 @@ inline __attribute__((always_inline)) void ps2_sd2psxman_cmds_set_channel(void)
     sd2psxman_cmd = SD2PSXMAN_SET_CHANNEL;  //set after setting mode and cnum
 }
 
-inline __attribute__((always_inline)) void ps2_sd2psxman_cmds_get_gameid(void)
+inline __attribute__((always_inline)) void __time_critical_func(ps2_sd2psxman_cmds_get_gameid)(void)
 {
     uint8_t cmd;
     uint8_t gameid_len = strlen(sd2psxman_gameid) + 1; //+1 null terminator
@@ -104,7 +104,7 @@ inline __attribute__((always_inline)) void ps2_sd2psxman_cmds_get_gameid(void)
     debug_printf("received SD2PSXMAN_GET_GAMEID\n");
 }
 
-inline __attribute__((always_inline)) void ps2_sd2psxman_cmds_set_gameid(void)
+inline __attribute__((always_inline)) void __time_critical_func(ps2_sd2psxman_cmds_set_gameid)(void)
 {
     uint8_t cmd;
     uint8_t gameid_len;
@@ -130,7 +130,7 @@ inline __attribute__((always_inline)) void ps2_sd2psxman_cmds_set_gameid(void)
     debug_printf("received SD2PSXMAN_SET_GAMEID len %i, id: %s\n", gameid_len, sanitized_game_id);
 }
 
-inline __attribute__((always_inline)) void ps2_sd2psxman_cmds_unmount_bootcard(void)
+inline __attribute__((always_inline)) void __time_critical_func(ps2_sd2psxman_cmds_unmount_bootcard)(void)
 {
     uint8_t cmd;
     mc_respond(0x0); receiveOrNextCmd(&cmd); //reserved byte
