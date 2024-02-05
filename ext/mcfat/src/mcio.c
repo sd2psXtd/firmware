@@ -38,8 +38,8 @@
 #define sceMcTypePS2			2
 #define sceMcTypePDA			3
 
-char SUPERBLOCK_MAGIC[]   = "Sony PS2 Memory Card Format ";
-char SUPERBLOCK_VERSION[] = "1.2.0.0";
+const char SUPERBLOCK_MAGIC[]   = "Sony PS2 Memory Card Format ";
+const char SUPERBLOCK_VERSION[] = "1.2.0.0";
 
 
 struct MCDevInfo {			/* size = 384 */
