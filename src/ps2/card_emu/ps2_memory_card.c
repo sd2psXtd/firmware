@@ -5,6 +5,7 @@
 #include "hardware/gpio.h"
 #include "hardware/timer.h"
 #include "keystore.h"
+#include "pico/multicore.h"
 #include "pico/platform.h"
 #include "ps2_mc_auth.h"
 #include "ps2_mc_commands.h"
@@ -111,26 +112,32 @@ static void __time_critical_func(card_deselected)(uint gpio, uint32_t event_mask
     }
 }
 
-inline __attribute__((always_inline)) uint8_t receive(uint8_t *cmd) {
-    while (pio_sm_is_rx_fifo_empty(pio0, cmd_reader.sm) && pio_sm_is_rx_fifo_empty(pio0, cmd_reader.sm) && pio_sm_is_rx_fifo_empty(pio0, cmd_reader.sm) &&
-           pio_sm_is_rx_fifo_empty(pio0, cmd_reader.sm) && pio_sm_is_rx_fifo_empty(pio0, cmd_reader.sm) && 1) {
-        if (reset)
-            return RECEIVE_RESET;
+inline __attribute__((always_inline)) uint8_t __time_critical_func(receive)(uint8_t *cmd) {
+    do {
+        while (pio_sm_is_rx_fifo_empty(pio0, cmd_reader.sm) && pio_sm_is_rx_fifo_empty(pio0, cmd_reader.sm) && pio_sm_is_rx_fifo_empty(pio0, cmd_reader.sm) &&
+            pio_sm_is_rx_fifo_empty(pio0, cmd_reader.sm) && pio_sm_is_rx_fifo_empty(pio0, cmd_reader.sm) && 1) {
+            if (reset)
+                return RECEIVE_RESET;
+        }
+        (*cmd) = (pio_sm_get(pio0, cmd_reader.sm) >> 24);
+        return RECEIVE_OK;
     }
-    (*cmd) = (pio_sm_get(pio0, cmd_reader.sm) >> 24);
-    return RECEIVE_OK;
+    while (0);
 }
 
-inline __attribute__((always_inline)) uint8_t receiveFirst(uint8_t *cmd) {
-    while (pio_sm_is_rx_fifo_empty(pio0, cmd_reader.sm) && pio_sm_is_rx_fifo_empty(pio0, cmd_reader.sm) && pio_sm_is_rx_fifo_empty(pio0, cmd_reader.sm) &&
-           pio_sm_is_rx_fifo_empty(pio0, cmd_reader.sm) && pio_sm_is_rx_fifo_empty(pio0, cmd_reader.sm) && 1) {
-        if (reset)
-            return RECEIVE_RESET;
-        if (mc_exit_request)
-            return RECEIVE_EXIT;
+inline __attribute__((always_inline)) uint8_t __time_critical_func(receiveFirst)(uint8_t *cmd) {
+    do {
+        while (pio_sm_is_rx_fifo_empty(pio0, cmd_reader.sm) && pio_sm_is_rx_fifo_empty(pio0, cmd_reader.sm) && pio_sm_is_rx_fifo_empty(pio0, cmd_reader.sm) &&
+            pio_sm_is_rx_fifo_empty(pio0, cmd_reader.sm) && pio_sm_is_rx_fifo_empty(pio0, cmd_reader.sm) && 1) {
+            if (reset)
+                return RECEIVE_RESET;
+            if (mc_exit_request)
+                return RECEIVE_EXIT;
+        }
+        (*cmd) = (pio_sm_get(pio0, cmd_reader.sm) >> 24);
+        return RECEIVE_OK;
     }
-    (*cmd) = (pio_sm_get(pio0, cmd_reader.sm) >> 24);
-    return RECEIVE_OK;
+    while (0);
 }
 
 inline void __time_critical_func(mc_respond)(uint8_t ch) {
@@ -191,7 +198,6 @@ static void __time_critical_func(mc_main_loop)(void) {
 
         if (received == RECEIVE_EXIT) {
             mc_exit_response = 1;
-            printf("Received EXIT\n");
             break;
         }
         if (received == RECEIVE_RESET)
@@ -203,6 +209,8 @@ static void __time_critical_func(mc_main_loop)(void) {
 
             /* sub cmd */
             receiveOrNextCmd(&cmd);
+
+            debug_printf(">> 0x81 - 0x%02x\n", cmd);
 
             switch (cmd) {
                 case PS2_SIO2_CMD_0x11: ps2_mc_cmd_0x11(); break;
@@ -226,7 +234,7 @@ static void __time_critical_func(mc_main_loop)(void) {
                     break;
                 case PS2_SIO2_CMD_SESSION_KEY_0:
                 case PS2_SIO2_CMD_SESSION_KEY_1: ps2_mc_sessionKeyEncr(); break;
-                default: debug_printf("Unknown Subcommand: %02x\n", cmd); break;
+                default: /*debug_printf("Unknown Subcommand: %02x\n", cmd); */break;
             }
         } else if (cmd == PS2_SD2PSXMAN_CMD_IDENTIFIER) {
             /* resp to 0x8B */
@@ -313,6 +321,7 @@ static void my_gpio_set_irq_enabled_with_callback(uint gpio, uint32_t events, bo
 }
 
 void ps2_memory_card_main(void) {
+    multicore_lockout_victim_init();
     init_pio();
     generateIvSeedNonce();
 

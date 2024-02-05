@@ -5,6 +5,7 @@
 #include <string.h>
 #include "hardware/regs/addressmap.h"
 #include "hardware/flash.h"
+#include "pico/multicore.h"
 
 #include "flashmap.h"
 #include "sd.h"
@@ -69,8 +70,10 @@ int keystore_deploy(void) {
         chkbuf[i + 8] = ~chkbuf[i];
 
     if (memcmp(chkbuf, (uint8_t*)XIP_BASE + FLASH_OFF_CIV, sizeof(chkbuf)) != 0) {
+        multicore_lockout_start_blocking();
         flash_range_erase(FLASH_OFF_CIV, 4096);
         flash_range_program(FLASH_OFF_CIV, chkbuf, sizeof(chkbuf));
+        multicore_lockout_end_blocking();
     } else {
         printf("keystore - skipping CIV flash because data is unchanged\n");
     }

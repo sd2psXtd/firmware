@@ -10,6 +10,8 @@ set(CMAKE_CXX_STANDARD 17)
 
 pico_sdk_init()
 
+add_compile_definitions(PICO_FLASH_SIZE_BYTES=16777216)
+
 # Add all subdirectories for sub-targets
 
 add_subdirectory(database)
@@ -24,18 +26,18 @@ add_subdirectory(ext/)
 add_executable(sd2psx
     src/main.c
 
-    src/game_names/game_names.c
-    src/wear_leveling/wear_leveling.c
-    src/wear_leveling/wear_leveling_rp2040_flash.c
+src/game_names/game_names.c
+src/wear_leveling/wear_leveling.c
+src/wear_leveling/wear_leveling_rp2040_flash.c
 
-    ext/fnv/hash_64a.c
+ext/fnv/hash_64a.c
 )
 
 target_compile_definitions(
     sd2psx PUBLIC
     PICO_XOSC_STARTUP_DELAY_MULTIPLIER=64
-    PICO_FLASH_SIZE_BYTES=16777216
 )
+
 
 target_include_directories(sd2psx PUBLIC
     ext/fnv
@@ -85,7 +87,8 @@ target_link_libraries(sd2psx_common
                     PRIVATE 
                         pico_platform_headers
                         ssd1306
-                        hardware_flash)
+                        hardware_flash
+                        pico_multicore)
 
 target_compile_options(sd2psx_common
                         PUBLIC
