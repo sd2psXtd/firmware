@@ -55,6 +55,7 @@ int mcio_mcClose(int fd);
 int mcio_mcRead(int fd, void *buf, int length);
 int mcio_mcWrite(int fd, void *buf, int length);
 int mcio_mcSeek(int fd, int offset, int origin);
+int mcio_mcGetCluster(int fd);
 int mcio_mcCreateCrossLinkedFile(char *real_filename, char *dummy_filename);
 int mcio_mcDopen(char *dirname);
 int mcio_mcDclose(int fd);

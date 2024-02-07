@@ -2998,6 +2998,7 @@ int mcio_init(void)
     Card_InitCache();
 
     r = mcio_mcDetect();
+    mcfat_cardchanged = false;
     if (r == sceMcResChangedCard)
         return sceMcResSucceed;
 
@@ -3186,6 +3187,38 @@ int mcio_mcSeek(int fd, int offset, int origin)
     }
 
     return fh->position = (r < 0) ? 0 : r;
+}
+
+int mcio_mcGetCluster(int fd)
+{
+    register int r;
+    struct MCFHandle *fh;
+
+    if (!(fd < MAX_FDHANDLES))
+        return sceMcResDeniedPermit;
+
+    fh = (struct MCFHandle *)&mcio_fdhandles[fd];
+    if (!fh->status)
+        return sceMcResDeniedPermit;
+
+    if (!fh->rdflag)
+        return sceMcResDeniedPermit;
+
+    r = mcio_mcDetect();
+    if (r != sceMcResSucceed)
+        return r;
+
+    r = Card_GetDirEntryCluster(fh->cluster, fh->fsindex);
+    if (r < 0) {
+        fh->status = 0;
+    }
+
+    if (r < -9) {
+        Card_InvFileHandles();
+        Card_ClearCache();
+    }
+
+    return r;
 }
 
 int mcio_mcCreateCrossLinkedFile(char *real_filepath, char *dummy_filepath)

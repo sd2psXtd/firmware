@@ -1,4 +1,5 @@
 #include "ps2_dirty.h"
+#include "history_tracker/ps2_history_tracker.h"
 #include "ps2_psram.h"
 #include "ps2_cardman.h"
 
@@ -110,6 +111,7 @@ void ps2_dirty_task(void) {
             ps2_dirty_mark(sector);
             ps2_dirty_unlock();
         }
+        ps2_history_tracker_registerPageWrite(sector);
     }
     /* to make sure writes hit the storage medium */
     ps2_cardman_flush();
