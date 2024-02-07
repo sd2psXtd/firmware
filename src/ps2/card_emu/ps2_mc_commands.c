@@ -4,13 +4,14 @@
 #include <string.h>
 
 #include "hardware/dma.h"
+#include "history_tracker/ps2_history_tracker.h"
 #include "ps2_cardman.h"
 #include "ps2_dirty.h"
 #include "ps2_mc_internal.h"
 #include "ps2_pio_qspi.h"
 #include "debug.h"
 
-#define DEBUG_MC_PROTOCOL
+//#define DEBUG_MC_PROTOCOL
 
 uint32_t read_sector, write_sector, erase_sector;
 struct {

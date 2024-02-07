@@ -208,9 +208,8 @@ static void __time_critical_func(mc_main_loop)(void) {
             mc_respond(0xFF);
 
             /* sub cmd */
-            receiveOrNextCmd(&cmd);
-
-            debug_printf(">> 0x81 - 0x%02x\n", cmd);
+            if (receive(&cmd) == RECEIVE_RESET)
+                continue;
 
             switch (cmd) {
                 case PS2_SIO2_CMD_0x11: ps2_mc_cmd_0x11(); break;
@@ -234,7 +233,7 @@ static void __time_critical_func(mc_main_loop)(void) {
                     break;
                 case PS2_SIO2_CMD_SESSION_KEY_0:
                 case PS2_SIO2_CMD_SESSION_KEY_1: ps2_mc_sessionKeyEncr(); break;
-                default: /*debug_printf("Unknown Subcommand: %02x\n", cmd); */break;
+                default: debug_printf("Unknown Subcommand: %02x\n", cmd); break;
             }
         } else if (cmd == PS2_SD2PSXMAN_CMD_IDENTIFIER) {
             /* resp to 0x8B */
