@@ -9,6 +9,7 @@
 #include "ps2/ps2_cardman.h"
 
 #include "pico/platform.h"
+#include "ps2_dirty.h"
 
 volatile uint8_t sd2psxman_cmd;
 volatile uint8_t sd2psxman_mode;
@@ -16,10 +17,7 @@ volatile uint16_t sd2psxman_cnum;
 char sd2psxman_gameid[251] = {0x00};
 
 void ps2_sd2psxman_task(void) {
-    if (sd2psxman_cmd != 0) {
-        uint16_t prev_card = ps2_cardman_get_idx();
-        uint8_t prev_chan = ps2_cardman_get_channel();
-        ps2_cardman_state_t prev_state = ps2_cardman_get_state();
+    if ((sd2psxman_cmd != 0) && (!ps2_dirty_activity)) {
 
         switch (sd2psxman_cmd) {
             case SD2PSXMAN_SET_CARD:
@@ -61,15 +59,13 @@ void ps2_sd2psxman_task(void) {
             default: break;
         }
 
-        if (prev_card != ps2_cardman_get_idx() || prev_chan != ps2_cardman_get_channel() || (prev_state != ps2_cardman_get_state()) ||
-            (SD2PSXMAN_SET_GAMEID == sd2psxman_cmd)) {
+        if (ps2_cardman_needs_update()) {
             // close old card
             ps2_memory_card_exit();
             ps2_cardman_close();
 
             // open new card
             gui_do_ps2_card_switch();
-            // ps2_memory_card_enter();
             gui_request_refresh();
         }
 
