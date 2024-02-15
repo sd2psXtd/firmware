@@ -9,21 +9,23 @@
 
 #include "card_emu/ps2_sd2psxman.h"
 #include "card_emu/ps2_sd2psxman_commands.h"
+#include "hardware/timer.h"
 #include "mcfat.h"
 #include "mcio.h"
+#include "pico/platform.h"
 #include "pico/time.h"
 #include "pico/types.h"
 #include "ps2_cardman.h"
 #include "ps2_dirty.h"
 #include "ps2_psram.h"
 
-//#define USE_INJECT_LOGIC
+#define USE_INJECT_LOGIC
 
 #define HISTORY_FILE_SIZE           462
 #define HISTORY_ENTRY_COUNT         21
 #define HISTORY_ENTRY_SIZE          22
 #define HISTORY_ENTRY_POS_LAUNCH    16
-#define HISTORY_WRITE_HYST_US       3 * 1000 * 1000
+#define HISTORY_WRITE_HYST_US       2 * 1000 * 1000
 #define HISTORY_NUMBER_OF_REGIONS   4
 
 #define CHAR_CHINA              'C'
@@ -35,7 +37,7 @@
 
 static mcfat_cardspecs_t cardspecs;
 static mcfat_mcops_t mcOps;
-static uint64_t lastWrite = 0U;
+static uint64_t lastAccess = 0U;
 
 const char regionList[] = {CHAR_CHINA, CHAR_NORTHAMERICA, CHAR_EUROPE, CHAR_JAPAN};
 static uint8_t slotCount[HISTORY_NUMBER_OF_REGIONS][HISTORY_ENTRY_COUNT] = {};
@@ -96,8 +98,11 @@ static bool dirExists(char* dirname) {
 static void readSlots(uint8_t historyFile[HISTORY_FILE_SIZE], uint8_t slots[HISTORY_ENTRY_COUNT]) {
     for (int i = 0; i < HISTORY_ENTRY_COUNT; i++) {
         if (historyFile[i * HISTORY_ENTRY_SIZE]) {
-            slots[i] = historyFile[i * HISTORY_ENTRY_SIZE + HISTORY_ENTRY_POS_LAUNCH];
-            debug_printf("Found game %s with %d counts\n", (char*)&historyFile[i * HISTORY_ENTRY_SIZE],
+            //slots[i] = historyFile[i * HISTORY_ENTRY_SIZE + HISTORY_ENTRY_POS_LAUNCH];
+            for (int j = i * HISTORY_ENTRY_SIZE + HISTORY_ENTRY_POS_LAUNCH; j < (i+1) * HISTORY_ENTRY_SIZE; j++) {
+                slots[i] ^= historyFile[j];
+            }
+            debug_printf("Found game %s with %d XOR\n", (char*)&historyFile[i * HISTORY_ENTRY_SIZE],
                    historyFile[i * HISTORY_ENTRY_SIZE + HISTORY_ENTRY_POS_LAUNCH]);
         } else {
             slots[i] = 0;
@@ -112,6 +117,10 @@ void ps2_history_tracker_registerPageWrite(uint32_t page) {
             refreshRequired[i] = true;
         }
     }
+}
+
+void __time_critical_func(ps2_history_tracker_registerRead)(void) {
+    lastAccess = time_us_64();
 }
 
 void ps2_history_tracker_card_changed() {
@@ -142,7 +151,7 @@ void ps2_history_tracker_card_changed() {
                 mcio_mcClose(fh);
             }
         } else {
-            #ifdef USE_INJECT_LOGIC
+        #ifdef USE_INJECT_LOGIC
             debug_printf("Writing history to %s\n", filename);
             int flag = sceMcFileAttrWriteable | sceMcFileCreateFile;
             int fh = mcio_mcOpen(filename, flag);
@@ -150,10 +159,15 @@ void ps2_history_tracker_card_changed() {
             {
                 mcio_mcWrite(fh, (void*)buff, HISTORY_FILE_SIZE);
                 mcio_mcClose(fh);
+                fh = mcio_mcOpen(filename, sceMcFileAttrReadable);
+                fileCluster[i] = mcio_mcGetCluster(fh);
+                mcio_mcClose(fh);
+                debug_printf("Registering new Cluster %d\n", fileCluster[i]);
             } else {
                 debug_printf("File handle is %d\n", fh);
             }
-            #endif
+
+        #endif
             memset(slotCount[i], 0x00, HISTORY_ENTRY_COUNT);
         
         }
@@ -175,12 +189,11 @@ void ps2_history_tracker_init() {
 
 void ps2_history_tracker_run() {
     static bool prevDirty = false;
-    absolute_time_t time = get_absolute_time();
-    uint64_t micros = to_us_since_boot(time);
+    uint64_t micros = time_us_64();
     if (ps2_dirty_activity) {
         prevDirty = true;
-        lastWrite = micros;
-    } else if (prevDirty && ((micros - lastWrite)  > HISTORY_WRITE_HYST_US)) {
+        lastAccess = micros;
+    } else if (prevDirty && ((micros - lastAccess)  > HISTORY_WRITE_HYST_US)) {
         // If Writing to MC has just finished...
         uint8_t buff[HISTORY_FILE_SIZE] = {0x00};
         char filename[23] = {0x00};
@@ -215,20 +228,6 @@ void ps2_history_tracker_run() {
                 } else {
                     debug_printf("File exists, but handle returned %d\n", fh);
                 }
-            } else {
-                #ifdef USE_INJECT_LOGIC
-                debug_printf("Writing history to %s\n", filename);
-                int flag = sceMcFileAttrWriteable | sceMcFileCreateFile;
-                int dirsts = mcio_mcMkDir(dirname);
-                int fh = mcio_mcOpen(filename, flag);
-                if (fh >= 0)
-                {
-                    mcio_mcWrite(fh, (void*)buff, HISTORY_FILE_SIZE);
-                    mcio_mcClose(fh);
-                } else {
-                    debug_printf("File handle is %d, dir status is %d\n", fh, dirsts);
-                }
-                #endif
             }
             refreshRequired[i] = false;
         }
