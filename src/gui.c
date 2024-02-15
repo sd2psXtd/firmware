@@ -704,11 +704,11 @@ void gui_do_ps2_card_switch(void) {
     uint64_t start = time_us_64();
     ps2_cardman_set_progress_cb(reload_card_cb);
     ps2_cardman_open();
+    ps2_history_tracker_card_changed();
     ps2_cardman_set_progress_cb(NULL);
     ps2_memory_card_enter();
     uint64_t end = time_us_64();
 
-    ps2_history_tracker_card_changed();
     printf("full card switch took = %.2f s\n", (end - start) / 1e6);
 
     UI_GOTO_SCREEN(scr_main);
