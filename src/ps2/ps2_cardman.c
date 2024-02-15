@@ -24,6 +24,7 @@ static int fd = -1;
 
 static int card_idx;
 static int card_chan;
+static bool needs_update;
 static uint32_t card_size;
 static cardman_cb_t cardman_cb;
 static char folder_name[MAX_GAME_ID_LENGTH];
@@ -175,6 +176,8 @@ static void genblock(size_t pos, void *vbuf) {
 void ps2_cardman_open(void) {
     char path[64];
 
+    needs_update = false;
+
     ensuredirs();
 
     if (PS2_CM_STATE_BOOT == cardman_state)
@@ -257,6 +260,8 @@ void ps2_cardman_close(void) {
 }
 
 void ps2_cardman_set_channel(uint16_t chan_num) {
+    if (chan_num != card_chan)
+        needs_update = true;
     if ((PS2_CM_STATE_NORMAL == cardman_state) || (PS2_CM_STATE_GAMEID == cardman_state)) {
         if (chan_num <= CHAN_MAX && chan_num >= CHAN_MIN) {
             card_chan = chan_num;
@@ -279,6 +284,7 @@ void ps2_cardman_next_channel(void) {
         cardman_state = PS2_CM_STATE_NORMAL;
         snprintf(folder_name, sizeof(folder_name), "Card%d", card_idx);
     }
+    needs_update = true;
 }
 
 void ps2_cardman_prev_channel(void) {
@@ -292,9 +298,12 @@ void ps2_cardman_prev_channel(void) {
         cardman_state = PS2_CM_STATE_NORMAL;
         snprintf(folder_name, sizeof(folder_name), "Card%d", card_idx);
     }
+    needs_update = true;
 }
 
 void ps2_cardman_set_idx(uint16_t idx_num) {
+    if (idx_num != card_idx)
+        needs_update = true;
     if ((idx_num >= IDX_MIN) && (idx_num <= UINT16_MAX)) {
         card_idx = idx_num;
         card_chan = CHAN_MIN;
@@ -359,6 +368,7 @@ void ps2_cardman_next_idx(void) {
         card_chan = CHAN_MIN;
         snprintf(folder_name, sizeof(folder_name), "Card%d", card_idx);
     }
+    needs_update = true;
 }
 
 void ps2_cardman_prev_idx(void) {
@@ -370,6 +380,7 @@ void ps2_cardman_prev_idx(void) {
         card_chan = CHAN_MIN;
         snprintf(folder_name, sizeof(folder_name), "Card%d", card_idx);
     }
+    needs_update = true;
 }
 
 int ps2_cardman_get_idx(void) {    
@@ -386,11 +397,13 @@ void ps2_cardman_set_gameid(const char *const card_game_id) {
         char parent_id[MAX_GAME_ID_LENGTH];
         game_names_get_parent(card_game_id, parent_id);
         snprintf(new_folder_name, sizeof(new_folder_name), "%s", parent_id);
-        if (strcmp(new_folder_name, folder_name) != 0) {
+        if ((strcmp(new_folder_name, folder_name) != 0) 
+            || (PS2_CM_STATE_GAMEID != cardman_state)){
             card_idx = PS2_CARD_IDX_SPECIAL;
             cardman_state = PS2_CM_STATE_GAMEID;
             card_chan = CHAN_MIN;
             snprintf(folder_name, sizeof(folder_name), "%s", parent_id);
+            needs_update = true;
         }
     }
 }
@@ -417,4 +430,8 @@ const char *ps2_cardman_get_folder_name(void) {
 
 ps2_cardman_state_t ps2_cardman_get_state(void) {
     return cardman_state;
+}
+
+bool ps2_cardman_needs_update(void) {
+    return needs_update;
 }

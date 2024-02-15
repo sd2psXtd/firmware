@@ -1,6 +1,7 @@
 #pragma once
 
 #include <stdint.h>
+#include <stdbool.h>
 
 #define PS2_CARD_SIZE_8M        (8 * 1024 * 1024)
 #define PS2_CARD_SIZE_4M        (4 * 1024 * 1024)
@@ -43,3 +44,5 @@ const char* ps2_cardman_get_gameid(void);
 const char* ps2_cardman_get_gamename(void);
 const char* ps2_cardman_get_folder_name(void);
 ps2_cardman_state_t ps2_cardman_get_state(void);
+
+bool ps2_cardman_needs_update(void);
