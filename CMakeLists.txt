@@ -26,11 +26,11 @@ add_subdirectory(ext/)
 add_executable(sd2psx
     src/main.c
 
-src/game_names/game_names.c
-src/wear_leveling/wear_leveling.c
-src/wear_leveling/wear_leveling_rp2040_flash.c
+    src/game_names/game_names.c
+    src/wear_leveling/wear_leveling.c
+    src/wear_leveling/wear_leveling_rp2040_flash.c
 
-ext/fnv/hash_64a.c
+    ext/fnv/hash_64a.c
 )
 
 target_compile_definitions(
