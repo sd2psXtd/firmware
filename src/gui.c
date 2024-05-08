@@ -53,6 +53,7 @@ static lv_obj_t *ui_menu_cont_create_nav(lv_obj_t *parent) {
 static lv_obj_t *ui_menu_subpage_create(lv_obj_t *menu, const char *title) {
     lv_obj_t *page = ui_menu_page_create(menu, title);
     lv_obj_add_flag(page, LV_OBJ_FLAG_EVENT_BUBBLE);
+    lv_obj_clear_flag(page, LV_OBJ_FLAG_SCROLLABLE); // handled ourselves in `evt_menu_page`
     lv_group_add_obj(lv_group_get_default(), page);
     lv_obj_add_event_cb(page, evt_menu_page, LV_EVENT_ALL, page);
     return page;
@@ -278,13 +279,37 @@ void evt_menu_page(lv_event_t *event) {
         uint32_t idx = lv_obj_get_index(cur);
         uint32_t count = lv_obj_get_child_cnt(page);
         if (key == INPUT_KEY_NEXT) {
-            lv_obj_t *next = ui_menu_find_next_focusable(page, (idx + 1) % count);
+            int next_idx = (idx + 1) % count;
+            lv_obj_t *next = ui_menu_find_next_focusable(page, next_idx);
             lv_group_focus_obj(next);
             lv_event_stop_bubbling(event);
+
+            int32_t page_h = lv_obj_get_height(page);
+            int32_t obj_h = lv_obj_get_height(next);
+            int32_t view_y1 = lv_obj_get_scroll_y(page);
+            int32_t view_y2 = view_y1 + page_h;
+            int32_t obj_y1 = obj_h * (next_idx);
+            int32_t obj_y2 = obj_y1 + obj_h;
+            if (obj_y2 > view_y2)
+                lv_obj_scroll_to_y(page, obj_y2 - page_h, false); // scroll down
+            else if (view_y1 > obj_y1)
+                lv_obj_scroll_to_y(page, obj_y1, false); // wrap around
         } else if (key == INPUT_KEY_PREV) {
-            lv_obj_t *prev = ui_menu_find_prev_focusable(page, (idx + count - 1) % count);
+            int prev_idx = (idx + count - 1) % count;
+            lv_obj_t *prev = ui_menu_find_prev_focusable(page, prev_idx);
             lv_group_focus_obj(prev);
             lv_event_stop_bubbling(event);
+
+            int32_t page_h = lv_obj_get_height(page);
+            int32_t obj_h = lv_obj_get_height(prev);
+            int32_t view_y1 = lv_obj_get_scroll_y(page);
+            int32_t view_y2 = view_y1 + page_h;
+            int32_t obj_y1 = obj_h * (prev_idx);
+            int32_t obj_y2 = obj_y1 + obj_h;
+            if (obj_y2 == view_y1)
+                lv_obj_scroll_to_y(page, obj_y1, false); // scroll up
+            else if (obj_y2 > view_y2)
+                lv_obj_scroll_to_y(page, obj_y2 - page_h, false); // wrap around
         } else if (key == INPUT_KEY_ENTER) {
             lv_event_send(cur, LV_EVENT_CLICKED, NULL);
             lv_event_stop_bubbling(event);
@@ -293,6 +318,7 @@ void evt_menu_page(lv_event_t *event) {
             if (ui_menu_get_cur_main_page(menu) == main_page)
                 return;
             ui_menu_go_back(menu);
+            lv_obj_scroll_to_y(page, 0, false); // reset scroll on the way out
             lv_event_stop_bubbling(event);
         }
     }
