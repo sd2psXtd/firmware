@@ -27,6 +27,7 @@
 #define HISTORY_ENTRY_POS_LAUNCH    16
 #define HISTORY_WRITE_HYST_US       2 * 1000 * 1000
 #define HISTORY_NUMBER_OF_REGIONS   4
+#define HISTORY_ICON_SIZE           1776
 
 #define CHAR_CHINA              'C'
 #define CHAR_NORTHAMERICA       'A'
@@ -34,6 +35,15 @@
 #define CHAR_JAPAN              'I'
 #define SYSTEMDATA_DIRNAME      "/B%cDATA-SYSTEM"
 #define HISTORY_FILENAME_FORMAT "/B%cDATA-SYSTEM/history"
+#define HISTORY_ICON_NAME       "/B%cDATA-SYSTEM/icon.sys"
+
+extern const char   _binary_icon_A_sys_start, 
+                    _binary_icon_A_sys_size;
+extern const char   _binary_icon_C_sys_start, 
+                    _binary_icon_C_sys_size;
+extern const char   _binary_icon_J_sys_start, 
+                    _binary_icon_J_sys_size;
+
 
 static mcfat_cardspecs_t cardspecs;
 static mcfat_mcops_t mcOps;
@@ -73,6 +83,7 @@ int page_read(mcfat_cardspecs_t* info, uint32_t page, uint32_t count, void* buff
     return sceMcResSucceed;
 }
 
+
 static bool fileExists(char* filename) {
     int fd = mcio_mcOpen(filename, sceMcFileAttrReadable);
     debug_printf("File %s status %d\n", filename, fd);
@@ -93,6 +104,47 @@ static bool dirExists(char* dirname) {
     else
         mcio_mcDclose(fd);
     return true;
+}
+
+static void checkInjectHistoryIcon(char region)
+{
+    char filename[24] = {0x00};
+
+    snprintf(filename, 24, HISTORY_ICON_NAME, region);
+
+    if (!fileExists(filename)) {
+        int flag = sceMcFileAttrWriteable | sceMcFileCreateFile;
+        int fd = mcio_mcOpen(filename, flag);
+        if (fd >= 0) {
+            uint8_t buff[128] = {0};
+            size_t icon_size, remaining = HISTORY_ICON_SIZE;
+            void* icon_ptr;
+            switch(region) {
+                case 'C':
+                    icon_size = ((size_t)&_binary_icon_C_sys_size);
+                    icon_ptr = (void*) &_binary_icon_C_sys_start;
+                    break;
+                case 'I':
+                    icon_size = ((size_t)&_binary_icon_J_sys_size);
+                    icon_ptr = (void*) &_binary_icon_J_sys_start;
+                    break;
+                default:
+                    icon_size = ((size_t)&_binary_icon_A_sys_size);
+                    icon_ptr = (void*) &_binary_icon_A_sys_start;
+                    break;
+            }
+            debug_printf("Icon size is %i, filename is %s\n", icon_size, filename);
+            remaining -= mcio_mcWrite(fd, icon_ptr, icon_size);
+            while (remaining > 0) {
+                remaining -= mcio_mcWrite(fd, buff, remaining > 128 ? 128 : remaining);
+            }
+
+            mcio_mcClose(fd);
+        }
+    } else {
+        debug_printf("Icon: %s already exists\n", filename);
+    }
+
 }
 
 static void readSlots(uint8_t historyFile[HISTORY_FILE_SIZE], uint8_t slots[HISTORY_ENTRY_COUNT]) {
@@ -169,8 +221,8 @@ void ps2_history_tracker_card_changed() {
 
         #endif
             memset(slotCount[i], 0x00, HISTORY_ENTRY_COUNT);
-        
         }
+        checkInjectHistoryIcon(regionList[i]);
     }
 }
 

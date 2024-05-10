@@ -15,6 +15,7 @@ add_compile_definitions(PICO_FLASH_SIZE_BYTES=16777216)
 # Add all subdirectories for sub-targets
 
 add_subdirectory(database)
+add_subdirectory(misc)
 add_subdirectory(ps2boot)
 add_subdirectory(src/version)
 add_subdirectory(src/ps2)
@@ -52,6 +53,7 @@ target_link_libraries(sd2psx
         hardware_flash
         gamedb
         ps2boot
+        ps2_history_icons
         sd2psx_version
         sd2psx_common
         ps1_card
