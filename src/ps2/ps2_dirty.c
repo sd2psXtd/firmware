@@ -1,11 +1,15 @@
 #include "ps2_dirty.h"
+#include "history_tracker/ps2_history_tracker.h"
 #include "ps2_psram.h"
 #include "ps2_cardman.h"
+#include "debug.h"
 
 #include "bigmem.h"
 #define dirty_heap bigmem.ps2.dirty_heap
 #define dirty_map bigmem.ps2.dirty_map
 
+#include <hardware/sync.h>
+#include <pico/platform.h>
 #include <stdio.h>
 
 spin_lock_t *ps2_dirty_spin_lock;
@@ -108,6 +112,7 @@ void ps2_dirty_task(void) {
             ps2_dirty_mark(sector);
             ps2_dirty_unlock();
         }
+        ps2_history_tracker_registerPageWrite(sector);
     }
     /* to make sure writes hit the storage medium */
     ps2_cardman_flush();
@@ -115,7 +120,7 @@ void ps2_dirty_task(void) {
     uint64_t end = time_us_64();
 
     if (hit)
-        printf("remain to flush - %d - this one flushed %d and took %d ms\n", num_after, hit, (int)((end - start) / 1000));
+        debug_printf("remain to flush - %d - this one flushed %d and took %d ms\n", num_after, hit, (int)((end - start) / 1000));
 
     if (num_after || !ps2_dirty_lockout_expired())
         ps2_dirty_activity = 1;

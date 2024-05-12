@@ -12,3 +12,6 @@ int sd_seek(int fd, uint64_t pos);
 int sd_filesize(int fd);
 int sd_mkdir(const char *path);
 int sd_exists(const char *path);
+
+int sd_iterate_dir(int dir, int it);
+size_t sd_get_name(int fd, char* name, size_t size);

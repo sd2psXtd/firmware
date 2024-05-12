@@ -2,14 +2,15 @@
 #include "hardware/timer.h"
 #include "pico/platform.h"
 #include "string.h"
+#include <stdint.h>
 
 #include "config.h"
 #include "ps1_mc_spi.pio.h"
 #include "debug.h"
 #include "bigmem.h"
 #include "ps1_dirty.h"
-#include <ps1/ps1_memory_card.h>
-#include <stdint.h>
+#include "ps1/ps1_memory_card.h"
+#include "game_names/game_names.h"
 
 #define card_image bigmem.ps1.card_image
 
@@ -34,30 +35,7 @@ static pio_t cmd_reader, dat_writer;
 static volatile int mc_exit_request, mc_exit_response, mc_enter_request, mc_enter_response;
 
 
-static void __time_critical_func(clean_title_id)(const uint8_t* const in_title_id, char* const out_title_id, const size_t in_title_id_length, const size_t out_buffer_size) {
-    uint16_t idx_in_title = 0, idx_out_title = 0;
-
-    while ( (in_title_id[idx_in_title] != 0x00) 
-            && (idx_in_title < in_title_id_length)
-            && (idx_out_title < out_buffer_size) ) {
-        if ((in_title_id[idx_in_title] == ';') || (in_title_id[idx_in_title] == 0x00)) {
-            out_title_id[idx_out_title++] = 0x00;
-            break;
-        } else if ((in_title_id[idx_in_title] == '\\') || (in_title_id[idx_in_title] == '/') || (in_title_id[idx_in_title] == ':')) {
-            idx_out_title = 0;
-        } else if (in_title_id[idx_in_title] == '_') {
-            out_title_id[idx_out_title++] = '-';
-        } else if (in_title_id[idx_in_title] != '.') {
-            out_title_id[idx_out_title++] = in_title_id[idx_in_title];
-        } else {
-        }
-        idx_in_title++;
-    }
-}
-
 static void __time_critical_func(reset_pio)(void) {
-    // debug_printf("!!\n");
-
     pio_set_sm_mask_enabled(pio0, (1 << cmd_reader.sm) | (1 << dat_writer.sm), false);
     pio_restart_sm_mask(pio0, (1 << cmd_reader.sm) | (1 << dat_writer.sm));
 
@@ -196,8 +174,11 @@ static int __time_critical_func(mc_do_state)(uint8_t ch) {
         } else if (cmd == 0x21) { // MCP Game ID
             if (byte_count == game_id_length + 4)
             {
-                clean_title_id(&payload[4], received_game_id, game_id_length, sizeof(received_game_id));
-                mc_pro_command = MCP_GAME_ID;
+                game_names_extract_title_id(&payload[4], received_game_id, game_id_length, sizeof(received_game_id));
+                if (game_names_sanity_check_title_id(received_game_id))
+                    mc_pro_command = MCP_GAME_ID;
+                else
+                    memset(received_game_id, 0, sizeof(received_game_id));
             }
             switch (byte_count) {
                 case 2: memset(received_game_id, 0, sizeof(received_game_id)); return 0x00;
@@ -369,8 +350,6 @@ void ps1_memory_card_enter(void) {
     mc_enter_request = mc_enter_response = 0;
     memcard_running = 1;
     mc_pro_command = 0;
-    game_id_length = sizeof(received_game_id);
-    memset(received_game_id, 0, sizeof(received_game_id));
 }
 
 void ps1_memory_card_reset_ode_command(void) {

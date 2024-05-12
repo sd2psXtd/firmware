@@ -5,15 +5,12 @@
 #include "ps1_odeman.h"
 #include "debug.h"
 
+#include <game_names/game_names.h>
 #include <gui.h>
 #include <string.h>
 
 #define CARD_SWITCH_DELAY_MS    (250)
-
-
-void ps1_odeman_init(void) {
-
-}
+#define MAX_GAME_ID_LENGTH   (16)
 
 void ps1_odeman_task(void) {
     uint8_t ode_command = ps1_memory_card_get_ode_command();
@@ -28,7 +25,7 @@ void ps1_odeman_task(void) {
                 const char *game_id;
                 game_id = ps1_memory_card_get_game_id();
                 debug_printf("Received Game ID: %s\n", game_id);
-                ps1_cardman_set_gameid(game_id);
+                ps1_cardman_set_ode_idx(game_id);
                 break;
             }
             case MCP_NXT_CARD:
@@ -54,10 +51,8 @@ void ps1_odeman_task(void) {
 
         sleep_ms(CARD_SWITCH_DELAY_MS); // This delay is required, so ODE can register the card change
 
-
         ps1_cardman_open();
         ps1_memory_card_enter();
         gui_request_refresh();
     }
-
 }

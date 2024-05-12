@@ -109,3 +109,19 @@ extern "C" int sd_exists(const char *path) {
 extern "C" int sd_filesize(int fd) {
     return files[fd].fileSize();;
 }
+
+extern "C" int sd_iterate_dir(int dir, int it) {
+    if (it == -1) {
+        for (it = 0; it < NUM_FILES; ++it)
+            if (!files[it].isOpen())
+                break;
+    }
+    if (!files[it].openNext(&files[dir], O_RDONLY)) {
+        it = -1;
+    }
+    return it;
+}
+
+extern "C" size_t sd_get_name(int fd, char* name, size_t size) {
+    return files[fd].getName(name, size);
+}

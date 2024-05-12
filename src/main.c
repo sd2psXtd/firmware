@@ -1,10 +1,9 @@
 #include <stdio.h>
+#include "history_tracker/ps2_history_tracker.h"
 #include "pico/stdlib.h"
 #include "pico/bootrom.h"
 #include "pico/multicore.h"
-#include "hardware/gpio.h"
 #include "hardware/clocks.h"
-#include "hardware/vreg.h"
 #include "hardware/structs/bus_ctrl.h"
 
 #include "gui.h"
@@ -22,11 +21,12 @@
 #include "ps1/ps1_cardman.h"
 #include "ps1/ps1_odeman.h"
 
-#include "ps2/ps2_memory_card.h"
 #include "ps2/ps2_dirty.h"
+#include "ps2/card_emu/ps2_memory_card.h"
 #include "ps2/ps2_cardman.h"
 #include "ps2/ps2_psram.h"
-#include "ps2/ps2_exploit.h"
+
+#include "ps2/card_emu/ps2_sd2psxman.h"
 
 /* reboot to bootloader if either button is held on startup
    to make the device easier to flash when assembled inside case */
@@ -114,6 +114,7 @@ int main() {
         sd_init();
         ps2_cardman_init();
         ps2_dirty_init();
+        ps2_history_tracker_init();
         gui_init();
 
         multicore_launch_core1(ps2_memory_card_main);
@@ -130,7 +131,9 @@ int main() {
 
         while (1) {
             debug_task();
+            ps2_sd2psxman_task();
             ps2_dirty_task();
+            ps2_history_tracker_run();
             gui_task();
             input_task();
         }
