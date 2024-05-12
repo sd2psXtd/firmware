@@ -61,7 +61,7 @@ target_include_directories(ssd1306 PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/pico-ssd13
 
 set(LV_CONF_PATH ${PROJECT_SOURCE_DIR}/src/lv_conf.h CACHE STRING "" FORCE)
 add_subdirectory(${CMAKE_CURRENT_SOURCE_DIR}/lvgl EXCLUDE_FROM_ALL)
-add_subdirectory(${CMAKE_CURRENT_SOURCE_DIR}/mcFat)
+add_subdirectory(${CMAKE_CURRENT_SOURCE_DIR}/mcfat)
 
 target_compile_definitions(mcfat PRIVATE MAX_CACHEENTRY=0x4)
 target_compile_definitions(mcfat PRIVATE MAX_FDHANDLES=0x1)
