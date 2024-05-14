@@ -23,7 +23,12 @@ static lv_obj_t *g_navbar, *g_progress_bar, *g_progress_text, *g_activity_frame;
 
 static lv_obj_t *scr_switch_nag, *scr_card_switch, *scr_main, *scr_menu, *scr_freepsxboot, *menu, *main_page;
 static lv_style_t style_inv;
-static lv_obj_t *scr_main_idx_lbl, *scr_main_channel_lbl, *src_main_title_lbl, *lbl_civ_err, *lbl_autoboot, *lbl_channel;
+static lv_obj_t *scr_main_idx_lbl, *scr_main_channel_lbl, *src_main_title_lbl, *lbl_civ_err, *lbl_autoboot, *lbl_channel, *auto_off_lbl;
+
+static struct {
+    uint8_t value;
+    lv_obj_t *selection_lbl;
+} auto_off_options[6];
 
 static int have_oled;
 static int switching_card;
@@ -34,6 +39,8 @@ static bool installing_exploit;
 
 #define COLOR_FG lv_color_white()
 #define COLOR_BG lv_color_black()
+
+#define ARRAY_SIZE(x) (sizeof(x) / sizeof((x)[0]))
 
 static lv_obj_t *ui_scr_create(void) {
     lv_obj_t *obj = lv_obj_create(NULL);
@@ -187,6 +194,34 @@ static void reload_card_cb(int progress) {
     lv_label_set_text(g_progress_text, ps2_cardman_get_progress_text());
 
     gui_tick();
+}
+
+static void ui_set_display_timeout(uint8_t display_timeout) {
+    char text[8];
+
+    if (auto_off_options[0].value == display_timeout) {
+        sprintf(text, "Off >"),
+        lv_label_set_text(auto_off_lbl, text);
+
+        sprintf(text, "> Off"),
+        lv_label_set_text(auto_off_options[0].selection_lbl, text);
+    } else {
+        sprintf(text, "  Off"),
+        lv_label_set_text(auto_off_options[0].selection_lbl, text);
+    }
+
+    for (size_t i = 1; i < ARRAY_SIZE(auto_off_options); i++) {
+        if (auto_off_options[i].value == display_timeout) {
+            sprintf(text, "%hhus >", auto_off_options[i].value),
+            lv_label_set_text(auto_off_lbl, text);
+
+            sprintf(text, "> %hhus", auto_off_options[i].value),
+            lv_label_set_text(auto_off_options[i].selection_lbl, text);
+        } else {
+            sprintf(text, "  %hhus", auto_off_options[i].value),
+            lv_label_set_text(auto_off_options[i].selection_lbl, text);
+        }
+    }
 }
 
 static void evt_scr_main(lv_event_t *event) {
@@ -363,6 +398,12 @@ static void evt_switch_to_ps2(lv_event_t *event) {
 
     UI_GOTO_SCREEN(scr_switch_nag);
     terminated = 1;
+}
+
+static void evt_set_display_timeout(lv_event_t *event) {
+    uint8_t display_timeout = (intptr_t)event->user_data;
+    settings_set_display_timeout(display_timeout);
+    ui_set_display_timeout(display_timeout);
 }
 
 static void create_main_screen(void) {
@@ -545,12 +586,33 @@ static void create_menu_screen(void) {
         ui_label_create(cont, "Slot 1");
     }
 
+    /* display / auto off submenu */
+    lv_obj_t *auto_off_page = ui_menu_subpage_create(menu, "Auto off");
+    {
+        auto_off_options[0].value = 0;
+        auto_off_options[1].value = 5;
+        auto_off_options[2].value = 15;
+        auto_off_options[3].value = 30;
+        auto_off_options[4].value = 60;
+        auto_off_options[5].value = 120;
+
+        for (size_t i = 0; i < ARRAY_SIZE(auto_off_options); i++) {
+            uint8_t value = auto_off_options[i].value;
+
+            cont = ui_menu_cont_create_nav(auto_off_page);
+            auto_off_options[i].selection_lbl = ui_label_create_grow(cont, NULL);
+            lv_obj_add_event_cb(cont, evt_set_display_timeout, LV_EVENT_CLICKED, (void*)(intptr_t)value);
+        }
+    }
+
     /* display config */
     lv_obj_t *display_page = ui_menu_subpage_create(menu, "Display");
     {
         cont = ui_menu_cont_create_nav(display_page);
         ui_label_create_grow(cont, "Auto off");
-        ui_label_create(cont, "30s");
+        auto_off_lbl = ui_label_create(cont, NULL);
+        ui_menu_set_load_page_event(menu, cont, auto_off_page);
+        ui_set_display_timeout(settings_get_display_timeout());
     }
 
     /* ps1 */
