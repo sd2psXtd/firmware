@@ -23,7 +23,7 @@ static lv_obj_t *g_navbar, *g_progress_bar, *g_progress_text, *g_activity_frame;
 
 static lv_obj_t *scr_switch_nag, *scr_card_switch, *scr_main, *scr_menu, *scr_freepsxboot, *menu, *main_page;
 static lv_style_t style_inv;
-static lv_obj_t *scr_main_idx_lbl, *scr_main_channel_lbl, *src_main_title_lbl, *lbl_civ_err, *lbl_autoboot, *lbl_channel, *auto_off_lbl, *contrast_lbl;
+static lv_obj_t *scr_main_idx_lbl, *scr_main_channel_lbl, *src_main_title_lbl, *lbl_civ_err, *lbl_autoboot, *lbl_channel, *auto_off_lbl, *contrast_lbl, *vcomh_lbl;
 
 static struct {
     uint8_t value;
@@ -35,6 +35,13 @@ static struct {
     uint8_t label_value;
     lv_obj_t *selection_lbl;
 } contrast_options[10];
+
+static struct {
+    uint8_t value;
+    char label_text[4];
+    char selection_text[16];
+    lv_obj_t *selection_lbl;
+} vcomh_options[3];
 
 static int have_oled;
 static int switching_card;
@@ -247,6 +254,23 @@ static void ui_set_display_contrast(uint8_t display_contrast) {
     }
 }
 
+static void ui_set_display_vcomh(uint8_t display_vcomh) {
+    char text[16];
+
+    for (size_t i = 0; i < ARRAY_SIZE(vcomh_options); i++) {
+        if (vcomh_options[i].value == display_vcomh) {
+            sprintf(text, "%s >", vcomh_options[i].label_text),
+            lv_label_set_text(vcomh_lbl, text);
+
+            sprintf(text, "> %s", vcomh_options[i].selection_text),
+            lv_label_set_text(vcomh_options[i].selection_lbl, text);
+        } else {
+            sprintf(text, "  %s", vcomh_options[i].selection_text),
+            lv_label_set_text(vcomh_options[i].selection_lbl, text);
+        }
+    }
+}
+
 static void evt_scr_main(lv_event_t *event) {
     if (event->code == LV_EVENT_KEY) {
         uint32_t key = lv_indev_get_key(lv_indev_get_act());
@@ -433,6 +457,12 @@ static void evt_set_display_contrast(lv_event_t *event) {
     uint8_t display_contrast = (intptr_t)event->user_data;
     settings_set_display_contrast(display_contrast);
     ui_set_display_contrast(display_contrast);
+}
+
+static void evt_set_display_vcomh(lv_event_t *event) {
+    uint8_t display_vcomh = (intptr_t)event->user_data;
+    settings_set_display_vcomh(display_vcomh);
+    ui_set_display_vcomh(display_vcomh);
 }
 
 static void create_main_screen(void) {
@@ -652,6 +682,28 @@ static void create_menu_screen(void) {
         }
     }
 
+    /* display / vcomh submenu */
+    lv_obj_t *vcomh_page = ui_menu_subpage_create(menu, "VCOMH");
+    {
+        vcomh_options[0].value = 0x00;
+        vcomh_options[1].value = 0x20;
+        vcomh_options[2].value = 0x30;
+
+        strcpy(vcomh_options[0].label_text, "00h");
+        strcpy(vcomh_options[1].label_text, "20h");
+        strcpy(vcomh_options[2].label_text, "30h");
+
+        strcpy(vcomh_options[0].selection_text, "0.65 x VCC");
+        strcpy(vcomh_options[1].selection_text, "0.77 x VCC");
+        strcpy(vcomh_options[2].selection_text, "0.83 x VCC");
+
+        for (size_t i = 0; i < ARRAY_SIZE(vcomh_options); i++) {
+            cont = ui_menu_cont_create_nav(vcomh_page);
+            vcomh_options[i].selection_lbl = ui_label_create_grow(cont, vcomh_options[i].label_text);
+            lv_obj_add_event_cb(cont, evt_set_display_vcomh, LV_EVENT_CLICKED, (void*)(intptr_t)vcomh_options[i].value);
+        }
+    }
+
     /* display config */
     lv_obj_t *display_page = ui_menu_subpage_create(menu, "Display");
     {
@@ -666,6 +718,12 @@ static void create_menu_screen(void) {
         contrast_lbl = ui_label_create(cont, NULL);
         ui_menu_set_load_page_event(menu, cont, contrast_page);
         ui_set_display_contrast(settings_get_display_contrast());
+
+        cont = ui_menu_cont_create_nav(display_page);
+        ui_label_create_grow(cont, "VCOMH");
+        vcomh_lbl = ui_label_create(cont, NULL);
+        ui_menu_set_load_page_event(menu, cont, vcomh_page);
+        ui_set_display_vcomh(settings_get_display_vcomh());
     }
 
     /* ps1 */
