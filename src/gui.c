@@ -23,12 +23,18 @@ static lv_obj_t *g_navbar, *g_progress_bar, *g_progress_text, *g_activity_frame;
 
 static lv_obj_t *scr_switch_nag, *scr_card_switch, *scr_main, *scr_menu, *scr_freepsxboot, *menu, *main_page;
 static lv_style_t style_inv;
-static lv_obj_t *scr_main_idx_lbl, *scr_main_channel_lbl, *src_main_title_lbl, *lbl_civ_err, *lbl_autoboot, *lbl_channel, *auto_off_lbl;
+static lv_obj_t *scr_main_idx_lbl, *scr_main_channel_lbl, *src_main_title_lbl, *lbl_civ_err, *lbl_autoboot, *lbl_channel, *auto_off_lbl, *contrast_lbl;
 
 static struct {
     uint8_t value;
     lv_obj_t *selection_lbl;
 } auto_off_options[6];
+
+static struct {
+    uint8_t value;
+    uint8_t label_value;
+    lv_obj_t *selection_lbl;
+} contrast_options[10];
 
 static int have_oled;
 static int switching_card;
@@ -224,6 +230,23 @@ static void ui_set_display_timeout(uint8_t display_timeout) {
     }
 }
 
+static void ui_set_display_contrast(uint8_t display_contrast) {
+    char text[8];
+
+    for (size_t i = 0; i < ARRAY_SIZE(contrast_options); i++) {
+        if (contrast_options[i].value == display_contrast) {
+            sprintf(text, "%hhu%% >", contrast_options[i].label_value),
+            lv_label_set_text(contrast_lbl, text);
+
+            sprintf(text, "> %hhu%%", contrast_options[i].label_value),
+            lv_label_set_text(contrast_options[i].selection_lbl, text);
+        } else {
+            sprintf(text, "  %hhu%%", contrast_options[i].label_value),
+            lv_label_set_text(contrast_options[i].selection_lbl, text);
+        }
+    }
+}
+
 static void evt_scr_main(lv_event_t *event) {
     if (event->code == LV_EVENT_KEY) {
         uint32_t key = lv_indev_get_key(lv_indev_get_act());
@@ -404,6 +427,12 @@ static void evt_set_display_timeout(lv_event_t *event) {
     uint8_t display_timeout = (intptr_t)event->user_data;
     settings_set_display_timeout(display_timeout);
     ui_set_display_timeout(display_timeout);
+}
+
+static void evt_set_display_contrast(lv_event_t *event) {
+    uint8_t display_contrast = (intptr_t)event->user_data;
+    settings_set_display_contrast(display_contrast);
+    ui_set_display_contrast(display_contrast);
 }
 
 static void create_main_screen(void) {
@@ -605,6 +634,24 @@ static void create_menu_screen(void) {
         }
     }
 
+    /* display / contrast submenu */
+    lv_obj_t *contrast_page = ui_menu_subpage_create(menu, "Contrast");
+    {
+        char text[8];
+
+        for (size_t i = 0; i < ARRAY_SIZE(contrast_options); i++) {
+            uint8_t percentage = (i + 1) * 10;
+            uint8_t value = (uint16_t)(255 * percentage) / 100;
+            contrast_options[i].value = value;
+            contrast_options[i].label_value = percentage;
+            sprintf(text, " %hhu%%", percentage);
+
+            cont = ui_menu_cont_create_nav(contrast_page);
+            contrast_options[i].selection_lbl = ui_label_create_grow(cont, text);
+            lv_obj_add_event_cb(cont, evt_set_display_contrast, LV_EVENT_CLICKED, (void*)(intptr_t)value);
+        }
+    }
+
     /* display config */
     lv_obj_t *display_page = ui_menu_subpage_create(menu, "Display");
     {
@@ -613,6 +660,12 @@ static void create_menu_screen(void) {
         auto_off_lbl = ui_label_create(cont, NULL);
         ui_menu_set_load_page_event(menu, cont, auto_off_page);
         ui_set_display_timeout(settings_get_display_timeout());
+
+        cont = ui_menu_cont_create_nav(display_page);
+        ui_label_create_grow(cont, "Contrast");
+        contrast_lbl = ui_label_create(cont, NULL);
+        ui_menu_set_load_page_event(menu, cont, contrast_page);
+        ui_set_display_contrast(settings_get_display_contrast());
     }
 
     /* ps1 */
