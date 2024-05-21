@@ -987,7 +987,6 @@ void gui_task(void) {
                 lv_label_set_text(lbl_channel, "");
                 lv_label_set_text(scr_main_idx_lbl, card_idx_s);
             } else if (PS2_CM_STATE_GAMEID == cardman_state) {
-                lv_label_set_text(scr_main_idx_lbl, folder_name);
                 snprintf(card_channel_s, sizeof(card_channel_s), "%d", displayed_card_channel);
                 lv_label_set_text(lbl_channel, "Channel");
                 lv_label_set_text(scr_main_idx_lbl, folder_name);
