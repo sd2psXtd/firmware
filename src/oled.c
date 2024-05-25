@@ -29,7 +29,7 @@ int oled_init(void) {
 
     have_oled = ssd1306_init(
         &oled_disp, DISPLAY_WIDTH, DISPLAY_HEIGHT, OLED_I2C_ADDR, OLED_I2C_PERIPH,
-        settings_get_display_contrast()
+        settings_get_display_contrast(), settings_get_display_vcomh()
     );
     return have_oled;
 }
@@ -48,6 +48,10 @@ void oled_show(void) {
 
 void oled_set_contrast(uint8_t v) {
     ssd1306_contrast(&oled_disp, v);
+}
+
+void oled_set_vcomh(uint8_t v) {
+    ssd1306_set_vcomh(&oled_disp, v);
 }
 
 static int text_x, text_y;

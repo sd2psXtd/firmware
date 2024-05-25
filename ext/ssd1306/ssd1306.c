@@ -51,7 +51,7 @@ inline static void ssd1306_write(ssd1306_t *p, uint8_t val) {
     fancy_write(p->i2c_i, p->address, d, 2, "ssd1306_write");
 }
 
-bool ssd1306_init(ssd1306_t *p, uint16_t width, uint16_t height, uint8_t address, i2c_inst_t *i2c_instance, uint8_t contrast) {
+bool ssd1306_init(ssd1306_t *p, uint16_t width, uint16_t height, uint8_t address, i2c_inst_t *i2c_instance, uint8_t contrast, uint8_t vcomh) {
     p->width=width;
     p->height=height;
     p->pages=height/8;
@@ -90,7 +90,7 @@ bool ssd1306_init(ssd1306_t *p, uint16_t width, uint16_t height, uint8_t address
         SET_PRECHARGE,
         p->external_vcc?0x22:0xF1,
         SET_VCOM_DESEL,
-        0x30,  // 0.83*Vcc
+        vcomh,
         // display
         SET_CONTRAST,
         contrast,
@@ -122,6 +122,11 @@ inline void ssd1306_poweron(ssd1306_t *p) {
 
 inline void ssd1306_contrast(ssd1306_t *p, uint8_t val) {
     ssd1306_write(p, SET_CONTRAST);
+    ssd1306_write(p, val);
+}
+
+inline void ssd1306_set_vcomh(ssd1306_t *p, uint8_t val) {
+    ssd1306_write(p, SET_VCOM_DESEL);
     ssd1306_write(p, val);
 }
 

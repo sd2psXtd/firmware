@@ -466,6 +466,7 @@ static void evt_set_display_contrast(lv_event_t *event) {
 static void evt_set_display_vcomh(lv_event_t *event) {
     uint8_t display_vcomh = (intptr_t)event->user_data;
     settings_set_display_vcomh(display_vcomh);
+    oled_set_vcomh(display_vcomh);
     ui_set_display_vcomh(display_vcomh);
 }
 

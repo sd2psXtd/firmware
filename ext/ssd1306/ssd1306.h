@@ -83,7 +83,7 @@ typedef struct {
 *	@retval true for Success
 *	@retval false if initialization failed
 */
-bool ssd1306_init(ssd1306_t *p, uint16_t width, uint16_t height, uint8_t address, i2c_inst_t *i2c_instance, uint8_t contrast);
+bool ssd1306_init(ssd1306_t *p, uint16_t width, uint16_t height, uint8_t address, i2c_inst_t *i2c_instance, uint8_t contrast, uint8_t vcomh);
 
 /**
 *	@brief turn off display
@@ -109,6 +109,15 @@ void ssd1306_poweron(ssd1306_t *p);
 
 */
 void ssd1306_contrast(ssd1306_t *p, uint8_t val);
+
+/**
+	@brief set VCOMH deselect level of display
+
+	@param[in] p : instance of display
+	@param[in] val : vcomh
+
+*/
+void ssd1306_set_vcomh(ssd1306_t *p, uint8_t val);
 
 /**
 	@brief display buffer, should be called on change
