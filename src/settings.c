@@ -24,7 +24,7 @@ typedef struct {
     // TODO: how do we store last used channel for cards that use autodetecting w/ gameid?
 } settings_t;
 
-#define SETTINGS_VERSION_MAGIC (0xABCD0002)
+#define SETTINGS_VERSION_MAGIC (0xAACD0001)
 #define SETTINGS_FLAGS_AUTOBOOT (0b1)
 
 _Static_assert(sizeof(settings_t) == 16, "unexpected padding in the settings structure");
