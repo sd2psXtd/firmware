@@ -31,4 +31,6 @@ void settings_set_ps2_autoboot(bool autoboot);
 #define CHAN_MAX 8
 
 uint8_t settings_get_display_timeout();
+uint8_t settings_get_display_contrast();
 void settings_set_display_timeout(uint8_t display_timeout);
+void settings_set_display_contrast(uint8_t display_contrast);
