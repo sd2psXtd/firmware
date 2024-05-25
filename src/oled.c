@@ -27,7 +27,10 @@ int oled_init(void) {
     gpio_pull_up(OLED_I2C_SCL);
     oled_update_last_action_time();
 
-    have_oled = ssd1306_init(&oled_disp, DISPLAY_WIDTH, DISPLAY_HEIGHT, OLED_I2C_ADDR, OLED_I2C_PERIPH);
+    have_oled = ssd1306_init(
+        &oled_disp, DISPLAY_WIDTH, DISPLAY_HEIGHT, OLED_I2C_ADDR, OLED_I2C_PERIPH,
+        settings_get_display_contrast()
+    );
     return have_oled;
 }
 
@@ -41,6 +44,10 @@ void oled_draw_pixel(int x, int y) {
 
 void oled_show(void) {
     ssd1306_show(&oled_disp);
+}
+
+void oled_set_contrast(uint8_t v) {
+    ssd1306_contrast(&oled_disp, v);
 }
 
 static int text_x, text_y;

@@ -459,6 +459,7 @@ static void evt_set_display_timeout(lv_event_t *event) {
 static void evt_set_display_contrast(lv_event_t *event) {
     uint8_t display_contrast = (intptr_t)event->user_data;
     settings_set_display_contrast(display_contrast);
+    oled_set_contrast(display_contrast);
     ui_set_display_contrast(display_contrast);
 }
 

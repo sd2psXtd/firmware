@@ -51,7 +51,7 @@ inline static void ssd1306_write(ssd1306_t *p, uint8_t val) {
     fancy_write(p->i2c_i, p->address, d, 2, "ssd1306_write");
 }
 
-bool ssd1306_init(ssd1306_t *p, uint16_t width, uint16_t height, uint8_t address, i2c_inst_t *i2c_instance) {
+bool ssd1306_init(ssd1306_t *p, uint16_t width, uint16_t height, uint8_t address, i2c_inst_t *i2c_instance, uint8_t contrast) {
     p->width=width;
     p->height=height;
     p->pages=height/8;
@@ -93,7 +93,7 @@ bool ssd1306_init(ssd1306_t *p, uint16_t width, uint16_t height, uint8_t address
         0x30,  // 0.83*Vcc
         // display
         SET_CONTRAST,
-        0xFF,  // maximum
+        contrast,
         SET_ENTIRE_ON,  // output follows RAM contents
         SET_NORM_INV,  // not inverted
         // charge pump
