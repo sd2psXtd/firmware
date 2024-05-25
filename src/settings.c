@@ -20,7 +20,7 @@ typedef struct {
     uint8_t sys_flags; // TODO: single bit options: whether ps1 or ps2 mode, etc
     uint8_t display_timeout; // display - auto off, in seconds, 0 - off
     uint8_t display_contrast; // display - contrast, 0-255
-    uint8_t unused[1];
+    uint8_t display_vcomh; // display - vcomh, valid values are 0x00, 0x20, 0x30 and 0x40
     // TODO: how do we store last used channel for cards that use autodetecting w/ gameid?
 } settings_t;
 
@@ -36,6 +36,7 @@ static void settings_reset(void) {
     settings.version_magic = SETTINGS_VERSION_MAGIC;
     settings.display_timeout = 0; // off
     settings.display_contrast = 255; // 100%
+    settings.display_vcomh = 0x30; // 0.83 x VCC
     if (wear_leveling_write(0, &settings, sizeof(settings)) == WEAR_LEVELING_FAILED)
         fatal("failed to reset settings");
 }
@@ -153,6 +154,10 @@ uint8_t settings_get_display_contrast() {
     return settings.display_contrast;
 }
 
+uint8_t settings_get_display_vcomh() {
+    return settings.display_vcomh;
+}
+
 void settings_set_display_timeout(uint8_t display_timeout) {
     settings.display_timeout = display_timeout;
     SETTINGS_UPDATE_FIELD(display_timeout);
@@ -161,4 +166,9 @@ void settings_set_display_timeout(uint8_t display_timeout) {
 void settings_set_display_contrast(uint8_t display_contrast) {
     settings.display_contrast = display_contrast;
     SETTINGS_UPDATE_FIELD(display_contrast);
+}
+
+void settings_set_display_vcomh(uint8_t display_vcomh) {
+    settings.display_vcomh = display_vcomh;
+    SETTINGS_UPDATE_FIELD(display_vcomh);
 }
