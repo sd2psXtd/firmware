@@ -6,6 +6,7 @@
 
 #include "config.h"
 #include "gui.h"
+#include "oled.h"
 
 #include "lvgl.h"
 
@@ -45,6 +46,15 @@ static void input_scan(void) {
     /* if no pin changes within the debounce interval, commit these changes to pin_state */
     if (debounce && time_us_64() - debounce_start > DEBOUNCE_MS * 1000) {
         debounce = 0;
+
+        if (buttons[0].raw || buttons[1].raw) {
+            oled_update_last_action_time();
+
+            /* if one of the buttons was pressed, but display is off, ignore the input and wake it up first */
+            if (!oled_is_powered_on())
+                return;
+        }
+
         for (int i = 0; i < 2; ++i)
             buttons[i].state = buttons[i].raw;
     }
@@ -147,8 +157,8 @@ void input_flush(void) {
     last_pressed = 0;
 }
 
-int input_is_down(int idx) {
-    return buttons[idx].state;
+int input_is_down_raw(int idx) {
+    return buttons[idx].raw;
 }
 
 int input_is_any_down(void) {

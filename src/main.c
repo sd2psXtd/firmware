@@ -6,6 +6,7 @@
 #include "hardware/clocks.h"
 #include "hardware/structs/bus_ctrl.h"
 
+#include "oled.h"
 #include "gui.h"
 #include "input.h"
 #include "config.h"
@@ -37,7 +38,7 @@ static void check_bootloader_reset(void) {
         sleep_ms(1);
     }
 
-    if (input_is_down(0) || input_is_down(1))
+    if (input_is_down_raw(0) || input_is_down_raw(1))
         reset_usb_boot(0, 0);
 }
 
@@ -105,6 +106,7 @@ int main() {
             ps1_dirty_task();
             gui_task();
             input_task();
+            oled_task();
         }
     } else {
         printf("starting in PS2 mode\n");
@@ -136,6 +138,7 @@ int main() {
             ps2_history_tracker_run();
             gui_task();
             input_task();
+            oled_task();
         }
     }
 }

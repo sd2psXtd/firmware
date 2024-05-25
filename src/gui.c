@@ -148,6 +148,9 @@ static void keypad_read(lv_indev_drv_t *drv, lv_indev_data_t *data) {
     (void)drv;
     int pressed;
 
+    if (!oled_is_powered_on())
+        return;
+
     data->state = LV_INDEV_STATE_RELEASED;
 
     pressed = input_get_pressed();
@@ -884,10 +887,13 @@ void gui_init(void) {
 
 void gui_request_refresh(void) {
     refresh_gui = true;
+    oled_update_last_action_time();
 }
 
 void gui_do_ps1_card_switch(void) {
     printf("switching the card now!\n");
+
+    oled_update_last_action_time();
 
     uint64_t start = time_us_64();
     ps1_cardman_open();
@@ -899,6 +905,8 @@ void gui_do_ps1_card_switch(void) {
 void gui_do_ps2_card_switch(void) {
     printf("switching the card now!\n");
     UI_GOTO_SCREEN(scr_card_switch);
+
+    oled_update_last_action_time();
 
     uint64_t start = time_us_64();
     ps2_cardman_set_progress_cb(reload_card_cb);
