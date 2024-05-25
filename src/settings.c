@@ -18,8 +18,8 @@ typedef struct {
     // TODO: more ps1 settings: model for freepsxboot
     uint8_t ps2_flags; // TODO: single bit options: autoboot
     uint8_t sys_flags; // TODO: single bit options: whether ps1 or ps2 mode, etc
-    uint8_t unused[3];
-    // TODO: display settings?
+    uint8_t display_timeout; // display - auto off, in seconds, 0 - off
+    uint8_t unused[2];
     // TODO: how do we store last used channel for cards that use autodetecting w/ gameid?
 } settings_t;
 
@@ -33,6 +33,7 @@ static settings_t settings;
 static void settings_reset(void) {
     memset(&settings, 0, sizeof(settings));
     settings.version_magic = SETTINGS_VERSION_MAGIC;
+    settings.display_timeout = 0; // off
     if (wear_leveling_write(0, &settings, sizeof(settings)) == WEAR_LEVELING_FAILED)
         fatal("failed to reset settings");
 }
@@ -140,4 +141,13 @@ void settings_set_ps2_autoboot(bool autoboot) {
     if (autoboot != settings_get_ps2_autoboot())
         settings.ps2_flags ^= SETTINGS_FLAGS_AUTOBOOT;
     SETTINGS_UPDATE_FIELD(ps2_flags);
+}
+
+uint8_t settings_get_display_timeout() {
+    return settings.display_timeout;
+}
+
+void settings_set_display_timeout(uint8_t display_timeout) {
+    settings.display_timeout = display_timeout;
+    SETTINGS_UPDATE_FIELD(display_timeout);
 }
