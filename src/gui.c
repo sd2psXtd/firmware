@@ -10,6 +10,7 @@
 #include "oled.h"
 #include "ps1/ps1_cardman.h"
 #include "ps1/ps1_memory_card.h"
+#include "ps1/ps1_dirty.h"
 #include "ps2/card_emu/ps2_memory_card.h"
 #include "ps2/ps2_cardman.h"
 #include "ps2/ps2_dirty.h"
@@ -1016,12 +1017,13 @@ void gui_task(void) {
             gui_do_ps2_card_switch();
         }
 
-        if (ps2_dirty_activity) {
-            input_flush();
-            lv_obj_clear_flag(g_activity_frame, LV_OBJ_FLAG_HIDDEN);
-        } else {
-            lv_obj_add_flag(g_activity_frame, LV_OBJ_FLAG_HIDDEN);
-        }
+    }
+
+    if (ps1_dirty_activity || ps2_dirty_activity) {
+        input_flush();
+        lv_obj_clear_flag(g_activity_frame, LV_OBJ_FLAG_HIDDEN);
+    } else {
+        lv_obj_add_flag(g_activity_frame, LV_OBJ_FLAG_HIDDEN);
     }
 
     gui_tick();
