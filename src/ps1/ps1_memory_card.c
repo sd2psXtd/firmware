@@ -143,20 +143,26 @@ static int __time_critical_func(mc_do_state)(uint8_t ch) {
             #define LSB (payload[5])
             #define OFF ((MSB * 256 + LSB) * 128 + byte_count - 7)
 
+            static uint8_t chk;
+
             switch (byte_count) {
                 case 2: flag = 0; return 0x5A;
-                case 3: return 0x5D;
+                case 3: chk = MSB ^ LSB; return 0x5D;
                 case 4: return 0x00;
                 case 5: return MSB;
                 case 6: return LSB;
-                case 7 ... 134: card_image[OFF] = payload[byte_count - 1]; return payload[byte_count - 1];
-                case 135: return 0x5C; // TODO: handle wr checksum
+                case 7: chk = MSB ^ LSB; // fallthrough
+                case 8 ... 134: card_image[OFF] = payload[byte_count - 1]; chk ^= card_image[OFF]; return card_image[OFF];
+                case 135: return 0x5C;
                 case 136: return 0x5D;
                 case 137: {
-                    ps1_dirty_mark(MSB * 256 + LSB);
-                    return 0x47;
+                    if (chk == payload[byte_count - 3]) {
+                        ps1_dirty_mark(MSB * 256 + LSB);
+                        return 0x47;
+                    } else
+                        return 0x4E;
                 }
-            } 
+            }
 
             #undef MSB
             #undef LSB
