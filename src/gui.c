@@ -22,7 +22,7 @@
 /* Displays the line at the bottom for long pressing buttons */
 static lv_obj_t *g_navbar, *g_progress_bar, *g_progress_text, *g_activity_frame;
 
-static lv_obj_t *scr_switch_nag, *scr_card_switch, *scr_main, *scr_menu, *scr_freepsxboot, *menu, *main_page;
+static lv_obj_t *scr_switch_nag, *scr_card_switch, *scr_main, *scr_menu, *menu, *main_page;
 static lv_style_t style_inv;
 static lv_obj_t *scr_main_idx_lbl, *scr_main_channel_lbl, *src_main_title_lbl, *lbl_channel, *lbl_ps1_autoboot, *lbl_ps2_autoboot, *lbl_civ_err, *auto_off_lbl, *contrast_lbl, *vcomh_lbl;
 
@@ -336,14 +336,6 @@ static void evt_scr_main(lv_event_t *event) {
     }
 }
 
-static void evt_scr_freepsxboot(lv_event_t *event) {
-    if (event->code == LV_EVENT_KEY) {
-        // uint32_t key = lv_indev_get_key(lv_indev_get_act());
-        UI_GOTO_SCREEN(scr_main);
-        lv_event_stop_bubbling(event);
-    }
-}
-
 static void evt_scr_menu(lv_event_t *event) {
     if (event->code == LV_EVENT_KEY) {
         uint32_t key = lv_indev_get_key(lv_indev_get_act());
@@ -532,41 +524,6 @@ static void create_main_screen(void) {
     lv_obj_add_style(lbl, &style_inv, 0);
 }
 
-static void create_freepsxboot_screen(void) {
-    lv_obj_t *lbl;
-
-    scr_freepsxboot = ui_scr_create();
-    lv_obj_add_event_cb(scr_freepsxboot, evt_scr_freepsxboot, LV_EVENT_ALL, NULL);
-
-    ui_header_create(scr_freepsxboot, "FreePSXBoot");
-
-    lbl = lv_label_create(scr_freepsxboot);
-    lv_obj_set_align(lbl, LV_ALIGN_TOP_LEFT);
-    lv_obj_set_pos(lbl, 0, 24);
-    lv_label_set_text(lbl, "Model");
-
-    lbl = lv_label_create(scr_freepsxboot);
-    lv_obj_set_align(lbl, LV_ALIGN_TOP_RIGHT);
-    lv_obj_set_pos(lbl, 0, 24);
-    lv_label_set_text(lbl, "1001v3");
-
-    lbl = lv_label_create(scr_freepsxboot);
-    lv_obj_set_align(lbl, LV_ALIGN_TOP_LEFT);
-    lv_obj_set_pos(lbl, 0, 32);
-    lv_label_set_text(lbl, "Slot");
-
-    lbl = lv_label_create(scr_freepsxboot);
-    lv_obj_set_align(lbl, LV_ALIGN_TOP_RIGHT);
-    lv_obj_set_pos(lbl, 0, 32);
-    lv_label_set_text(lbl, "Slot 2");
-
-    lbl = lv_label_create(scr_freepsxboot);
-    lv_obj_set_align(lbl, LV_ALIGN_BOTTOM_MID);
-    lv_label_set_text(lbl, "Press any button to deactivate FreePSXBoot and return to the Memory Card mode");
-    lv_label_set_long_mode(lbl, LV_LABEL_LONG_SCROLL_CIRCULAR);
-    lv_obj_set_width(lbl, 128);
-}
-
 static void create_cardswitch_screen(void) {
     scr_card_switch = ui_scr_create();
 
@@ -640,22 +597,6 @@ static void create_menu_screen(void) {
         cont = ui_menu_cont_create_nav(mode_page);
         ui_label_create(cont, "PS2");
         ui_menu_set_load_page_event(menu, cont, ps2_switch_warn);
-    }
-
-    /* freepsxboot integration for ps1 */
-    lv_obj_t *freepsxboot_page = ui_menu_subpage_create(menu, "FreePSXBoot");
-    {
-        cont = ui_menu_cont_create_nav(freepsxboot_page);
-        ui_label_create_grow(cont, "Autoboot");
-        ui_label_create(cont, "Yes");
-
-        cont = ui_menu_cont_create_nav(freepsxboot_page);
-        ui_label_create_grow(cont, "Model");
-        ui_label_create(cont, "1001v3");
-
-        cont = ui_menu_cont_create_nav(freepsxboot_page);
-        ui_label_create_grow(cont, "Slot");
-        ui_label_create(cont, "Slot 1");
     }
 
     /* display / auto off submenu */
@@ -746,11 +687,6 @@ static void create_menu_screen(void) {
         ui_label_create_grow_scroll(cont, "Autoboot");
         lbl_ps1_autoboot = ui_label_create(cont, settings_get_ps1_autoboot() ? " Yes" : " No");
         lv_obj_add_event_cb(cont, evt_ps1_autoboot, LV_EVENT_CLICKED, NULL);
-
-        cont = ui_menu_cont_create_nav(ps1_page);
-        ui_label_create_grow(cont, "FreePSXBoot");
-        ui_label_create(cont, ">");
-        ui_menu_set_load_page_event(menu, cont, freepsxboot_page);
 
         cont = ui_menu_cont_create_nav(ps1_page);
         ui_label_create_grow_scroll(cont, "Imitate a PocketStation");
@@ -852,10 +788,8 @@ static void create_ui(void) {
     create_menu_screen();
     create_cardswitch_screen();
     create_switch_nag_screen();
-    create_freepsxboot_screen();
 
-    /* start at the main screen - TODO - or freepsxboot */
-    // UI_GOTO_SCREEN(scr_freepsxboot);
+    /* start at the main screen */
     UI_GOTO_SCREEN(scr_main);
 }
 
