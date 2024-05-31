@@ -183,8 +183,10 @@ void ps2_cardman_open(void) {
 
     if (PS2_CM_STATE_BOOT == cardman_state)
         snprintf(path, sizeof(path), "MemoryCards/PS2/%s/BootCard.mcd", folder_name);
-    else {
+    else
         snprintf(path, sizeof(path), "MemoryCards/PS2/%s/%s-%d.mcd", folder_name, folder_name, card_chan);
+
+    if (card_idx != PS2_CARD_IDX_SPECIAL) {
         /* this is ok to do on every boot because it wouldn't update if the value is the same as currently stored */
         settings_set_ps2_card(card_idx);
         settings_set_ps2_channel(card_chan);
