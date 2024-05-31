@@ -25,7 +25,8 @@ typedef struct {
 } settings_t;
 
 #define SETTINGS_VERSION_MAGIC (0xAACD0001)
-#define SETTINGS_FLAGS_AUTOBOOT (0b1)
+#define SETTINGS_PS1_FLAGS_AUTOBOOT (0b0000001)
+#define SETTINGS_PS2_FLAGS_AUTOBOOT (0b0000001)
 
 _Static_assert(sizeof(settings_t) == 16, "unexpected padding in the settings structure");
 
@@ -136,13 +137,23 @@ void settings_set_mode(int mode) {
     }
 }
 
+bool settings_get_ps1_autoboot(void) {
+    return (settings.ps1_flags & SETTINGS_PS1_FLAGS_AUTOBOOT);
+}
+
+void settings_set_ps1_autoboot(bool autoboot) {
+    if (autoboot != settings_get_ps1_autoboot())
+        settings.ps1_flags ^= SETTINGS_PS1_FLAGS_AUTOBOOT;
+    SETTINGS_UPDATE_FIELD(ps1_flags);
+}
+
 bool settings_get_ps2_autoboot(void) {
-    return (settings.ps2_flags & SETTINGS_FLAGS_AUTOBOOT);
+    return (settings.ps2_flags & SETTINGS_PS2_FLAGS_AUTOBOOT);
 }
 
 void settings_set_ps2_autoboot(bool autoboot) {
     if (autoboot != settings_get_ps2_autoboot())
-        settings.ps2_flags ^= SETTINGS_FLAGS_AUTOBOOT;
+        settings.ps2_flags ^= SETTINGS_PS2_FLAGS_AUTOBOOT;
     SETTINGS_UPDATE_FIELD(ps2_flags);
 }
 
