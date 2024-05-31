@@ -947,6 +947,7 @@ void gui_task(void) {
     if (settings_get_mode() == MODE_PS1) {
         static int displayed_card_idx = -1;
         static int displayed_card_channel = -1;
+        static ps1_cardman_state_t cardman_state = PS1_CM_STATE_NORMAL;
         static char card_idx_s[8];
         static char card_channel_s[8];
 
@@ -954,8 +955,26 @@ void gui_task(void) {
             displayed_card_idx = ps1_cardman_get_idx();
             displayed_card_channel = ps1_cardman_get_channel();
             folder_name = ps1_cardman_get_folder_name();
+            cardman_state = ps1_cardman_get_state();
 
-            snprintf(card_channel_s, sizeof(card_channel_s), "%d", displayed_card_channel);
+            switch (cardman_state) {
+                case PS1_CM_STATE_BOOT:
+                    lv_label_set_text(scr_main_idx_lbl, "BOOT");
+                    lv_label_set_text(lbl_channel, "");
+                    snprintf(card_channel_s, sizeof(card_channel_s), " ");
+                    break;
+                case PS1_CM_STATE_GAMEID:
+                    lv_label_set_text(scr_main_idx_lbl, folder_name);
+                    lv_label_set_text(lbl_channel, "Channel");
+                    snprintf(card_channel_s, sizeof(card_channel_s), "%d", displayed_card_channel);
+                    break;
+                case PS1_CM_STATE_NORMAL:
+                    snprintf(card_idx_s, sizeof(card_idx_s), "%d", displayed_card_idx);
+                    lv_label_set_text(scr_main_idx_lbl, card_idx_s);
+                    lv_label_set_text(lbl_channel, "Channel");
+                    snprintf(card_channel_s, sizeof(card_channel_s), "%d", displayed_card_channel);
+                    break;
+            }
 
             if (displayed_card_idx > 0) {
                 snprintf(card_idx_s, sizeof(card_idx_s), "%d", displayed_card_idx);
