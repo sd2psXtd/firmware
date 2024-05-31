@@ -24,7 +24,7 @@ typedef struct {
     // TODO: how do we store last used channel for cards that use autodetecting w/ gameid?
 } settings_t;
 
-#define SETTINGS_VERSION_MAGIC (0xAACD0001)
+#define SETTINGS_VERSION_MAGIC (0xAACD0002)
 #define SETTINGS_PS1_FLAGS_AUTOBOOT (0b0000001)
 #define SETTINGS_PS2_FLAGS_AUTOBOOT (0b0000001)
 
