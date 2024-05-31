@@ -43,6 +43,7 @@ void ps2_cardman_init(void) {
     } else {
         card_idx = settings_get_ps2_card();
         card_chan = settings_get_ps2_channel();
+        cardman_state = PS2_CM_STATE_NORMAL;
         snprintf(folder_name, sizeof(folder_name), "Card%d", card_idx);
     }
 }
