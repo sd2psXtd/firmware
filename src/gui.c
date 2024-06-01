@@ -294,6 +294,7 @@ static void evt_scr_main(lv_event_t *event) {
         if (key == INPUT_KEY_PREV || key == INPUT_KEY_NEXT || key == INPUT_KEY_BACK || key == INPUT_KEY_ENTER) {
             uint8_t prevChannel, prevIdx;
             if (settings_get_mode() == MODE_PS1) {
+                ps1_cardman_state_t prevState = ps1_cardman_get_state();
                 prevChannel = ps1_cardman_get_channel();
                 prevIdx = ps1_cardman_get_idx();
 
@@ -303,7 +304,7 @@ static void evt_scr_main(lv_event_t *event) {
                     case INPUT_KEY_BACK: ps1_cardman_prev_idx(); break;
                     case INPUT_KEY_ENTER: ps1_cardman_next_idx(); break;
                 }
-                if ((prevChannel != ps1_cardman_get_channel()) || (prevIdx != ps1_cardman_get_idx())) {
+                if ((prevChannel != ps1_cardman_get_channel()) || (prevIdx != ps1_cardman_get_idx()) || (prevState != ps1_cardman_get_state())) {
                     ps1_memory_card_exit();
                     ps1_cardman_close();
                     switching_card = 1;
@@ -881,7 +882,7 @@ void gui_task(void) {
         static char card_idx_s[8];
         static char card_channel_s[8];
 
-        if (displayed_card_idx != ps1_cardman_get_idx() || displayed_card_channel != ps1_cardman_get_channel() || refresh_gui) {
+        if (displayed_card_idx != ps1_cardman_get_idx() || displayed_card_channel != ps1_cardman_get_channel() || cardman_state != ps1_cardman_get_state() || refresh_gui) {
             displayed_card_idx = ps1_cardman_get_idx();
             displayed_card_channel = ps1_cardman_get_channel();
             folder_name = ps1_cardman_get_folder_name();
