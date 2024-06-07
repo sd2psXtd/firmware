@@ -150,7 +150,7 @@ static int __time_critical_func(mc_do_state)(uint8_t ch) {
 
             switch (byte_count) {
                 case 2: flag = 0; return 0x5A;
-                case 3: chk = MSB ^ LSB; return 0x5D;
+                case 3: return 0x5D;
                 case 4: return 0x00;
                 case 5: return MSB;
                 case 6: return LSB;
