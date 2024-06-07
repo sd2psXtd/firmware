@@ -87,6 +87,7 @@ int main() {
     if (settings_get_mode() == MODE_PS1) {
         printf("starting in PS1 mode\n");
 
+        psram_init();
         sd_init();
         ps1_cardman_init();
         ps1_dirty_init();

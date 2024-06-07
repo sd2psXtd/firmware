@@ -1,5 +1,6 @@
 #include "ps1_dirty.h"
 #include "ps1_cardman.h"
+#include <psram/psram.h>
 
 #include "bigmem.h"
 #define dirty_heap bigmem.ps1.dirty_heap
@@ -93,7 +94,7 @@ void ps1_dirty_task(void) {
             ps1_dirty_unlock();
             break;
         }
-        memcpy(flushbuf, &bigmem.ps1.card_image[sector * 128], 128);
+        psram_read(sector * 128, flushbuf, 128);
         ps1_dirty_unlock();
 
         ++hit;

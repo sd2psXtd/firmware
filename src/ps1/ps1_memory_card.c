@@ -7,12 +7,10 @@
 #include "config.h"
 #include "ps1_mc_spi.pio.h"
 #include "debug.h"
-#include "bigmem.h"
+#include <psram/psram.h>
 #include "ps1_dirty.h"
 #include "ps1/ps1_memory_card.h"
 #include "game_names/game_names.h"
-
-#define card_image bigmem.ps1.card_image
 
 static uint64_t us_startup;
 
@@ -129,7 +127,12 @@ static int __time_critical_func(mc_do_state)(uint8_t ch) {
                 case 7: return 0x5D;
                 case 8: return MSB;
                 case 9: chk = MSB ^ LSB; return LSB;
-                case 10 ... 137: chk ^= card_image[OFF]; return card_image[OFF];
+                case 10 ... 137: {
+                    uint8_t data;
+                    psram_read(OFF, &data, 1);
+                    chk ^= data;
+                    return data;
+                }
                 case 138: return chk;
                 case 139: return 0x47;
             }
@@ -152,7 +155,11 @@ static int __time_critical_func(mc_do_state)(uint8_t ch) {
                 case 5: return MSB;
                 case 6: return LSB;
                 case 7: chk = MSB ^ LSB; // fallthrough
-                case 8 ... 134: card_image[OFF] = payload[byte_count - 1]; chk ^= card_image[OFF]; return card_image[OFF];
+                case 8 ... 134: {
+                    psram_write(OFF, &payload[byte_count - 1], 1);
+                    chk ^= payload[byte_count - 1];
+                    return payload[byte_count - 1];
+                }
                 case 135: return 0x5C;
                 case 136: return 0x5D;
                 case 137: {

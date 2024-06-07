@@ -9,7 +9,7 @@
 #include "sd.h"
 #include "debug.h"
 #include "settings.h"
-#include "bigmem.h"
+#include <psram/psram.h>
 #include "ps1_empty_card.h"
 
 #include "game_names/game_names.h"
@@ -138,7 +138,7 @@ void ps1_cardman_open(void) {
             genblock(pos, flushbuf);
             if (sd_write(fd, flushbuf, BLOCK_SIZE) != BLOCK_SIZE)
                 fatal("cannot init memcard");
-            memcpy(&bigmem.ps1.card_image[pos], flushbuf, BLOCK_SIZE);
+            psram_read(pos, flushbuf, BLOCK_SIZE);
         }
         sd_flush(fd);
 
@@ -159,7 +159,7 @@ void ps1_cardman_open(void) {
         for (size_t pos = 0; pos < CARD_SIZE; pos += BLOCK_SIZE) {
             if (sd_read(fd, flushbuf, BLOCK_SIZE) != BLOCK_SIZE)
                 fatal("cannot read memcard");
-            memcpy(&bigmem.ps1.card_image[pos], flushbuf, BLOCK_SIZE);
+            psram_write(pos, flushbuf, BLOCK_SIZE);
         }
         uint64_t end = time_us_64();
         printf("OK!\n");
