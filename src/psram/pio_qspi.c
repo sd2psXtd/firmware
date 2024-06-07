@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: BSD-3-Clause
  */
 
-#include "ps2_pio_qspi.h"
+#include "pio_qspi.h"
 #include "config.h"
 #include "ps2_dirty.h"
 #include "hardware/dma.h"
@@ -33,13 +33,23 @@ void __time_critical_func(pio_spi_write8_read8_blocking)(const pio_spi_inst_t *s
     }
 }
 
-void __time_critical_func(pio_qspi_write8_read8_blocking)(const pio_spi_inst_t *spi, uint8_t *src, size_t srclen, uint8_t *dst,
-                                                          size_t dstlen) {
+void __time_critical_func(pio_qspi_write8_read8_blocking)(const pio_spi_inst_t *spi, uint8_t *cmd,
+                                                          uint8_t *src, size_t srclen,
+                                                          uint8_t *dst, size_t dstlen) {
     io_rw_8 *txfifo = (io_rw_8 *) &spi->pio->txf[spi->sm];
     io_rw_8 *rxfifo = (io_rw_8 *) &spi->pio->rxf[spi->sm];
 
     // TODO: this should be done nicer. while it's safe (since we drive the clock), it can be done much faster
     pio_sm_set_pindirs_with_mask(spi->pio, spi->sm, QSPI_DAT_MASK, QSPI_DAT_MASK);
+
+    for (int i = 0; i < 4;) {
+        if (!pio_sm_is_tx_fifo_full(spi->pio, spi->sm)) {
+            *txfifo = *cmd++;
+            (void) *rxfifo;
+            i++;
+        }
+    }
+
     while (srclen) {
         if (!pio_sm_is_tx_fifo_full(spi->pio, spi->sm)) {
             *txfifo = *src++;
@@ -47,14 +57,23 @@ void __time_critical_func(pio_qspi_write8_read8_blocking)(const pio_spi_inst_t *
             --srclen;
         }
     }
+
     // TODO: this should be done nicer. while it's safe (since we drive the clock), it can be done much faster
     pio_sm_set_pindirs_with_mask(spi->pio, spi->sm, 0, QSPI_DAT_MASK);
 
+    int i = 0;
     while (dstlen) {
         if (!pio_sm_is_rx_fifo_empty(spi->pio, spi->sm)) {
-            *txfifo = 0;
-            *dst++ = *rxfifo;
-            --dstlen;
+            if (i < 4)  {
+                // wait cycles
+                *txfifo = 0;
+                (void) *rxfifo;
+                ++i;
+            } else {
+                *txfifo = 0;
+                *dst++ = *rxfifo;
+                --dstlen;
+            }
         }
     }
 }

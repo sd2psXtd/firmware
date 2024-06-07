@@ -8,7 +8,7 @@
 #include "debug.h"
 #include "game_names/game_names.h"
 #include "hardware/timer.h"
-#include "ps2_psram.h"
+#include "psram/psram.h"
 #include "sd.h"
 #include "settings.h"
 

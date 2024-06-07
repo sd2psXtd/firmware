@@ -1,6 +1,6 @@
 #include "../ps2_dirty.h"
 #include "../ps2_exploit.h"
-#include "../ps2_psram.h"
+#include "psram/psram.h"
 #include "debug.h"
 #include "hardware/gpio.h"
 #include "hardware/timer.h"
@@ -41,7 +41,7 @@ inline void __time_critical_func(read_mc)(uint32_t addr, void *buf, size_t sz) {
         ps2_exploit_read(addr, buf, sz);
         ps2_dirty_unlock();
     } else {
-        psram_read_dma(addr, buf, sz);
+        psram_read_dma_ps2(addr, buf, sz);
     }
 }
 

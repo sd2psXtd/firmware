@@ -16,6 +16,7 @@
 #include "keystore.h"
 #include "settings.h"
 #include "version/version.h"
+#include "psram/psram.h"
 
 #include "ps1/ps1_memory_card.h"
 #include "ps1/ps1_dirty.h"
@@ -25,7 +26,6 @@
 #include "ps2/ps2_dirty.h"
 #include "ps2/card_emu/ps2_memory_card.h"
 #include "ps2/ps2_cardman.h"
-#include "ps2/ps2_psram.h"
 
 #include "ps2/card_emu/ps2_sd2psxman.h"
 

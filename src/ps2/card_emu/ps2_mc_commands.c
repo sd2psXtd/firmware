@@ -8,7 +8,7 @@
 #include "ps2_cardman.h"
 #include "ps2_dirty.h"
 #include "ps2_mc_internal.h"
-#include "ps2_pio_qspi.h"
+#include "psram/pio_qspi.h"
 #include "debug.h"
 
 //#define DEBUG_MC_PROTOCOL

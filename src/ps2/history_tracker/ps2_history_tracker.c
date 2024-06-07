@@ -17,7 +17,7 @@
 #include "pico/types.h"
 #include "ps2_cardman.h"
 #include "ps2_dirty.h"
-#include "ps2_psram.h"
+#include "psram/psram.h"
 
 #define USE_INJECT_LOGIC
 

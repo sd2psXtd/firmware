@@ -2,7 +2,7 @@
 
 #include "../ps2_exploit.h"
 #include "../ps2_dirty.h"
-#include "../ps2_psram.h"
+#include "psram/psram.h"
 
 
 #include <pico/platform.h>

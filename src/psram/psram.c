@@ -1,8 +1,8 @@
 #include "config.h"
-#include "ps2_psram.h"
+#include "psram.h"
 
 #include "pico/critical_section.h"
-#include "ps2_pio_qspi.h"
+#include "pio_qspi.h"
 #include "hardware/timer.h"
 
 #include <stdio.h>
@@ -65,28 +65,23 @@ static test_t psram_tests[] = {
 #define NUM_TESTS (sizeof(psram_tests)/sizeof(*psram_tests))
 
 static void psram_run_tests(void) {
-    uint8_t cmd_write[4 + TEST_BLOCK_SIZE] = { 0x38 };
-    uint8_t cmd_read[4] = { 0xEB };
-    uint8_t buf[4 + TEST_BLOCK_SIZE] = { 0 };
+    uint8_t buf_write[TEST_BLOCK_SIZE] = { 0 };
+    uint8_t buf_read[TEST_BLOCK_SIZE] = { 0 };
 
     uint64_t start = time_us_64();
 
     for (size_t test = 0; test < NUM_TESTS; ++test) {
         printf("Start PSRAM test %d\n", test);
-        psram_tests[test](cmd_write+4);
+        psram_tests[test](buf_write);
 
         uint32_t addr = 0;
         for (size_t i = 0; i < TEST_CYCLES; ++i) {
-            memset(buf, 0, sizeof(buf));
+            memset(buf_read, 0, sizeof(buf_read));
 
-            cmd_write[1] = cmd_read[1] = (addr & 0xFF0000) >> 16;
-            cmd_write[2] = cmd_read[2] = (addr & 0xFF00) >> 8;
-            cmd_write[3] = cmd_read[3] = (addr & 0xFF);
+            SPI_OP(pio_qspi_write8_blocking(&spi, addr, buf_write, sizeof(buf_write)));
+            SPI_OP(pio_qspi_read8_blocking(&spi, addr, buf_read, sizeof(buf_read)));
 
-            SPI_OP(pio_qspi_write8_read8_blocking(&spi, cmd_write, sizeof(cmd_write), NULL, 0));
-            SPI_OP(pio_qspi_write8_read8_blocking(&spi, cmd_read, sizeof(cmd_read), buf, sizeof(buf)));
-
-            if (memcmp(cmd_write+4, buf+4, TEST_BLOCK_SIZE) != 0) {
+            if (memcmp(buf_write, buf_read, TEST_BLOCK_SIZE) != 0) {
                 printf("test %d cycle %d\n", test, i);
                 fatal("PSRAM failed test");
             }
@@ -104,15 +99,12 @@ static void psram_run_tests(void) {
 
 void psram_read(uint32_t addr, void *vbuf, size_t sz) {
     uint8_t *buf = vbuf;
-    uint8_t cmd_read[4] = { 0xEB, (addr & 0xFF0000) >> 16, (addr & 0xFF00) >> 8, (addr & 0xFF) };
-    uint8_t tmpbuf[4 + 512];
     critical_section_enter_blocking(&crit_psram);
-    SPI_OP(pio_qspi_write8_read8_blocking(&spi, cmd_read, sizeof(cmd_read), tmpbuf, sizeof(tmpbuf)));
+    SPI_OP(pio_qspi_read8_blocking(&spi, addr, buf, sz));
     critical_section_exit(&crit_psram);
-    memcpy(buf, tmpbuf+4, sz);
 }
 
-void __time_critical_func(psram_read_dma)(uint32_t addr, void *vbuf, size_t sz) {
+void __time_critical_func(psram_read_dma_ps2)(uint32_t addr, void *vbuf, size_t sz) {
     uint8_t *buf = vbuf;
     uint8_t cmd_read[4] = { 0xEB, (addr & 0xFF0000) >> 16, (addr & 0xFF00) >> 8, (addr & 0xFF) };
     critical_section_enter_blocking(&crit_psram);
@@ -123,14 +115,8 @@ void __time_critical_func(psram_read_dma)(uint32_t addr, void *vbuf, size_t sz) 
 
 void __time_critical_func(psram_write)(uint32_t addr, void *vbuf, size_t sz) {
     uint8_t *buf = vbuf;
-    uint8_t cmd_write[4 + 512];
-    cmd_write[0] = 0x38;
-    cmd_write[1] = (addr & 0xFF0000) >> 16;
-    cmd_write[2] = (addr & 0xFF00) >> 8;
-    cmd_write[3] = (addr & 0xFF);
-    memcpy(cmd_write + 4, buf, sz);
     critical_section_enter_blocking(&crit_psram);
-    SPI_OP(pio_qspi_write8_read8_blocking(&spi, cmd_write, 4 + sz, NULL, 0));
+    SPI_OP(pio_qspi_write8_blocking(&spi, addr, buf, sz));
     critical_section_exit(&crit_psram);
 }
 
