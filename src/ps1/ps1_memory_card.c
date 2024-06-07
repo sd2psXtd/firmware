@@ -230,7 +230,7 @@ static int __time_critical_func(mc_do_state)(uint8_t ch) {
                 case 5: mc_pro_command = MCP_NXT_CARD; return 0xFF; 
             }
         } else {
-            debug_printf("Received unknown command: %u", ch);
+            debug_printf("Received unknown command: %u\n", ch);
         }
     }
 
