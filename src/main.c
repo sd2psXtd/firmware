@@ -1,5 +1,6 @@
 #include <stdio.h>
 #include "history_tracker/ps2_history_tracker.h"
+#include "file_handling/ps2_file_handling.h"
 #include "pico/stdlib.h"
 #include "pico/bootrom.h"
 #include "pico/multicore.h"
@@ -108,7 +109,7 @@ int main() {
         }
     } else {
         printf("starting in PS2 mode\n");
-
+ 
         keystore_init();
         psram_init();
         sd_init();
@@ -116,11 +117,13 @@ int main() {
         ps2_dirty_init();
         ps2_history_tracker_init();
         gui_init();
+        ps2_file_handling_init();
 
         multicore_launch_core1(ps2_memory_card_main);
 
         if (settings_get_ps2_autoboot())
             ps2_memory_card_enter_flash();
+
 
         printf("Starting memory card... ");
         uint64_t start = time_us_64();
@@ -136,6 +139,7 @@ int main() {
             ps2_history_tracker_run();
             gui_task();
             input_task();
+            ps2_file_handling_run();
         }
     }
 }

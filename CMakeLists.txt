@@ -104,7 +104,7 @@ set_target_properties(sd2psx_common PROPERTIES PICO_TARGET_LINKER_SCRIPT ${CMAKE
 
 pico_add_extra_outputs(sd2psx)
 
-set(DEBUG_USB_UART OFF CACHE BOOL "Activate UART over USB for debugging")
+option(DEBUG_USB_UART "Activate UART over USB for debugging" OFF)
 
 if(DEBUG_USB_UART)
     target_compile_definitions(sd2psx_common PUBLIC -DDEBUG_USB_UART)

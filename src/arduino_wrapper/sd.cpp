@@ -7,6 +7,7 @@
 
 extern "C" {
 #include "debug.h"
+#include "sd.h"
 }
 
 #include <stdio.h>
@@ -97,6 +98,16 @@ extern "C" int sd_seek(int fd, uint64_t pos) {
     return files[fd].seekSet(pos) != true;
 }
 
+extern "C" size_t sd_tell(int fd) {
+    CHECK_FD(fd);
+
+    return files[fd].curPosition();
+}
+
+extern "C" void sd_delete(const char* path) {
+    sd.remove(path);
+}
+
 extern "C" int sd_mkdir(const char *path) {
     /* return 1 on error */
     return sd.mkdir(path) != true;
@@ -124,4 +135,17 @@ extern "C" int sd_iterate_dir(int dir, int it) {
 
 extern "C" size_t sd_get_name(int fd, char* name, size_t size) {
     return files[fd].getName(name, size);
+}
+
+extern "C" bool sd_is_dir(int fd) {
+    return files[fd].isDirectory();
+}
+
+extern "C" int sd_getStat(int fd, sd_file_stat_t* const sd_stat) {
+    files[fd].getAccessDateTime(&sd_stat->adate, &sd_stat->atime);
+    files[fd].getCreateDateTime(&sd_stat->cdate, &sd_stat->ctime);
+    files[fd].getModifyDateTime(&sd_stat->mdate, &sd_stat->mtime);
+    sd_stat->writable = files[fd].isWritable();
+
+    return -1;
 }

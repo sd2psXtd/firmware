@@ -36,7 +36,7 @@ uint8_t term = 0xFF;
 
 static volatile int mc_exit_request, mc_exit_response, mc_enter_request, mc_enter_response;
 
-inline void __time_critical_func(read_mc)(uint32_t addr, void *buf, size_t sz) {
+void __time_critical_func(read_mc)(uint32_t addr, void *buf, size_t sz) {
     if (flash_mode) {
         ps2_exploit_read(addr, buf, sz);
         ps2_dirty_unlock();
@@ -112,7 +112,7 @@ static void __time_critical_func(card_deselected)(uint gpio, uint32_t event_mask
     }
 }
 
-inline __attribute__((always_inline)) uint8_t __time_critical_func(receive)(uint8_t *cmd) {
+uint8_t __time_critical_func(receive)(uint8_t *cmd) {
     do {
         while (pio_sm_is_rx_fifo_empty(pio0, cmd_reader.sm) && pio_sm_is_rx_fifo_empty(pio0, cmd_reader.sm) && pio_sm_is_rx_fifo_empty(pio0, cmd_reader.sm) &&
             pio_sm_is_rx_fifo_empty(pio0, cmd_reader.sm) && pio_sm_is_rx_fifo_empty(pio0, cmd_reader.sm) && 1) {
@@ -125,7 +125,7 @@ inline __attribute__((always_inline)) uint8_t __time_critical_func(receive)(uint
     while (0);
 }
 
-inline __attribute__((always_inline)) uint8_t __time_critical_func(receiveFirst)(uint8_t *cmd) {
+uint8_t __time_critical_func(receiveFirst)(uint8_t *cmd) {
     do {
         while (pio_sm_is_rx_fifo_empty(pio0, cmd_reader.sm) && pio_sm_is_rx_fifo_empty(pio0, cmd_reader.sm) && pio_sm_is_rx_fifo_empty(pio0, cmd_reader.sm) &&
             pio_sm_is_rx_fifo_empty(pio0, cmd_reader.sm) && pio_sm_is_rx_fifo_empty(pio0, cmd_reader.sm) && 1) {
@@ -140,8 +140,12 @@ inline __attribute__((always_inline)) uint8_t __time_critical_func(receiveFirst)
     while (0);
 }
 
-inline void __time_critical_func(mc_respond)(uint8_t ch) {
+void __time_critical_func(mc_respond)(uint8_t ch) {
     pio_sm_put_blocking(pio0, dat_writer.sm, ch);
+}
+
+void __time_critical_func(mc_respond_dma)(uint8_t* const ptr, uint8_t size) {
+
 }
 
 uint8_t EccTable[] = {
@@ -242,6 +246,8 @@ static void __time_critical_func(mc_main_loop)(void) {
             /* sub cmd */
             receiveOrNextCmd(&cmd);
 
+            //debug_printf("RCVCMD %d\n", cmd);
+
             switch (cmd)
             {
                 case SD2PSXMAN_PING: ps2_sd2psxman_cmds_ping(); break;
@@ -253,6 +259,14 @@ static void __time_critical_func(mc_main_loop)(void) {
                 case SD2PSXMAN_GET_GAMEID: ps2_sd2psxman_cmds_get_gameid(); break;
                 case SD2PSXMAN_SET_GAMEID: ps2_sd2psxman_cmds_set_gameid(); break;
                 case SD2PSXMAN_UNMOUNT_BOOTCARD: ps2_sd2psxman_cmds_unmount_bootcard(); break;
+                case SD2PSXMAN_SET_PATH: ps2_sd2psxman_cmds_set_path(); break;
+                case SD2PSXMAN_OPEN_FILE: ps2_sd2psxman_cmds_open_file(); break;
+                case SD2PSXMAN_CLOSE_FILE: ps2_sd2psxman_cmds_close_file(); break;
+                case SD2PSXMAN_SEEK_FILE: ps2_sd2psxman_cmds_seek_file(); break;
+                case SD2PSXMAN_SETUP_TRANSACTION: ps2_sd2psxman_cmds_setup_transaction(); break;
+                case SD2PSXMAN_READ_FILE: ps2_sd2psxman_cmds_read_file(); break;
+                case SD2PSXMAN_READ_DIR_ENTRY: ps2_sd2psxman_cmds_read_dir_entry(); break;
+                case SD2PSXMAN_READ_STAT: ps2_sd2psxman_cmds_read_stat(); break;
                 default: debug_printf("Unknown Subcommand: %02x\n", cmd); break;
             }
         } else {

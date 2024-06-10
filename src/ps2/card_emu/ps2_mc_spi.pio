@@ -103,7 +103,6 @@ static inline void dat_writer_program_init(PIO pio, uint sm, uint offset) {
     /* SEL and CLK used as "wait" inputs only */
     pio_sm_set_consecutive_pindirs(pio, sm, PIN_PSX_SEL, 1, false);
     pio_sm_set_consecutive_pindirs(pio, sm, PIN_PSX_CLK, 1, false);
-//    pio_sm_set_consecutive_pindirs(pio, sm, PIN_PSX_SPD_SEL, 1, false);
 
     /* shift OSR to right, autopull every 8 bits */
     sm_config_set_out_shift(&c, true, true, 8);
