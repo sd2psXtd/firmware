@@ -138,7 +138,7 @@ void ps1_cardman_open(void) {
             genblock(pos, flushbuf);
             if (sd_write(fd, flushbuf, BLOCK_SIZE) != BLOCK_SIZE)
                 fatal("cannot init memcard");
-            psram_read(pos, flushbuf, BLOCK_SIZE);
+            psram_write(pos, flushbuf, BLOCK_SIZE);
         }
         sd_flush(fd);
 
