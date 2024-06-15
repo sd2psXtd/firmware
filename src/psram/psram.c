@@ -4,6 +4,7 @@
 #include "pico/critical_section.h"
 #include "pio_qspi.h"
 #include "hardware/timer.h"
+#include "hardware/dma.h"
 
 #include <stdio.h>
 #include <string.h>
@@ -104,20 +105,34 @@ void psram_read(uint32_t addr, void *vbuf, size_t sz) {
     critical_section_exit(&crit_psram);
 }
 
-void __time_critical_func(psram_read_dma_ps2)(uint32_t addr, void *vbuf, size_t sz) {
-    uint8_t *buf = vbuf;
-    uint8_t cmd_read[4] = { 0xEB, (addr & 0xFF0000) >> 16, (addr & 0xFF00) >> 8, (addr & 0xFF) };
-    critical_section_enter_blocking(&crit_psram);
-    gpio_put(spi.cs_pin, 0);
-    pio_qspi_write8_read8_dma(&spi, cmd_read, sizeof(cmd_read), buf, sz);
-    critical_section_exit(&crit_psram);
-}
-
 void __time_critical_func(psram_write)(uint32_t addr, void *vbuf, size_t sz) {
     uint8_t *buf = vbuf;
     critical_section_enter_blocking(&crit_psram);
     SPI_OP(pio_qspi_write8_blocking(&spi, addr, buf, sz));
     critical_section_exit(&crit_psram);
+}
+
+void __time_critical_func(psram_read_dma)(uint32_t addr, void *vbuf, size_t sz, void (*cb)(void)) {
+    uint8_t *buf = vbuf;
+    critical_section_enter_blocking(&crit_psram);
+    gpio_put(spi.cs_pin, 0);
+    pio_qspi_read8_dma(&spi, addr, buf, sz, cb);
+    critical_section_exit(&crit_psram);
+}
+
+void __time_critical_func(psram_write_dma)(uint32_t addr, void *vbuf, size_t sz, void (*cb)(void)) {
+    uint8_t *buf = vbuf;
+    critical_section_enter_blocking(&crit_psram);
+    gpio_put(spi.cs_pin, 0);
+    pio_qspi_write8_dma(&spi, addr, buf, sz, cb);
+    critical_section_exit(&crit_psram);
+}
+
+void psram_wait_for_dma() {
+    dma_channel_wait_for_finish_blocking(PIO_SPI_DMA_TX_CMD_CHAN);
+    dma_channel_wait_for_finish_blocking(PIO_SPI_DMA_RX_CMD_CHAN);
+    dma_channel_wait_for_finish_blocking(PIO_SPI_DMA_TX_DATA_CHAN);
+    dma_channel_wait_for_finish_blocking(PIO_SPI_DMA_RX_DATA_CHAN);
 }
 
 void psram_init(void) {

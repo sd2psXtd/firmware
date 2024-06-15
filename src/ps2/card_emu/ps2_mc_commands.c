@@ -14,10 +14,7 @@
 //#define DEBUG_MC_PROTOCOL
 
 uint32_t read_sector, write_sector, erase_sector;
-struct {
-    uint32_t prefix;
-    uint8_t buf[528];
-} readtmp;
+uint8_t readtmp[528];
 uint8_t writetmp[528];
 int is_write, is_dma_read;
 uint32_t readptr, writeptr;
@@ -115,13 +112,13 @@ inline __attribute__((always_inline)) void __time_critical_func(ps2_mc_cmd_setRe
         ps2_dirty_lockout_renew();
         /* the spinlock will be unlocked by the DMA irq once all data is tx'd */
         ps2_dirty_lock();
-        read_mc(read_sector * 512, &readtmp, 512 + 4);
+        read_mc(read_sector * 512, &readtmp, 512);
         // dma_channel_wait_for_finish_blocking(0);
         // dma_channel_wait_for_finish_blocking(1);
     }
     readptr = 0;
 
-    eccptr = &readtmp.buf[512];
+    eccptr = &readtmp[512];
     memset(eccptr, 0, 16);
 
     mc_respond(term);
@@ -232,27 +229,26 @@ inline __attribute__((always_inline)) void __time_critical_func(ps2_mc_cmd_readD
     uint8_t b = 0xFF;
 
     for (int i = 0; i < sz; ++i) {
-        if (readptr == sizeof(readtmp.buf)) {
+        if (readptr == sizeof(readtmp)) {
             /* a game may read more than one 528-byte sector in a sequence of read ops, e.g. re4 */
             ++read_sector;
             if (read_sector * 512 + 512 <= ps2_cardman_get_card_size()) {
                 ps2_dirty_lockout_renew();
                 /* the spinlock will be unlocked by the DMA irq once all data is tx'd */
                 ps2_dirty_lock();
-                read_mc(read_sector * 512, &readtmp, 512 + 4);
+                read_mc(read_sector * 512, &readtmp, 512);
                 // TODO: remove this if safe
                 // must make sure the dma completes for first byte before we start reading below
-                dma_channel_wait_for_finish_blocking(PIO_SPI_DMA_RX_CHAN);
-                dma_channel_wait_for_finish_blocking(PIO_SPI_DMA_TX_CHAN);
+                psram_wait_for_dma();
             }
             readptr = 0;
 
-            eccptr = &readtmp.buf[512];
+            eccptr = &readtmp[512];
             memset(eccptr, 0, 16);
         }
 
-        if (readptr < sizeof(readtmp.buf)) {
-            b = readtmp.buf[readptr];
+        if (readptr < sizeof(readtmp)) {
+            b = readtmp[readptr];
             mc_respond(b);
 
             if (readptr <= 512) {
@@ -309,8 +305,8 @@ inline __attribute__((always_inline)) void __time_critical_func(ps2_mc_cmd_commi
         }
     } else {
 #ifdef DEBUG_MC_PROTOCOL
-        debug_printf("RD 0x%08X : %02X %02X .. %08X %08X %08X\n", read_sector * 512, readtmp.buf[0], readtmp.buf[1], *(uint32_t *)&readtmp.buf[512],
-                     *(uint32_t *)&readtmp.buf[516], *(uint32_t *)&readtmp.buf[520]);
+        debug_printf("RD 0x%08X : %02X %02X .. %08X %08X %08X\n", read_sector * 512, readtmp[0], readtmp[1], *(uint32_t *)&readtmp[512],
+                     *(uint32_t *)&readtmp[516], *(uint32_t *)&readtmp[520]);
 #endif
     }
 
@@ -323,11 +319,11 @@ inline __attribute__((always_inline)) void __time_critical_func(ps2_mc_cmd_erase
     uint8_t _ = 0U;
     /* do erase */
     if (erase_sector * 512 + 512 * ERASE_SECTORS <= ps2_cardman_get_card_size()) {
-        memset(readtmp.buf, 0xFF, 512);
+        memset(readtmp, 0xFF, 512);
         ps2_dirty_lockout_renew();
         ps2_dirty_lock();
         for (int i = 0; i < ERASE_SECTORS; ++i) {
-            write_mc((erase_sector + i) * 512, readtmp.buf, 512);
+            write_mc((erase_sector + i) * 512, readtmp, 512);
             ps2_dirty_mark(erase_sector + i);
         }
         ps2_dirty_unlock();
