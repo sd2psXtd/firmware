@@ -114,8 +114,10 @@ static int __time_critical_func(mc_do_state)(uint8_t ch) {
             /* Memory card read */
             #define MSB (payload[4])
             #define LSB (payload[5])
-            #define OFF ((MSB * 256 + LSB) * 128 + byte_count - 10)
+            #define ADDR ((MSB * 256 + LSB) * 128)
+            #define OFF (byte_count - 10)
 
+            static uint8_t buffer[128];
             static uint8_t chk;
 
             switch (byte_count) {
@@ -126,12 +128,15 @@ static int __time_critical_func(mc_do_state)(uint8_t ch) {
                 case 6: return 0x5C;
                 case 7: return 0x5D;
                 case 8: return MSB;
-                case 9: chk = MSB ^ LSB; return LSB;
+                case 9:
+                    chk = MSB ^ LSB;
+                    ps1_dirty_lock();
+                    psram_read_dma(ADDR, buffer, 128, ps1_dirty_unlock);
+                    return LSB;
                 case 10 ... 137: {
-                    uint8_t data;
-                    psram_read(OFF, &data, 1);
-                    chk ^= data;
-                    return data;
+                    while (psram_read_dma_remaining() >= (128 - OFF)) {} // wait for requested byte to be DMA'd
+                    chk ^= buffer[OFF];
+                    return buffer[OFF];
                 }
                 case 138: return chk;
                 case 139: return 0x47;
@@ -139,12 +144,13 @@ static int __time_critical_func(mc_do_state)(uint8_t ch) {
 
             #undef MSB
             #undef LSB
+            #undef ADDR
             #undef OFF
         } else if (cmd == 'W') {
             /* Memory card write */
             #define MSB (payload[4])
             #define LSB (payload[5])
-            #define OFF ((MSB * 256 + LSB) * 128 + byte_count - 7)
+            #define ADDR ((MSB * 256 + LSB) * 128 + byte_count - 7)
 
             static uint8_t chk;
 
@@ -156,7 +162,10 @@ static int __time_critical_func(mc_do_state)(uint8_t ch) {
                 case 6: return LSB;
                 case 7: chk = MSB ^ LSB; // fallthrough
                 case 8 ... 134: {
-                    psram_write(OFF, &payload[byte_count - 1], 1);
+                    ps1_dirty_lock();
+                    psram_write_dma(ADDR, &payload[byte_count - 1], 1, NULL);
+                    psram_wait_for_dma();
+                    ps1_dirty_unlock();
                     chk ^= payload[byte_count - 1];
                     return payload[byte_count - 1];
                 }
@@ -173,7 +182,7 @@ static int __time_critical_func(mc_do_state)(uint8_t ch) {
 
             #undef MSB
             #undef LSB
-            #undef OFF
+            #undef ADDR
         }
         // Memcard Pro Commands after this line
         // See https://gitlab.com/chriz2600/ps1-game-id-transmission

@@ -60,7 +60,8 @@ int page_erase(mcfat_cardspecs_t* info, uint32_t page) {
         memset((void*)buff, 0xFF, info->pagesize);
         ps2_dirty_lockout_renew();
         ps2_dirty_lock();
-        psram_write(page * info->pagesize, buff, info->pagesize);
+        psram_write_dma(page * info->pagesize, buff, info->pagesize, NULL);
+        psram_wait_for_dma();
         ps2_dirty_mark(page);
         ps2_dirty_unlock();
     }
@@ -71,7 +72,8 @@ int page_write(mcfat_cardspecs_t* info, uint32_t page, void* buff) {
     if (page * info->pagesize + info->pagesize <= ps2_cardman_get_card_size()) {
         ps2_dirty_lockout_renew();
         ps2_dirty_lock();
-        psram_write(page * info->pagesize, buff, info->pagesize);
+        psram_write_dma(page * info->pagesize, buff, info->pagesize, NULL);
+        psram_wait_for_dma();
         ps2_dirty_mark(page);
         ps2_dirty_unlock();
     }
@@ -79,7 +81,8 @@ int page_write(mcfat_cardspecs_t* info, uint32_t page, void* buff) {
 }
 
 int page_read(mcfat_cardspecs_t* info, uint32_t page, uint32_t count, void* buff) {
-    psram_read(page * info->pagesize, buff, count);
+    psram_read_dma(page * info->pagesize, buff, count, NULL);
+    psram_wait_for_dma();
     return sceMcResSucceed;
 }
 

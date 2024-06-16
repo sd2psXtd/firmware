@@ -65,53 +65,6 @@ static test_t psram_tests[] = {
 
 #define NUM_TESTS (sizeof(psram_tests)/sizeof(*psram_tests))
 
-static void psram_run_tests(void) {
-    uint8_t buf_write[TEST_BLOCK_SIZE] = { 0 };
-    uint8_t buf_read[TEST_BLOCK_SIZE] = { 0 };
-
-    uint64_t start = time_us_64();
-
-    for (size_t test = 0; test < NUM_TESTS; ++test) {
-        printf("Start PSRAM test %d\n", test);
-        psram_tests[test](buf_write);
-
-        uint32_t addr = 0;
-        for (size_t i = 0; i < TEST_CYCLES; ++i) {
-            memset(buf_read, 0, sizeof(buf_read));
-
-            SPI_OP(pio_qspi_write8_blocking(&spi, addr, buf_write, sizeof(buf_write)));
-            SPI_OP(pio_qspi_read8_blocking(&spi, addr, buf_read, sizeof(buf_read)));
-
-            if (memcmp(buf_write, buf_read, TEST_BLOCK_SIZE) != 0) {
-                printf("test %d cycle %d\n", test, i);
-                fatal("PSRAM failed test");
-            }
-
-            addr += TEST_BLOCK_SIZE;
-        }
-    }
-
-    uint64_t end = time_us_64();
-    printf("PSRAM passed all tests -- took %.2f ms -- avg speed %.2f kB/s\n",
-        (end - start) / 1000.0,
-        1000000.0 * (NUM_TESTS * TEST_CYCLES * TEST_BLOCK_SIZE * 2) / (end - start) / 1024);
-}
-
-
-void psram_read(uint32_t addr, void *vbuf, size_t sz) {
-    uint8_t *buf = vbuf;
-    critical_section_enter_blocking(&crit_psram);
-    SPI_OP(pio_qspi_read8_blocking(&spi, addr, buf, sz));
-    critical_section_exit(&crit_psram);
-}
-
-void __time_critical_func(psram_write)(uint32_t addr, void *vbuf, size_t sz) {
-    uint8_t *buf = vbuf;
-    critical_section_enter_blocking(&crit_psram);
-    SPI_OP(pio_qspi_write8_blocking(&spi, addr, buf, sz));
-    critical_section_exit(&crit_psram);
-}
-
 void __time_critical_func(psram_read_dma)(uint32_t addr, void *vbuf, size_t sz, void (*cb)(void)) {
     uint8_t *buf = vbuf;
     critical_section_enter_blocking(&crit_psram);
@@ -128,11 +81,53 @@ void __time_critical_func(psram_write_dma)(uint32_t addr, void *vbuf, size_t sz,
     critical_section_exit(&crit_psram);
 }
 
-void psram_wait_for_dma() {
+uint32_t psram_write_dma_remaining() {
+    return dma_channel_hw_addr(PIO_SPI_DMA_TX_DATA_CHAN)->transfer_count;
+}
+uint32_t psram_read_dma_remaining() {
+    return dma_channel_hw_addr(PIO_SPI_DMA_RX_DATA_CHAN)->transfer_count;
+}
+
+inline void psram_wait_for_dma() {
     dma_channel_wait_for_finish_blocking(PIO_SPI_DMA_TX_CMD_CHAN);
     dma_channel_wait_for_finish_blocking(PIO_SPI_DMA_RX_CMD_CHAN);
     dma_channel_wait_for_finish_blocking(PIO_SPI_DMA_TX_DATA_CHAN);
     dma_channel_wait_for_finish_blocking(PIO_SPI_DMA_RX_DATA_CHAN);
+}
+
+static void psram_run_tests(void) {
+    uint8_t buf_write[TEST_BLOCK_SIZE] = { 0 };
+    uint8_t buf_read[TEST_BLOCK_SIZE] = { 0 };
+
+    uint64_t start = time_us_64();
+
+    for (size_t test = 0; test < NUM_TESTS; ++test) {
+        printf("Start PSRAM test %d\n", test);
+        psram_tests[test](buf_write);
+
+        uint32_t addr = 0;
+        for (size_t i = 0; i < TEST_CYCLES; ++i) {
+            memset(buf_read, 0, sizeof(buf_read));
+
+            psram_write_dma(addr, buf_write, sizeof(buf_write), NULL);
+            psram_wait_for_dma();
+
+            psram_read_dma(addr, buf_read, sizeof(buf_read), NULL);
+            psram_wait_for_dma();
+
+            if (memcmp(buf_write, buf_read, TEST_BLOCK_SIZE) != 0) {
+                printf("test %d cycle %d\n", test, i);
+                fatal("PSRAM failed test");
+            }
+
+            addr += TEST_BLOCK_SIZE;
+        }
+    }
+
+    uint64_t end = time_us_64();
+    printf("PSRAM passed all tests -- took %.2f ms -- avg speed %.2f kB/s\n",
+        (end - start) / 1000.0,
+        1000000.0 * (NUM_TESTS * TEST_CYCLES * TEST_BLOCK_SIZE * 2) / (end - start) / 1024);
 }
 
 void psram_init(void) {
@@ -165,6 +160,8 @@ void psram_init(void) {
     pio_qspi_init(spi.pio, spi.sm, offset, 8, PSRAM_CLKDIV, 0, 0, PSRAM_CLK, PSRAM_DAT);
     pio_qspi_dma_init(&spi);
 
+    critical_section_init(&crit_psram);
+
     /* validate PSRAM is working properly */
     psram_run_tests();
 
@@ -172,8 +169,7 @@ void psram_init(void) {
     uint8_t erasebuf[512];
     memset(erasebuf, 0xFF, sizeof(erasebuf));
     for (int i = 0; i < 8 * 1024 * 1024; i += 512) {
-        psram_write(i, erasebuf, sizeof(erasebuf));
+        psram_write_dma(i, erasebuf, sizeof(erasebuf), NULL);
+        psram_wait_for_dma();
     }
-
-    critical_section_init(&crit_psram);
 }

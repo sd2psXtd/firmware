@@ -94,7 +94,8 @@ void ps1_dirty_task(void) {
             ps1_dirty_unlock();
             break;
         }
-        psram_read(sector * 128, flushbuf, 128);
+        psram_read_dma(sector * 128, flushbuf, 128, NULL);
+        psram_wait_for_dma();
         ps1_dirty_unlock();
 
         ++hit;

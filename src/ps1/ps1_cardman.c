@@ -136,9 +136,10 @@ void ps1_cardman_open(void) {
 
         for (size_t pos = 0; pos < CARD_SIZE; pos += BLOCK_SIZE) {
             genblock(pos, flushbuf);
+            psram_write_dma(pos, flushbuf, BLOCK_SIZE, NULL);
             if (sd_write(fd, flushbuf, BLOCK_SIZE) != BLOCK_SIZE)
                 fatal("cannot init memcard");
-            psram_write(pos, flushbuf, BLOCK_SIZE);
+            psram_wait_for_dma();
         }
         sd_flush(fd);
 
@@ -159,7 +160,8 @@ void ps1_cardman_open(void) {
         for (size_t pos = 0; pos < CARD_SIZE; pos += BLOCK_SIZE) {
             if (sd_read(fd, flushbuf, BLOCK_SIZE) != BLOCK_SIZE)
                 fatal("cannot read memcard");
-            psram_write(pos, flushbuf, BLOCK_SIZE);
+            psram_write_dma(pos, flushbuf, BLOCK_SIZE, NULL);
+            psram_wait_for_dma();
         }
         uint64_t end = time_us_64();
         printf("OK!\n");

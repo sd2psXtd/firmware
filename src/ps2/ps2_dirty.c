@@ -98,7 +98,8 @@ void ps2_dirty_task(void) {
             ps2_dirty_unlock();
             break;
         }
-        psram_read(sector * 512, flushbuf, 512);
+        psram_read_dma(sector * 512, flushbuf, 512, NULL);
+        psram_wait_for_dma();
         ps2_dirty_unlock();
 
         ++hit;

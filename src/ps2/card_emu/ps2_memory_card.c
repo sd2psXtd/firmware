@@ -47,7 +47,8 @@ inline void __time_critical_func(read_mc)(uint32_t addr, void *buf, size_t sz) {
 
 inline void __time_critical_func(write_mc)(uint32_t addr, void *buf, size_t sz) {
     if (!flash_mode) {
-        psram_write(addr, buf, sz);
+        psram_write_dma(addr, buf, sz, NULL);
+        psram_wait_for_dma();
     } else {
         ps2_dirty_unlock();
     }

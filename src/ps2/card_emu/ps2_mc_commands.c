@@ -8,7 +8,7 @@
 #include "ps2_cardman.h"
 #include "ps2_dirty.h"
 #include "ps2_mc_internal.h"
-#include "psram/pio_qspi.h"
+#include "psram/psram.h"
 #include "debug.h"
 
 //#define DEBUG_MC_PROTOCOL
@@ -16,7 +16,7 @@
 uint32_t read_sector, write_sector, erase_sector;
 uint8_t readtmp[528];
 uint8_t writetmp[528];
-int is_write, is_dma_read;
+int is_write;
 uint32_t readptr, writeptr;
 uint8_t *eccptr;
 
@@ -113,8 +113,6 @@ inline __attribute__((always_inline)) void __time_critical_func(ps2_mc_cmd_setRe
         /* the spinlock will be unlocked by the DMA irq once all data is tx'd */
         ps2_dirty_lock();
         read_mc(read_sector * 512, &readtmp, 512);
-        // dma_channel_wait_for_finish_blocking(0);
-        // dma_channel_wait_for_finish_blocking(1);
     }
     readptr = 0;
 
@@ -237,9 +235,6 @@ inline __attribute__((always_inline)) void __time_critical_func(ps2_mc_cmd_readD
                 /* the spinlock will be unlocked by the DMA irq once all data is tx'd */
                 ps2_dirty_lock();
                 read_mc(read_sector * 512, &readtmp, 512);
-                // TODO: remove this if safe
-                // must make sure the dma completes for first byte before we start reading below
-                psram_wait_for_dma();
             }
             readptr = 0;
 
@@ -248,6 +243,7 @@ inline __attribute__((always_inline)) void __time_critical_func(ps2_mc_cmd_readD
         }
 
         if (readptr < sizeof(readtmp)) {
+            if (readptr < 512) while (psram_read_dma_remaining() >= (512 - read_sector)) {} // ensure the requested byte is available
             b = readtmp[readptr];
             mc_respond(b);
 
