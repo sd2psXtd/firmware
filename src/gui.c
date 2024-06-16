@@ -210,6 +210,7 @@ static void reload_card_cb(int progress) {
 
     lv_label_set_text(g_progress_text, ps2_cardman_get_progress_text());
 
+    oled_update_last_action_time();
     gui_tick();
 }
 
