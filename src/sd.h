@@ -5,6 +5,7 @@
 #include <stdint.h>
 
 typedef struct sd_file_stat_t {
+    size_t size;
     uint16_t adate;
     uint16_t atime;
     uint16_t cdate;

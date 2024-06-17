@@ -1,7 +1,9 @@
+#include <stddef.h>
 #include <stdint.h>
 #include <string.h>
 
 #include "ps2_cardman.h"
+#include "ps2_memory_card.h"
 #include "ps2_mc_internal.h"
 
 #include "ps2_sd2psxman.h"
@@ -174,13 +176,15 @@ inline __attribute__((always_inline)) void __time_critical_func(ps2_sd2psxman_cm
     uint8_t cmd;
     uint8_t idx = 0;
     ps2_file_handling_operation_t op = {
-        .content.buff = { 0 },
+        .content = {  },
         .flag = O_RDONLY,
         .handle = -1,
         .size_remaining = 0,
-        .size_used = 0,
         .type = OP_NONE,
-        .position = -1
+        .position = -1,
+        .content_used = {  },
+        .curr_cont_idx = 0,
+        .number_content_sets = 0
     };
 
     mc_respond(0x0); receiveOrNextCmd(&cmd); //reserved byte
@@ -188,7 +192,7 @@ inline __attribute__((always_inline)) void __time_critical_func(ps2_sd2psxman_cm
     op.type = (cmd == 0U) ? OP_FILE : OP_DIR;
     do {
         mc_respond(0x0); receiveOrNextCmd(&cmd);
-        op.content.string[idx++] = cmd;
+        op.content[0].string[idx++] = cmd;
     } while (cmd != 0x00);
     mc_respond(0x0); receiveOrNextCmd(&cmd); // String finished
     ps2_file_handling_set_operation(&op);
@@ -269,28 +273,35 @@ inline __attribute__((always_inline)) void __time_critical_func(ps2_sd2psxman_cm
     mc_respond(0x0); receiveOrNextCmd(&mode); // mode
     mc_respond(term);
     ps2_file_handling_requestTransaction(handle, length, (mode == 0));
+    if (mode == 0)
+        ps2_memory_card_set_cmd_callback(&ps2_sd2psxman_cmds_read_file);
+    else
+        ps2_memory_card_set_cmd_callback(&ps2_sd2psxman_cmds_write_file);
 }
 
 inline __attribute__((always_inline)) void __time_critical_func(ps2_sd2psxman_cmds_read_file)(void) {
     uint8_t cmd;
-    uint8_t idx = 0;
-    uint8_t bytes_read = 0;
+    int idx = 0;
+    size_t bytes_read = 0;
 
-    mc_respond(0x0); receiveOrNextCmd(&cmd); //reserved byte (addr 0x02)
+    //mc_respond(0x0); receiveOrNextCmd(&cmd); //reserved byte (addr 0x02)
     ps2_file_handling_operation_t *op = ps2_file_handling_get_operation(true);
 
-    bytes_read = (uint8_t)op->size_used;
+    bytes_read = op->content_used[op->curr_cont_idx];
     
-    mc_respond((uint8_t) (bytes_read <= CHUNK_SIZE ?  bytes_read : 0xFF)); //receiveOrNextCmd(&cmd); // bytes read;
-    for (idx = 0U; idx < bytes_read; idx++) { // starting at 0x04
-        mc_respond(op->content.buff[idx]); //receiveOrNextCmd(&cmd);
+    //mc_respond((uint8_t) (bytes_read <= CHUNK_SIZE ?  bytes_read : 0xFF)); //receiveOrNextCmd(&cmd); // bytes read;
+    for (idx = 0; idx < bytes_read; idx++) { // starting at 0x04
+        mc_respond(op->content[op->curr_cont_idx].buff[idx]); //receiveOrNextCmd(&cmd);
     }
     ps2_file_handling_continue_read();
-    for (; idx < CHUNK_SIZE; idx++) { // end addr 250 + 4
-        mc_respond(0x00); //receiveOrNextCmd(&cmd); // padding;
-    }
+    if (op->size_remaining == 0)
+        ps2_memory_card_set_cmd_callback(NULL);
+    
+    //for (; idx < CHUNK_SIZE; idx++) { // end addr 250 + 4
+    //    mc_respond(0x00); //receiveOrNextCmd(&cmd); // padding;
+    //}
 
-    mc_respond(term);
+    //mc_respond(term);
 }
 
 inline __attribute__((always_inline)) void __time_critical_func(ps2_sd2psxman_cmds_write_file)(void) {
@@ -298,15 +309,15 @@ inline __attribute__((always_inline)) void __time_critical_func(ps2_sd2psxman_cm
     uint8_t idx;
     ps2_file_handling_operation_t *op = ps2_file_handling_get_operation(false);
     mc_respond(0x0); receiveOrNextCmd(&cmd); //reserved byte
-    op->size_used = op->size_remaining < CHUNK_SIZE ? op->size_remaining : CHUNK_SIZE;
+    op->content_used[0] = op->size_remaining < CHUNK_SIZE ? op->size_remaining : CHUNK_SIZE;
 
-    for (idx = 0U; idx < op->size_used; idx++) {
-        mc_respond(0x00); receiveOrNextCmd(&op->content.buff[idx]);
+    for (idx = 0U; idx < op->content_used[0]; idx++) {
+        mc_respond(0x00); receiveOrNextCmd(&op->content[0].buff[idx]);
     }
     for (; idx < 251U; idx++) {
         mc_respond(0x00); receiveOrNextCmd(&cmd); // padding;
     }
-    mc_respond((uint8_t) op->size_used); receiveOrNextCmd(&cmd); // padding;
+    mc_respond((uint8_t) op->content_used[0]); receiveOrNextCmd(&cmd); // size
     ps2_file_handling_flush_buffer();
     mc_respond(term);
 }

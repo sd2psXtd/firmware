@@ -35,6 +35,7 @@ pio_t cmd_reader, dat_writer, clock_probe;
 uint8_t term = 0xFF;
 
 static volatile int mc_exit_request, mc_exit_response, mc_enter_request, mc_enter_response;
+static void (*mc_callback)(void);
 
 void __time_critical_func(read_mc)(uint32_t addr, void *buf, size_t sz) {
     if (flash_mode) {
@@ -127,8 +128,12 @@ uint8_t __time_critical_func(receive)(uint8_t *cmd) {
 
 uint8_t __time_critical_func(receiveFirst)(uint8_t *cmd) {
     do {
-        while (pio_sm_is_rx_fifo_empty(pio0, cmd_reader.sm) && pio_sm_is_rx_fifo_empty(pio0, cmd_reader.sm) && pio_sm_is_rx_fifo_empty(pio0, cmd_reader.sm) &&
-            pio_sm_is_rx_fifo_empty(pio0, cmd_reader.sm) && pio_sm_is_rx_fifo_empty(pio0, cmd_reader.sm) && 1) {
+        while (pio_sm_is_rx_fifo_empty(pio0, cmd_reader.sm) 
+                && pio_sm_is_rx_fifo_empty(pio0, cmd_reader.sm) 
+                && pio_sm_is_rx_fifo_empty(pio0, cmd_reader.sm) 
+                && pio_sm_is_rx_fifo_empty(pio0, cmd_reader.sm) 
+                && pio_sm_is_rx_fifo_empty(pio0, cmd_reader.sm) 
+                && 1) {
             if (reset)
                 return RECEIVE_RESET;
             if (mc_exit_request)
@@ -196,8 +201,11 @@ static void __time_critical_func(mc_main_loop)(void) {
                 return;
             }
         }
-        reset = 0;
-
+        reset = 0;        
+        if (mc_callback != NULL) {
+            mc_callback();
+            continue;
+        }
         uint8_t received = receiveFirst(&cmd);
 
         if (received == RECEIVE_EXIT) {
@@ -206,6 +214,8 @@ static void __time_critical_func(mc_main_loop)(void) {
         }
         if (received == RECEIVE_RESET)
             continue;
+        
+
 
         if (cmd == PS2_SIO2_CMD_IDENTIFIER) {
             /* resp to 0x81 */
@@ -379,4 +389,8 @@ void ps2_memory_card_enter_flash(void) {
     mc_enter_request = mc_enter_response = 0;
     memcard_running = 1;
     flash_mode = true;
+}
+
+void ps2_memory_card_set_cmd_callback(void (*cb)(void)) {
+    mc_callback = cb;
 }

@@ -10,7 +10,8 @@
 #define SD2PSX_FILE_MODE_RW          0b011
 #define SD2PSX_FILE_MODE_CREATE      0b100
 
-#define CHUNK_SIZE 251
+#define CHUNK_SIZE  256
+#define MAX_OPS     15
 
 typedef struct ps2_file_handling_stat_t {
     uint32_t size;
@@ -23,20 +24,22 @@ typedef struct ps2_file_handling_stat_t {
 } ps2_file_handling_stat_t;
 
 typedef struct ps2_file_handling_operation_t {
-    size_t size_used;
     size_t size_remaining;
     size_t position;
-    int flag;
-    int handle;
     enum {
         OP_FILE,
         OP_DIR,
         OP_NONE
     } type;
+    int flag;
+    int handle;
     union {
-        uint8_t buff[250];
-        char    string[250];
-    } content;
+        uint8_t buff[CHUNK_SIZE];
+        char    string[CHUNK_SIZE];
+    } content[MAX_OPS];
+    size_t content_used[MAX_OPS];
+    uint8_t curr_cont_idx;
+    uint8_t number_content_sets;
 } ps2_file_handling_operation_t;
 
 typedef struct ps2_file_handling_dirent_t {

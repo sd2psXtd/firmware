@@ -146,6 +146,7 @@ extern "C" int sd_getStat(int fd, sd_file_stat_t* const sd_stat) {
     files[fd].getCreateDateTime(&sd_stat->cdate, &sd_stat->ctime);
     files[fd].getModifyDateTime(&sd_stat->mdate, &sd_stat->mtime);
     sd_stat->writable = files[fd].isWritable();
+    sd_stat->size = files[fd].fileSize();
 
     return -1;
 }
