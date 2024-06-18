@@ -41,7 +41,7 @@ void ps2_dirty_init(void) {
 }
 
 void __time_critical_func(ps2_dirty_mark)(uint32_t sector) {
-    if (sector < sizeof(dirty_map)) {
+    if (sector < (sizeof(dirty_map) * 8)) {
         /* already marked? */
         if (dirty_map_is_marked(sector))
             return;
