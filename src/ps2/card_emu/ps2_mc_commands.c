@@ -33,7 +33,7 @@ static void __time_critical_func(start_read_dma)() {
         /* the spinlock will be unlocked by the DMA irq once all data is tx'd */
         ps2_dirty_lock();
         dma_in_progress = true;
-        read_mc(read_sector * 512, &readtmp, 512, psram_dma_rx_done);
+        psram_read_dma(read_sector * 512, &readtmp, 512, psram_dma_rx_done);
     }
 }
 
@@ -317,7 +317,8 @@ inline __attribute__((always_inline)) void __time_critical_func(ps2_mc_cmd_commi
         if (write_sector * 512 + 512 <= ps2_cardman_get_card_size()) {
             ps2_dirty_lockout_renew();
             ps2_dirty_lock();
-            write_mc(write_sector * 512, writetmp, 512);
+            psram_write_dma(write_sector * 512, writetmp, 512, NULL);
+            psram_wait_for_dma();
             ps2_cardman_mark_sector_available(write_sector); // in case sector is yet to be loaded from sd card
             ps2_dirty_mark(write_sector);
             ps2_dirty_unlock();
@@ -346,7 +347,8 @@ inline __attribute__((always_inline)) void __time_critical_func(ps2_mc_cmd_erase
         ps2_dirty_lockout_renew();
         ps2_dirty_lock();
         for (int i = 0; i < ERASE_SECTORS; ++i) {
-            write_mc((erase_sector + i) * 512, readtmp, 512);
+            psram_write_dma((erase_sector + i) * 512, readtmp, 512, NULL);
+            psram_wait_for_dma();
             ps2_cardman_mark_sector_available(erase_sector + i);
             ps2_dirty_mark(erase_sector + i);
         }

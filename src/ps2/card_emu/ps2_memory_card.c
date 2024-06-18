@@ -36,24 +36,6 @@ uint8_t term = 0xFF;
 
 static volatile int mc_exit_request, mc_exit_response, mc_enter_request, mc_enter_response;
 
-inline void __time_critical_func(read_mc)(uint32_t addr, void *buf, size_t sz, void (*cb)(void)) {
-    if (flash_mode) {
-        ps2_exploit_read(addr, buf, sz);
-        if (cb) cb();
-    } else {
-        psram_read_dma(addr, buf, sz, cb);
-    }
-}
-
-inline void __time_critical_func(write_mc)(uint32_t addr, void *buf, size_t sz) {
-    if (!flash_mode) {
-        psram_write_dma(addr, buf, sz, NULL);
-        psram_wait_for_dma();
-    } else {
-        ps2_dirty_unlock();
-    }
-}
-
 static inline void __time_critical_func(RAM_pio_sm_drain_tx_fifo)(PIO pio, uint sm) {
     uint instr = (pio->sm[sm].shiftctrl & PIO_SM0_SHIFTCTRL_AUTOPULL_BITS) ? pio_encode_out(pio_null, 32) : pio_encode_pull(false, false);
     while (!pio_sm_is_tx_fifo_empty(pio, sm)) {
@@ -358,12 +340,4 @@ void ps2_memory_card_enter(void) {
     mc_enter_request = mc_enter_response = 0;
     memcard_running = 1;
     flash_mode = false;
-}
-
-void ps2_memory_card_enter_flash(void) {
-    mc_enter_request = 1;
-    while (!mc_enter_response) {}
-    mc_enter_request = mc_enter_response = 0;
-    memcard_running = 1;
-    flash_mode = true;
 }

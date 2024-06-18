@@ -16,7 +16,6 @@ add_compile_definitions(PICO_FLASH_SIZE_BYTES=16777216)
 
 add_subdirectory(database)
 add_subdirectory(misc)
-add_subdirectory(ps2boot)
 add_subdirectory(src/version)
 add_subdirectory(src/ps2)
 add_subdirectory(src/ps1)
@@ -52,7 +51,6 @@ target_link_libraries(sd2psx
         hardware_i2c
         hardware_flash
         gamedb
-        ps2boot
         ps2_history_icons
         sd2psx_version
         sd2psx_common
@@ -61,7 +59,7 @@ target_link_libraries(sd2psx
         sd_fat
 )
 
-add_dependencies(sd2psx gamedb ps2boot)
+add_dependencies(sd2psx gamedb)
 set_target_properties(sd2psx PROPERTIES PICO_TARGET_LINKER_SCRIPT ${CMAKE_SOURCE_DIR}/memmap_custom.ld)
 
 # Common Lib
