@@ -364,12 +364,12 @@ void evt_menu_page(lv_event_t *event) {
             lv_group_focus_obj(next);
             lv_event_stop_bubbling(event);
 
-            int32_t page_h = lv_obj_get_height(page);
-            int32_t obj_h = lv_obj_get_height(next);
-            int32_t view_y1 = lv_obj_get_scroll_y(page);
-            int32_t view_y2 = view_y1 + page_h;
-            int32_t obj_y1 = obj_h * (next_idx);
-            int32_t obj_y2 = obj_y1 + obj_h;
+            lv_coord_t page_h = lv_obj_get_height(page);
+            lv_coord_t obj_h = lv_obj_get_height(next);
+            lv_coord_t view_y1 = lv_obj_get_scroll_y(page);
+            lv_coord_t view_y2 = view_y1 + page_h;
+            lv_coord_t obj_y1 = obj_h * (next_idx);
+            lv_coord_t obj_y2 = obj_y1 + obj_h;
             if (obj_y2 > view_y2)
                 lv_obj_scroll_to_y(page, obj_y2 - page_h, false); // scroll down
             else if (view_y1 > obj_y1)
@@ -380,12 +380,12 @@ void evt_menu_page(lv_event_t *event) {
             lv_group_focus_obj(prev);
             lv_event_stop_bubbling(event);
 
-            int32_t page_h = lv_obj_get_height(page);
-            int32_t obj_h = lv_obj_get_height(prev);
-            int32_t view_y1 = lv_obj_get_scroll_y(page);
-            int32_t view_y2 = view_y1 + page_h;
-            int32_t obj_y1 = obj_h * (prev_idx);
-            int32_t obj_y2 = obj_y1 + obj_h;
+            lv_coord_t page_h = lv_obj_get_height(page);
+            lv_coord_t obj_h = lv_obj_get_height(prev);
+            lv_coord_t view_y1 = lv_obj_get_scroll_y(page);
+            lv_coord_t view_y2 = view_y1 + page_h;
+            lv_coord_t obj_y1 = obj_h * (prev_idx);
+            lv_coord_t obj_y2 = obj_y1 + obj_h;
             if (obj_y1 < view_y1)
                 lv_obj_scroll_to_y(page, obj_y1, false); // scroll up
             else if (obj_y2 > view_y2)
