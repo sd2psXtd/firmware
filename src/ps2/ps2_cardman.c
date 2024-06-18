@@ -297,6 +297,7 @@ void ps2_cardman_open(void) {
         cardprog_start = time_us_64();
 
         uint8_t *buf = flushbuf1;
+        int sectors_read = 0;
         while (1) {
             int sector_idx = next_sector_to_load();
             if (sector_idx == -1)
@@ -321,10 +322,12 @@ void ps2_cardman_open(void) {
                 buf = flushbuf1;
             }
 
-            cardprog_pos = pos;
+            cardprog_pos = sectors_read * BLOCK_SIZE;
 
             if (cardman_cb)
-                cardman_cb(100 * pos / card_size);
+                cardman_cb(100 * cardprog_pos / card_size);
+
+            sectors_read++;
         }
 
         psram_wait_for_dma();
