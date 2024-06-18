@@ -287,14 +287,16 @@ inline __attribute__((always_inline)) void __time_critical_func(ps2_sd2psxman_cm
     //mc_respond(0x0); receiveOrNextCmd(&cmd); //reserved byte (addr 0x02)
     ps2_file_handling_operation_t *op = ps2_file_handling_get_operation(true);
 
-    bytes_read = op->content_used[op->curr_cont_idx];
+    //bytes_read = op->content_used[op->curr_cont_idx];
     
     //mc_respond((uint8_t) (bytes_read <= CHUNK_SIZE ?  bytes_read : 0xFF)); //receiveOrNextCmd(&cmd); // bytes read;
-    for (idx = 0; idx < bytes_read; idx++) { // starting at 0x04
-        mc_respond(op->content[op->curr_cont_idx].buff[idx]); //receiveOrNextCmd(&cmd);
+    for (idx = 0; idx < CHUNK_SIZE; idx++) { // starting at 0x04
+        mc_respond(op->content[op->curr_cont_idx % MAX_OPS].buff[idx]);
     }
+    
     ps2_file_handling_continue_read();
-    if (op->size_remaining == 0)
+    if ((op->size_remaining == 0) 
+        && (op->curr_cont_idx == op->number_content_sets - 1))
         ps2_memory_card_set_cmd_callback(NULL);
     
     //for (; idx < CHUNK_SIZE; idx++) { // end addr 250 + 4

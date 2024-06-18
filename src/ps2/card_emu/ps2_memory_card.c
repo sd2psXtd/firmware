@@ -216,7 +216,6 @@ static void __time_critical_func(mc_main_loop)(void) {
             continue;
         
 
-
         if (cmd == PS2_SIO2_CMD_IDENTIFIER) {
             /* resp to 0x81 */
             mc_respond(0xFF);

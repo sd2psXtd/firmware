@@ -78,22 +78,30 @@ static void mapTime(const uint16_t date, const uint16_t time, uint8_t* const out
     out_time[1] = (time << 1) & 31; // Seconds (multiplied by 2)    
 }
 
-static void readContent(ps2_file_handling_operation_t* op, int idx) {
-    size_t chunk = op->size_remaining > CHUNK_SIZE ? CHUNK_SIZE : op->size_remaining;
-    int rv = sd_read(op->handle, op->content[idx].buff, chunk);
+static void readContent() {
+    size_t chunk = curr_operation.size_remaining > CHUNK_SIZE ? CHUNK_SIZE : curr_operation.size_remaining;
+    int idx = curr_operation.number_content_sets % 15;
+    int rv = sd_read(curr_operation.handle, curr_operation.content[idx].buff, chunk);
     if (rv != (int32_t)chunk)
        DEBUG_PRINTF("ERROR, read %i\n", rv);
-    op->content_used[idx] = rv;
-    op->size_remaining -= rv;
-    op->number_content_sets = idx+1;
-    DEBUG_PRINTF("%s: Read %i for idx %i\n", __func__, op->content_used[idx], idx);
+    curr_operation.content_used[idx] = rv;
+    curr_operation.size_remaining -= rv;
+    curr_operation.number_content_sets++;
+    DEBUG_PRINTF("%s: Read %i for idx %i\n", __func__, curr_operation.content_used[idx], idx);
 }
 
 static void readAheadBuffer() {
-    int readUntil = curr_operation.number_content_sets < MAX_OPS ? curr_operation.number_content_sets :  MAX_OPS - 1;
     if (curr_operation.size_remaining > 0) {
-        readContent(&curr_operation, readUntil);
-    } 
+        if ((curr_operation.number_content_sets >= MAX_OPS)
+            && ((int)(curr_operation.number_content_sets / MAX_OPS) > (int)(curr_operation.curr_cont_idx / MAX_OPS))
+            && ((curr_operation.number_content_sets % MAX_OPS) < (curr_operation.curr_cont_idx % MAX_OPS))) {
+            readContent();
+            DEBUG_PRINTF("%s OVFLW: currIdx %i\n", __func__, curr_operation.curr_cont_idx);
+        } else if (curr_operation.number_content_sets < MAX_OPS) {
+            readContent();
+            DEBUG_PRINTF("%s NORMAL: currIdx %i\n", __func__, curr_operation.curr_cont_idx);
+        }
+    }
 }
 
 void ps2_file_handling_init(void) {
@@ -133,8 +141,7 @@ void ps2_file_handling_run(void) {
         case FILE_HANDLING_READ:
             {
                 //DEBUG_PRINTF("Start read...");
-                readContent(&curr_operation, 0);
-                readContent(&curr_operation, 1);
+                readContent();
                 fh_state = FILE_HANDLING_READ_AHEAD;
                 //size_t chunk = curr_operation.size_remaining > CHUNK_SIZE ? CHUNK_SIZE : curr_operation.size_remaining;
                 //int rv = sd_read(curr_operation.handle, curr_operation.content.buff, chunk);
@@ -146,7 +153,7 @@ void ps2_file_handling_run(void) {
                 break;
             }
         case FILE_HANDLING_READ_AHEAD:
-            for (int i = 0; i < 5; i++) {
+            for (int i = 0; i < 3; i++) {
                 readAheadBuffer();
             }
             if (curr_operation.size_remaining > 0)

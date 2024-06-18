@@ -38,8 +38,8 @@ typedef struct ps2_file_handling_operation_t {
         char    string[CHUNK_SIZE];
     } content[MAX_OPS];
     size_t content_used[MAX_OPS];
-    uint8_t curr_cont_idx;
-    uint8_t number_content_sets;
+    uint16_t curr_cont_idx;
+    uint16_t number_content_sets;
 } ps2_file_handling_operation_t;
 
 typedef struct ps2_file_handling_dirent_t {
