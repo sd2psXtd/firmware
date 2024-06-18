@@ -24,6 +24,18 @@ static int num_dirty;
     b = tmp; \
 } while (0);
 
+static inline bool dirty_map_is_marked(uint32_t sector) {
+    return dirty_map[sector / 8] & (1 << (sector % 8));
+}
+
+static inline void dirty_map_mark_sector(uint32_t sector) {
+    dirty_map[sector / 8] |= (1 << (sector % 8));
+}
+
+static inline void dirty_map_unmark_sector(uint32_t sector) {
+    dirty_map[sector / 8] &= ~(1 << (sector % 8));
+}
+
 void ps2_dirty_init(void) {
     ps2_dirty_spin_lock = spin_lock_init(spin_lock_claim_unused(1));
 }
@@ -31,11 +43,11 @@ void ps2_dirty_init(void) {
 void __time_critical_func(ps2_dirty_mark)(uint32_t sector) {
     if (sector < sizeof(dirty_map)) {
         /* already marked? */
-        if (dirty_map[sector])
+        if (dirty_map_is_marked(sector))
             return;
 
         /* update map */
-        dirty_map[sector] = 1;
+        dirty_map_mark_sector(sector);
 
         /* update heap */
         int cur = num_dirty++;
@@ -72,7 +84,7 @@ int ps2_dirty_get_marked(void) {
     heapify(0);
 
     /* update map */
-    dirty_map[ret] = 0;
+    dirty_map_unmark_sector(ret);
 
     return ret;
 }
