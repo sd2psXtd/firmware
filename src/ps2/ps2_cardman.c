@@ -18,9 +18,9 @@
 #define SECTOR_COUNT          (PS2_DEFAULT_CARD_SIZE / BLOCK_SIZE)
 
 uint8_t available_sectors[SECTOR_COUNT / 8]; // bitmap
-static uint8_t flushbuf1[BLOCK_SIZE], flushbuf2[BLOCK_SIZE];
+static uint8_t flushbuf[BLOCK_SIZE];
 static int fd = -1;
-int current_read_sector = 0, prev_read_sector, priority_sector = -1;
+int current_read_sector = 0, priority_sector = -1;
 
 #define MAX_GAME_NAME_LENGTH (127)
 #define MAX_PREFIX_LENGTH    (4)
@@ -208,11 +208,6 @@ static int next_sector_to_load() {
     return -1;
 }
 
-static void psram_dma_tx_done() {
-    ps2_cardman_mark_sector_available(prev_read_sector);
-    ps2_dirty_unlock();
-}
-
 void ps2_cardman_open(void) {
     char path[64];
 
@@ -246,12 +241,12 @@ void ps2_cardman_open(void) {
         // quickly generate and write an empty card into PSRAM so that it's immediately available, takes about ~0.6s
         for (size_t pos = 0; pos < PS2_DEFAULT_CARD_SIZE; pos += BLOCK_SIZE) {
             if (PS2_DEFAULT_CARD_SIZE == PS2_CARD_SIZE_8M)
-                genblock(pos, flushbuf1);
+                genblock(pos, flushbuf);
             else
-                memset(flushbuf1, 0xFF, BLOCK_SIZE);
+                memset(flushbuf, 0xFF, BLOCK_SIZE);
 
             ps2_dirty_lock();
-            psram_write_dma(pos, flushbuf1, BLOCK_SIZE, NULL);
+            psram_write_dma(pos, flushbuf, BLOCK_SIZE, NULL);
             psram_wait_for_dma();
             ps2_cardman_mark_sector_available(pos / BLOCK_SIZE);
             ps2_dirty_unlock();
@@ -261,10 +256,10 @@ void ps2_cardman_open(void) {
             ps2_dirty_lock();
 
             // read back from PSRAM to make sure to retain already rewritten sectors, if any
-            psram_read_dma(pos, flushbuf1, BLOCK_SIZE, NULL);
+            psram_read_dma(pos, flushbuf, BLOCK_SIZE, NULL);
             psram_wait_for_dma();
 
-            if (sd_write(fd, flushbuf1, BLOCK_SIZE) != BLOCK_SIZE)
+            if (sd_write(fd, flushbuf, BLOCK_SIZE) != BLOCK_SIZE)
                 fatal("cannot init memcard");
 
             ps2_dirty_unlock();
@@ -297,31 +292,26 @@ void ps2_cardman_open(void) {
         printf("reading card (%lu KB).... ", (uint32_t)(card_size / 1024));
         cardprog_start = time_us_64();
 
-        uint8_t *buf = flushbuf1;
         int sectors_read = 0;
         while (1) {
+            ps2_dirty_lock();
             int sector_idx = next_sector_to_load();
-            if (sector_idx == -1)
+            if (sector_idx == -1) {
+                ps2_dirty_unlock();
                 break;
+            }
 
             size_t pos = sector_idx * BLOCK_SIZE;
             if (sd_seek(fd, pos) != 0)
                 fatal("cannot read memcard\nseek");
 
-            if (sd_read(fd, buf, BLOCK_SIZE) != BLOCK_SIZE)
+            if (sd_read(fd, flushbuf, BLOCK_SIZE) != BLOCK_SIZE)
                 fatal("cannot read memcard\nread");
 
+            psram_write_dma(pos, flushbuf, BLOCK_SIZE, NULL);
             psram_wait_for_dma();
-            ps2_dirty_lock();
-            prev_read_sector = sector_idx;
-            psram_write_dma(pos, buf, BLOCK_SIZE, psram_dma_tx_done);
-
-            // swap between buffers to start reading the next sector immediately while DMA still in progress, saves about ~0.5s in total
-            if (buf == flushbuf1) {
-                buf = flushbuf2;
-            } else {
-                buf = flushbuf1;
-            }
+            ps2_cardman_mark_sector_available(sector_idx);
+            ps2_dirty_unlock();
 
             cardprog_pos = sectors_read * BLOCK_SIZE;
 
@@ -330,8 +320,6 @@ void ps2_cardman_open(void) {
 
             sectors_read++;
         }
-
-        psram_wait_for_dma();
 
         uint64_t end = time_us_64();
         printf("OK!\n");
