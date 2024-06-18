@@ -400,6 +400,8 @@ void evt_menu_page(lv_event_t *event) {
             ui_menu_go_back(menu);
             lv_obj_scroll_to_y(page, 0, false); // reset scroll on the way out
             lv_event_stop_bubbling(event);
+        } else if (key == INPUT_KEY_MENU) {
+            lv_obj_scroll_to_y(page, 0, false); // reset scroll on the way out
         }
     }
 }
