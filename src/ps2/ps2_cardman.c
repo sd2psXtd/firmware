@@ -17,7 +17,7 @@
 #define BLOCK_SIZE            (512)
 #define SECTOR_COUNT          (PS2_DEFAULT_CARD_SIZE / BLOCK_SIZE)
 
-bool available_sectors[SECTOR_COUNT] = { 0 };
+uint8_t available_sectors[SECTOR_COUNT / 8]; // bitmap
 static uint8_t flushbuf1[BLOCK_SIZE], flushbuf2[BLOCK_SIZE];
 static int fd = -1;
 int current_read_sector = 0, prev_read_sector, priority_sector = -1;
@@ -66,11 +66,11 @@ int ps2_cardman_write_sector(int sector, void *buf512) {
 }
 
 bool ps2_cardman_is_sector_available(int sector) {
-    return available_sectors[sector];
+    return available_sectors[sector / 8] & (1 << (sector % 8));
 }
 
 void ps2_cardman_mark_sector_available(int sector) {
-    available_sectors[sector] = true;
+    available_sectors[sector / 8] |= (1 << (sector % 8));
 }
 
 void ps2_cardman_set_priority_sector(int sector) {
@@ -192,14 +192,14 @@ static void genblock(size_t pos, void *vbuf) {
 
 static int next_sector_to_load() {
     if (priority_sector != -1) {
-        if (available_sectors[priority_sector])
+        if (ps2_cardman_is_sector_available(priority_sector))
             priority_sector = -1;
         else
             return priority_sector;
     }
 
     while (current_read_sector < SECTOR_COUNT) {
-        if (!available_sectors[current_read_sector])
+        if (!ps2_cardman_is_sector_available(current_read_sector))
             return current_read_sector++;
         else
             current_read_sector++;
@@ -347,7 +347,7 @@ void ps2_cardman_close(void) {
     fd = -1;
     current_read_sector = 0;
     priority_sector = -1;
-    memset(available_sectors, 0, SECTOR_COUNT);
+    memset(available_sectors, 0, sizeof(available_sectors));
 }
 
 void ps2_cardman_set_channel(uint16_t chan_num) {
