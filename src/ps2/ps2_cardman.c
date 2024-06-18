@@ -262,6 +262,7 @@ void ps2_cardman_open(void) {
 
             // read back from PSRAM to make sure to retain already rewritten sectors, if any
             psram_read_dma(pos, flushbuf1, BLOCK_SIZE, NULL);
+            psram_wait_for_dma();
 
             if (sd_write(fd, flushbuf1, BLOCK_SIZE) != BLOCK_SIZE)
                 fatal("cannot init memcard");
