@@ -386,7 +386,7 @@ void evt_menu_page(lv_event_t *event) {
             int32_t view_y2 = view_y1 + page_h;
             int32_t obj_y1 = obj_h * (prev_idx);
             int32_t obj_y2 = obj_y1 + obj_h;
-            if (obj_y2 == view_y1)
+            if (obj_y1 < view_y1)
                 lv_obj_scroll_to_y(page, obj_y1, false); // scroll up
             else if (obj_y2 > view_y2)
                 lv_obj_scroll_to_y(page, obj_y2 - page_h, false); // wrap around
