@@ -36,12 +36,12 @@ uint8_t term = 0xFF;
 
 static volatile int mc_exit_request, mc_exit_response, mc_enter_request, mc_enter_response;
 
-inline void __time_critical_func(read_mc)(uint32_t addr, void *buf, size_t sz) {
+inline void __time_critical_func(read_mc)(uint32_t addr, void *buf, size_t sz, void (*cb)(void)) {
     if (flash_mode) {
         ps2_exploit_read(addr, buf, sz);
-        ps2_dirty_unlock();
+        if (cb) cb();
     } else {
-        psram_read_dma(addr, buf, sz, ps2_dirty_unlock);
+        psram_read_dma(addr, buf, sz, cb);
     }
 }
 

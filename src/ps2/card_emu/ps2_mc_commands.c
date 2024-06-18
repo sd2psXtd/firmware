@@ -1,6 +1,7 @@
 #include "ps2_mc_commands.h"
 
 #include <stdint.h>
+#include <stdio.h>
 #include <string.h>
 
 #include "hardware/dma.h"
@@ -17,8 +18,24 @@ uint32_t read_sector, write_sector, erase_sector;
 uint8_t readtmp[528];
 uint8_t writetmp[528];
 int is_write;
+bool dma_in_progress = false;
 uint32_t readptr, writeptr;
 uint8_t *eccptr;
+
+static void __time_critical_func(psram_dma_rx_done)() {
+    dma_in_progress = false;
+    ps2_dirty_unlock();
+}
+
+static void __time_critical_func(start_read_dma)() {
+    if (read_sector * 512 + 512 <= ps2_cardman_get_card_size()) {
+        ps2_dirty_lockout_renew();
+        /* the spinlock will be unlocked by the DMA irq once all data is tx'd */
+        ps2_dirty_lock();
+        dma_in_progress = true;
+        read_mc(read_sector * 512, &readtmp, 512, psram_dma_rx_done);
+    }
+}
 
 inline __attribute__((always_inline)) void __time_critical_func(ps2_mc_cmd_0x11)(void) {
     uint8_t _ = 0U;
@@ -108,11 +125,10 @@ inline __attribute__((always_inline)) void __time_critical_func(ps2_mc_cmd_setRe
     receiveOrNextCmd(&_);
     (void)ck;  // TODO: validate checksum
     read_sector = raw.addr;
-    if (read_sector * 512 + 512 <= ps2_cardman_get_card_size()) {
-        ps2_dirty_lockout_renew();
-        /* the spinlock will be unlocked by the DMA irq once all data is tx'd */
-        ps2_dirty_lock();
-        read_mc(read_sector * 512, &readtmp, 512);
+    if (!ps2_cardman_is_sector_available(read_sector)) {
+        ps2_cardman_set_priority_sector(read_sector);
+    } else {
+        start_read_dma();
     }
     readptr = 0;
 
@@ -226,16 +242,24 @@ inline __attribute__((always_inline)) void __time_critical_func(ps2_mc_cmd_readD
     uint8_t ck = 0;
     uint8_t b = 0xFF;
 
+    // check if sector is still unavailable, wait on it if we have to and start the DMA
+    if (!ps2_cardman_is_sector_available(read_sector)) {
+        ps2_cardman_set_priority_sector(read_sector);
+        while (!ps2_cardman_is_sector_available(read_sector)) {} // wait for core 0 to load the sector into PSRAM
+        start_read_dma();
+    }
+    // otherwise set read address should have already kicked off the DMA
+
     for (int i = 0; i < sz; ++i) {
         if (readptr == sizeof(readtmp)) {
             /* a game may read more than one 528-byte sector in a sequence of read ops, e.g. re4 */
             ++read_sector;
-            if (read_sector * 512 + 512 <= ps2_cardman_get_card_size()) {
-                ps2_dirty_lockout_renew();
-                /* the spinlock will be unlocked by the DMA irq once all data is tx'd */
-                ps2_dirty_lock();
-                read_mc(read_sector * 512, &readtmp, 512);
+            if (!ps2_cardman_is_sector_available(read_sector)) {
+                ps2_cardman_set_priority_sector(read_sector);
+                while (!ps2_cardman_is_sector_available(read_sector)) {}
             }
+
+            start_read_dma();
             readptr = 0;
 
             eccptr = &readtmp[512];
@@ -243,7 +267,9 @@ inline __attribute__((always_inline)) void __time_critical_func(ps2_mc_cmd_readD
         }
 
         if (readptr < sizeof(readtmp)) {
-            if (readptr < 512) while (psram_read_dma_remaining() >= (512 - read_sector)) {} // ensure the requested byte is available
+            // ensure the requested byte is available
+            if (readptr < 512)
+                while (dma_in_progress && psram_read_dma_remaining() >= (512 - read_sector)) {};
             b = readtmp[readptr];
             mc_respond(b);
 
@@ -292,6 +318,7 @@ inline __attribute__((always_inline)) void __time_critical_func(ps2_mc_cmd_commi
             ps2_dirty_lockout_renew();
             ps2_dirty_lock();
             write_mc(write_sector * 512, writetmp, 512);
+            ps2_cardman_mark_sector_available(write_sector); // in case sector is yet to be loaded from sd card
             ps2_dirty_mark(write_sector);
             ps2_dirty_unlock();
 #ifdef DEBUG_MC_PROTOCOL
@@ -320,6 +347,7 @@ inline __attribute__((always_inline)) void __time_critical_func(ps2_mc_cmd_erase
         ps2_dirty_lock();
         for (int i = 0; i < ERASE_SECTORS; ++i) {
             write_mc((erase_sector + i) * 512, readtmp, 512);
+            ps2_cardman_mark_sector_available(erase_sector + i);
             ps2_dirty_mark(erase_sector + i);
         }
         ps2_dirty_unlock();
