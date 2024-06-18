@@ -18,6 +18,7 @@ static size_t byte_count;
 static volatile int reset;
 static int ignore;
 static uint8_t flag;
+static bool dma_in_progress = false;
 
 static size_t game_id_length;
 static char received_game_id[0x10];
@@ -84,6 +85,11 @@ static uint8_t __time_critical_func(recv_cmd)(void) {
     return (uint8_t) (pio_sm_get(pio0, cmd_reader.sm) >> 24);
 }
 
+static void __time_critical_func(psram_dma_rx_done)() {
+    dma_in_progress = false;
+    ps1_dirty_unlock();
+}
+
 static int __time_critical_func(mc_do_state)(uint8_t ch) {
     static uint8_t payload[256];
     if (byte_count >= sizeof(payload))
@@ -131,10 +137,11 @@ static int __time_critical_func(mc_do_state)(uint8_t ch) {
                 case 9:
                     chk = MSB ^ LSB;
                     ps1_dirty_lock();
-                    psram_read_dma(ADDR, buffer, 128, ps1_dirty_unlock);
+                    dma_in_progress = true;
+                    psram_read_dma(ADDR, buffer, 128, psram_dma_rx_done);
                     return LSB;
                 case 10 ... 137: {
-                    while (psram_read_dma_remaining() >= (128 - OFF)) {} // wait for requested byte to be DMA'd
+                    while (dma_in_progress && psram_read_dma_remaining() >= (128 - OFF)) {} // wait for requested byte to be DMA'd
                     chk ^= buffer[OFF];
                     return buffer[OFF];
                 }
