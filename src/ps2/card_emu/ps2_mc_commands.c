@@ -269,7 +269,7 @@ inline __attribute__((always_inline)) void __time_critical_func(ps2_mc_cmd_readD
         if (readptr < sizeof(readtmp)) {
             // ensure the requested byte is available
             if (readptr < 512)
-                while (dma_in_progress && psram_read_dma_remaining() >= (512 - read_sector)) {};
+                while (dma_in_progress && psram_read_dma_remaining() >= (512 - readptr)) {};
             b = readtmp[readptr];
             mc_respond(b);
 
