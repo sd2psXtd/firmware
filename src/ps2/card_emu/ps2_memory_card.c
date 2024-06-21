@@ -1,5 +1,4 @@
 #include "../ps2_dirty.h"
-#include "../ps2_exploit.h"
 #include "psram/psram.h"
 #include "debug.h"
 #include "hardware/gpio.h"
@@ -23,8 +22,6 @@
 uint64_t us_startup;
 
 volatile int reset;
-
-bool flash_mode = false;
 
 typedef struct {
     uint32_t offset;
@@ -330,14 +327,11 @@ void ps2_memory_card_exit(void) {
 }
 
 void ps2_memory_card_enter(void) {
-    if (flash_mode) {
-        ps2_memory_card_exit();
-    } else if (memcard_running)
+    if (memcard_running)
         return;
 
     mc_enter_request = 1;
     while (!mc_enter_response) {}
     mc_enter_request = mc_enter_response = 0;
     memcard_running = 1;
-    flash_mode = false;
 }

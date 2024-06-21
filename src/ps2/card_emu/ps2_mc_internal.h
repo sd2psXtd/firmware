@@ -1,6 +1,5 @@
 #pragma once
 
-#include "../ps2_exploit.h"
 #include "../ps2_dirty.h"
 #include "psram/psram.h"
 
@@ -23,7 +22,6 @@ extern uint8_t writetmp[528];
 extern int is_write, is_dma_read;
 extern uint32_t readptr, writeptr;
 extern uint8_t *eccptr;
-extern bool flash_mode;
 
 extern uint8_t EccTable[];
 

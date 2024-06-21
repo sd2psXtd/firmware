@@ -143,7 +143,7 @@ inline __attribute__((always_inline)) void __time_critical_func(ps2_mc_cmd_getSp
     /* GET_SPECS ? */
     mc_respond(0x2B);
     receiveOrNextCmd(&_);
-    uint32_t sector_count = (flash_mode) ? PS2_CARD_SIZE_1M / 512 : (uint32_t)(ps2_cardman_get_card_size() / 512);
+    uint32_t sector_count = (uint32_t)(ps2_cardman_get_card_size() / 512);
 
     uint8_t specs[] = {0x00, 0x02, ERASE_SECTORS, 0x00, 0x00, 0x40, 0x00, 0x00};
     specs[4] = (uint8_t)(sector_count & 0xFF);
