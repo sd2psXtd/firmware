@@ -157,7 +157,7 @@ bool settings_get_ps1_game_id(void) {
 
 void settings_set_ps1_game_id(bool enabled) {
     if (enabled != settings_get_ps1_game_id())
-        settings.ps1_flags ^= SETTINGS_PS1_FLAGS_AUTOBOOT;
+        settings.ps1_flags ^= SETTINGS_PS1_FLAGS_GAME_ID;
     SETTINGS_UPDATE_FIELD(ps1_flags);
 }
 
