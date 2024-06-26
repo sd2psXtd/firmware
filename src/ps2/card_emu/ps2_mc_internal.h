@@ -1,8 +1,7 @@
 #pragma once
 
-#include "../ps2_exploit.h"
 #include "../ps2_dirty.h"
-#include "../ps2_psram.h"
+#include "psram/psram.h"
 
 
 #include <pico/platform.h>
@@ -23,14 +22,13 @@ extern uint8_t writetmp[528];
 extern int is_write, is_dma_read;
 extern uint32_t readptr, writeptr;
 extern uint8_t *eccptr;
-extern bool flash_mode;
 
 extern uint8_t EccTable[];
 
 extern uint8_t receive(uint8_t *cmd);
 extern uint8_t receiveFirst(uint8_t *cmd);
 extern void __time_critical_func(mc_respond)(uint8_t ch);
-extern void __time_critical_func(read_mc)(uint32_t addr, void *buf, size_t sz);
+extern void __time_critical_func(read_mc)(uint32_t addr, void *buf, size_t sz, void (*cb)(void));
 extern void __time_critical_func(write_mc)(uint32_t addr, void *buf, size_t sz);
 
 #define receiveOrNextCmd(cmd)          \

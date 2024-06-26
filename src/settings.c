@@ -18,13 +18,15 @@ typedef struct {
     // TODO: more ps1 settings: model for freepsxboot
     uint8_t ps2_flags; // TODO: single bit options: autoboot
     uint8_t sys_flags; // TODO: single bit options: whether ps1 or ps2 mode, etc
-    uint8_t unused[3];
-    // TODO: display settings?
+    uint8_t display_timeout; // display - auto off, in seconds, 0 - off
+    uint8_t display_contrast; // display - contrast, 0-255
+    uint8_t display_vcomh; // display - vcomh, valid values are 0x00, 0x20, 0x30 and 0x40
     // TODO: how do we store last used channel for cards that use autodetecting w/ gameid?
 } settings_t;
 
-#define SETTINGS_VERSION_MAGIC (0xABCD0002)
-#define SETTINGS_FLAGS_AUTOBOOT (0b1)
+#define SETTINGS_VERSION_MAGIC (0xAACD0002)
+#define SETTINGS_PS1_FLAGS_AUTOBOOT (0b0000001)
+#define SETTINGS_PS2_FLAGS_AUTOBOOT (0b0000001)
 
 _Static_assert(sizeof(settings_t) == 16, "unexpected padding in the settings structure");
 
@@ -33,6 +35,9 @@ static settings_t settings;
 static void settings_reset(void) {
     memset(&settings, 0, sizeof(settings));
     settings.version_magic = SETTINGS_VERSION_MAGIC;
+    settings.display_timeout = 0; // off
+    settings.display_contrast = 255; // 100%
+    settings.display_vcomh = 0x30; // 0.83 x VCC
     if (wear_leveling_write(0, &settings, sizeof(settings)) == WEAR_LEVELING_FAILED)
         fatal("failed to reset settings");
 }
@@ -132,12 +137,49 @@ void settings_set_mode(int mode) {
     }
 }
 
+bool settings_get_ps1_autoboot(void) {
+    return (settings.ps1_flags & SETTINGS_PS1_FLAGS_AUTOBOOT);
+}
+
+void settings_set_ps1_autoboot(bool autoboot) {
+    if (autoboot != settings_get_ps1_autoboot())
+        settings.ps1_flags ^= SETTINGS_PS1_FLAGS_AUTOBOOT;
+    SETTINGS_UPDATE_FIELD(ps1_flags);
+}
+
 bool settings_get_ps2_autoboot(void) {
-    return (settings.ps2_flags & SETTINGS_FLAGS_AUTOBOOT);
+    return (settings.ps2_flags & SETTINGS_PS2_FLAGS_AUTOBOOT);
 }
 
 void settings_set_ps2_autoboot(bool autoboot) {
     if (autoboot != settings_get_ps2_autoboot())
-        settings.ps2_flags ^= SETTINGS_FLAGS_AUTOBOOT;
+        settings.ps2_flags ^= SETTINGS_PS2_FLAGS_AUTOBOOT;
     SETTINGS_UPDATE_FIELD(ps2_flags);
+}
+
+uint8_t settings_get_display_timeout() {
+    return settings.display_timeout;
+}
+
+uint8_t settings_get_display_contrast() {
+    return settings.display_contrast;
+}
+
+uint8_t settings_get_display_vcomh() {
+    return settings.display_vcomh;
+}
+
+void settings_set_display_timeout(uint8_t display_timeout) {
+    settings.display_timeout = display_timeout;
+    SETTINGS_UPDATE_FIELD(display_timeout);
+}
+
+void settings_set_display_contrast(uint8_t display_contrast) {
+    settings.display_contrast = display_contrast;
+    SETTINGS_UPDATE_FIELD(display_contrast);
+}
+
+void settings_set_display_vcomh(uint8_t display_vcomh) {
+    settings.display_vcomh = display_vcomh;
+    SETTINGS_UPDATE_FIELD(display_vcomh);
 }

@@ -10,6 +10,7 @@
 #include "oled.h"
 #include "ps1/ps1_cardman.h"
 #include "ps1/ps1_memory_card.h"
+#include "ps1/ps1_dirty.h"
 #include "ps2/card_emu/ps2_memory_card.h"
 #include "ps2/ps2_cardman.h"
 #include "ps2/ps2_dirty.h"
@@ -21,9 +22,27 @@
 /* Displays the line at the bottom for long pressing buttons */
 static lv_obj_t *g_navbar, *g_progress_bar, *g_progress_text, *g_activity_frame;
 
-static lv_obj_t *scr_switch_nag, *scr_card_switch, *scr_main, *scr_menu, *scr_freepsxboot, *menu, *main_page;
+static lv_obj_t *scr_switch_nag, *scr_card_switch, *scr_main, *scr_menu, *menu, *main_page;
 static lv_style_t style_inv;
-static lv_obj_t *scr_main_idx_lbl, *scr_main_channel_lbl, *src_main_title_lbl, *lbl_civ_err, *lbl_autoboot, *lbl_channel;
+static lv_obj_t *scr_main_idx_lbl, *scr_main_channel_lbl, *src_main_title_lbl, *lbl_channel, *lbl_ps1_autoboot, *lbl_ps2_autoboot, *lbl_civ_err, *auto_off_lbl, *contrast_lbl, *vcomh_lbl;
+
+static struct {
+    uint8_t value;
+    lv_obj_t *selection_lbl;
+} auto_off_options[6];
+
+static struct {
+    uint8_t value;
+    uint8_t label_value;
+    lv_obj_t *selection_lbl;
+} contrast_options[10];
+
+static struct {
+    uint8_t value;
+    char label_text[4];
+    char selection_text[16];
+    lv_obj_t *selection_lbl;
+} vcomh_options[3];
 
 static int have_oled;
 static int switching_card;
@@ -34,6 +53,8 @@ static bool installing_exploit;
 
 #define COLOR_FG lv_color_white()
 #define COLOR_BG lv_color_black()
+
+#define ARRAY_SIZE(x) (sizeof(x) / sizeof((x)[0]))
 
 static lv_obj_t *ui_scr_create(void) {
     lv_obj_t *obj = lv_obj_create(NULL);
@@ -53,6 +74,7 @@ static lv_obj_t *ui_menu_cont_create_nav(lv_obj_t *parent) {
 static lv_obj_t *ui_menu_subpage_create(lv_obj_t *menu, const char *title) {
     lv_obj_t *page = ui_menu_page_create(menu, title);
     lv_obj_add_flag(page, LV_OBJ_FLAG_EVENT_BUBBLE);
+    lv_obj_clear_flag(page, LV_OBJ_FLAG_SCROLLABLE); // handled ourselves in `evt_menu_page`
     lv_group_add_obj(lv_group_get_default(), page);
     lv_obj_add_event_cb(page, evt_menu_page, LV_EVENT_ALL, page);
     return page;
@@ -127,6 +149,9 @@ static void keypad_read(lv_indev_drv_t *drv, lv_indev_data_t *data) {
     (void)drv;
     int pressed;
 
+    if (!oled_is_powered_on())
+        return;
+
     data->state = LV_INDEV_STATE_RELEASED;
 
     pressed = input_get_pressed();
@@ -185,7 +210,70 @@ static void reload_card_cb(int progress) {
 
     lv_label_set_text(g_progress_text, ps2_cardman_get_progress_text());
 
+    oled_update_last_action_time();
     gui_tick();
+}
+
+static void ui_set_display_timeout(uint8_t display_timeout) {
+    char text[8];
+
+    if (auto_off_options[0].value == display_timeout) {
+        sprintf(text, "Off >"),
+        lv_label_set_text(auto_off_lbl, text);
+
+        sprintf(text, "> Off"),
+        lv_label_set_text(auto_off_options[0].selection_lbl, text);
+    } else {
+        sprintf(text, "  Off"),
+        lv_label_set_text(auto_off_options[0].selection_lbl, text);
+    }
+
+    for (size_t i = 1; i < ARRAY_SIZE(auto_off_options); i++) {
+        if (auto_off_options[i].value == display_timeout) {
+            sprintf(text, "%hhus >", auto_off_options[i].value),
+            lv_label_set_text(auto_off_lbl, text);
+
+            sprintf(text, "> %hhus", auto_off_options[i].value),
+            lv_label_set_text(auto_off_options[i].selection_lbl, text);
+        } else {
+            sprintf(text, "  %hhus", auto_off_options[i].value),
+            lv_label_set_text(auto_off_options[i].selection_lbl, text);
+        }
+    }
+}
+
+static void ui_set_display_contrast(uint8_t display_contrast) {
+    char text[8];
+
+    for (size_t i = 0; i < ARRAY_SIZE(contrast_options); i++) {
+        if (contrast_options[i].value == display_contrast) {
+            sprintf(text, "%hhu%% >", contrast_options[i].label_value),
+            lv_label_set_text(contrast_lbl, text);
+
+            sprintf(text, "> %hhu%%", contrast_options[i].label_value),
+            lv_label_set_text(contrast_options[i].selection_lbl, text);
+        } else {
+            sprintf(text, "  %hhu%%", contrast_options[i].label_value),
+            lv_label_set_text(contrast_options[i].selection_lbl, text);
+        }
+    }
+}
+
+static void ui_set_display_vcomh(uint8_t display_vcomh) {
+    char text[16];
+
+    for (size_t i = 0; i < ARRAY_SIZE(vcomh_options); i++) {
+        if (vcomh_options[i].value == display_vcomh) {
+            sprintf(text, "%s >", vcomh_options[i].label_text),
+            lv_label_set_text(vcomh_lbl, text);
+
+            sprintf(text, "> %s", vcomh_options[i].selection_text),
+            lv_label_set_text(vcomh_options[i].selection_lbl, text);
+        } else {
+            sprintf(text, "  %s", vcomh_options[i].selection_text),
+            lv_label_set_text(vcomh_options[i].selection_lbl, text);
+        }
+    }
 }
 
 static void evt_scr_main(lv_event_t *event) {
@@ -207,6 +295,7 @@ static void evt_scr_main(lv_event_t *event) {
         if (key == INPUT_KEY_PREV || key == INPUT_KEY_NEXT || key == INPUT_KEY_BACK || key == INPUT_KEY_ENTER) {
             uint8_t prevChannel, prevIdx;
             if (settings_get_mode() == MODE_PS1) {
+                ps1_cardman_state_t prevState = ps1_cardman_get_state();
                 prevChannel = ps1_cardman_get_channel();
                 prevIdx = ps1_cardman_get_idx();
 
@@ -216,7 +305,7 @@ static void evt_scr_main(lv_event_t *event) {
                     case INPUT_KEY_BACK: ps1_cardman_prev_idx(); break;
                     case INPUT_KEY_ENTER: ps1_cardman_next_idx(); break;
                 }
-                if ((prevChannel != ps1_cardman_get_channel()) || (prevIdx != ps1_cardman_get_idx())) {
+                if ((prevChannel != ps1_cardman_get_channel()) || (prevIdx != ps1_cardman_get_idx()) || (prevState != ps1_cardman_get_state())) {
                     ps1_memory_card_exit();
                     ps1_cardman_close();
                     switching_card = 1;
@@ -249,14 +338,6 @@ static void evt_scr_main(lv_event_t *event) {
     }
 }
 
-static void evt_scr_freepsxboot(lv_event_t *event) {
-    if (event->code == LV_EVENT_KEY) {
-        // uint32_t key = lv_indev_get_key(lv_indev_get_act());
-        UI_GOTO_SCREEN(scr_main);
-        lv_event_stop_bubbling(event);
-    }
-}
-
 static void evt_scr_menu(lv_event_t *event) {
     if (event->code == LV_EVENT_KEY) {
         uint32_t key = lv_indev_get_key(lv_indev_get_act());
@@ -278,13 +359,37 @@ void evt_menu_page(lv_event_t *event) {
         uint32_t idx = lv_obj_get_index(cur);
         uint32_t count = lv_obj_get_child_cnt(page);
         if (key == INPUT_KEY_NEXT) {
-            lv_obj_t *next = ui_menu_find_next_focusable(page, (idx + 1) % count);
+            int next_idx = (idx + 1) % count;
+            lv_obj_t *next = ui_menu_find_next_focusable(page, next_idx);
             lv_group_focus_obj(next);
             lv_event_stop_bubbling(event);
+
+            lv_coord_t page_h = lv_obj_get_height(page);
+            lv_coord_t obj_h = lv_obj_get_height(next);
+            lv_coord_t view_y1 = lv_obj_get_scroll_y(page);
+            lv_coord_t view_y2 = view_y1 + page_h;
+            lv_coord_t obj_y1 = obj_h * (next_idx);
+            lv_coord_t obj_y2 = obj_y1 + obj_h;
+            if (obj_y2 > view_y2)
+                lv_obj_scroll_to_y(page, obj_y2 - page_h, false); // scroll down
+            else if (view_y1 > obj_y1)
+                lv_obj_scroll_to_y(page, obj_y1, false); // wrap around
         } else if (key == INPUT_KEY_PREV) {
-            lv_obj_t *prev = ui_menu_find_prev_focusable(page, (idx + count - 1) % count);
+            int prev_idx = (idx + count - 1) % count;
+            lv_obj_t *prev = ui_menu_find_prev_focusable(page, prev_idx);
             lv_group_focus_obj(prev);
             lv_event_stop_bubbling(event);
+
+            lv_coord_t page_h = lv_obj_get_height(page);
+            lv_coord_t obj_h = lv_obj_get_height(prev);
+            lv_coord_t view_y1 = lv_obj_get_scroll_y(page);
+            lv_coord_t view_y2 = view_y1 + page_h;
+            lv_coord_t obj_y1 = obj_h * (prev_idx);
+            lv_coord_t obj_y2 = obj_y1 + obj_h;
+            if (obj_y1 < view_y1)
+                lv_obj_scroll_to_y(page, obj_y1, false); // scroll up
+            else if (obj_y2 > view_y2)
+                lv_obj_scroll_to_y(page, obj_y2 - page_h, false); // wrap around
         } else if (key == INPUT_KEY_ENTER) {
             lv_event_send(cur, LV_EVENT_CLICKED, NULL);
             lv_event_stop_bubbling(event);
@@ -293,7 +398,10 @@ void evt_menu_page(lv_event_t *event) {
             if (ui_menu_get_cur_main_page(menu) == main_page)
                 return;
             ui_menu_go_back(menu);
+            lv_obj_scroll_to_y(page, 0, false); // reset scroll on the way out
             lv_event_stop_bubbling(event);
+        } else if (key == INPUT_KEY_MENU) {
+            lv_obj_scroll_to_y(page, 0, false); // reset scroll on the way out
         }
     }
 }
@@ -303,10 +411,17 @@ static void evt_go_back(lv_event_t *event) {
     lv_event_stop_bubbling(event);
 }
 
+static void evt_ps1_autoboot(lv_event_t *event) {
+    bool current = settings_get_ps1_autoboot();
+    settings_set_ps1_autoboot(!current);
+    lv_label_set_text(lbl_ps1_autoboot, !current ? "Yes" : "No");
+    lv_event_stop_bubbling(event);
+}
+
 static void evt_ps2_autoboot(lv_event_t *event) {
     bool current = settings_get_ps2_autoboot();
     settings_set_ps2_autoboot(!current);
-    lv_label_set_text(lbl_autoboot, !current ? "Yes" : "No");
+    lv_label_set_text(lbl_ps2_autoboot, !current ? "Yes" : "No");
     lv_event_stop_bubbling(event);
 }
 
@@ -337,6 +452,26 @@ static void evt_switch_to_ps2(lv_event_t *event) {
 
     UI_GOTO_SCREEN(scr_switch_nag);
     terminated = 1;
+}
+
+static void evt_set_display_timeout(lv_event_t *event) {
+    uint8_t display_timeout = (intptr_t)event->user_data;
+    settings_set_display_timeout(display_timeout);
+    ui_set_display_timeout(display_timeout);
+}
+
+static void evt_set_display_contrast(lv_event_t *event) {
+    uint8_t display_contrast = (intptr_t)event->user_data;
+    settings_set_display_contrast(display_contrast);
+    oled_set_contrast(display_contrast);
+    ui_set_display_contrast(display_contrast);
+}
+
+static void evt_set_display_vcomh(lv_event_t *event) {
+    uint8_t display_vcomh = (intptr_t)event->user_data;
+    settings_set_display_vcomh(display_vcomh);
+    oled_set_vcomh(display_vcomh);
+    ui_set_display_vcomh(display_vcomh);
 }
 
 static void create_main_screen(void) {
@@ -391,41 +526,6 @@ static void create_main_screen(void) {
     lv_obj_set_pos(lbl, 0, -2);
     lv_label_set_text(lbl, ">");
     lv_obj_add_style(lbl, &style_inv, 0);
-}
-
-static void create_freepsxboot_screen(void) {
-    lv_obj_t *lbl;
-
-    scr_freepsxboot = ui_scr_create();
-    lv_obj_add_event_cb(scr_freepsxboot, evt_scr_freepsxboot, LV_EVENT_ALL, NULL);
-
-    ui_header_create(scr_freepsxboot, "FreePSXBoot");
-
-    lbl = lv_label_create(scr_freepsxboot);
-    lv_obj_set_align(lbl, LV_ALIGN_TOP_LEFT);
-    lv_obj_set_pos(lbl, 0, 24);
-    lv_label_set_text(lbl, "Model");
-
-    lbl = lv_label_create(scr_freepsxboot);
-    lv_obj_set_align(lbl, LV_ALIGN_TOP_RIGHT);
-    lv_obj_set_pos(lbl, 0, 24);
-    lv_label_set_text(lbl, "1001v3");
-
-    lbl = lv_label_create(scr_freepsxboot);
-    lv_obj_set_align(lbl, LV_ALIGN_TOP_LEFT);
-    lv_obj_set_pos(lbl, 0, 32);
-    lv_label_set_text(lbl, "Slot");
-
-    lbl = lv_label_create(scr_freepsxboot);
-    lv_obj_set_align(lbl, LV_ALIGN_TOP_RIGHT);
-    lv_obj_set_pos(lbl, 0, 32);
-    lv_label_set_text(lbl, "Slot 2");
-
-    lbl = lv_label_create(scr_freepsxboot);
-    lv_obj_set_align(lbl, LV_ALIGN_BOTTOM_MID);
-    lv_label_set_text(lbl, "Press any button to deactivate FreePSXBoot and return to the Memory Card mode");
-    lv_label_set_long_mode(lbl, LV_LABEL_LONG_SCROLL_CIRCULAR);
-    lv_obj_set_width(lbl, 128);
 }
 
 static void create_cardswitch_screen(void) {
@@ -503,20 +603,63 @@ static void create_menu_screen(void) {
         ui_menu_set_load_page_event(menu, cont, ps2_switch_warn);
     }
 
-    /* freepsxboot integration for ps1 */
-    lv_obj_t *freepsxboot_page = ui_menu_subpage_create(menu, "FreePSXBoot");
+    /* display / auto off submenu */
+    lv_obj_t *auto_off_page = ui_menu_subpage_create(menu, "Auto off");
     {
-        cont = ui_menu_cont_create_nav(freepsxboot_page);
-        ui_label_create_grow(cont, "Autoboot");
-        ui_label_create(cont, "Yes");
+        auto_off_options[0].value = 0;
+        auto_off_options[1].value = 5;
+        auto_off_options[2].value = 15;
+        auto_off_options[3].value = 30;
+        auto_off_options[4].value = 60;
+        auto_off_options[5].value = 120;
 
-        cont = ui_menu_cont_create_nav(freepsxboot_page);
-        ui_label_create_grow(cont, "Model");
-        ui_label_create(cont, "1001v3");
+        for (size_t i = 0; i < ARRAY_SIZE(auto_off_options); i++) {
+            uint8_t value = auto_off_options[i].value;
 
-        cont = ui_menu_cont_create_nav(freepsxboot_page);
-        ui_label_create_grow(cont, "Slot");
-        ui_label_create(cont, "Slot 1");
+            cont = ui_menu_cont_create_nav(auto_off_page);
+            auto_off_options[i].selection_lbl = ui_label_create_grow(cont, NULL);
+            lv_obj_add_event_cb(cont, evt_set_display_timeout, LV_EVENT_CLICKED, (void*)(intptr_t)value);
+        }
+    }
+
+    /* display / contrast submenu */
+    lv_obj_t *contrast_page = ui_menu_subpage_create(menu, "Contrast");
+    {
+        char text[8];
+
+        for (size_t i = 0; i < ARRAY_SIZE(contrast_options); i++) {
+            uint8_t percentage = (i + 1) * 10;
+            uint8_t value = (uint16_t)(255 * percentage) / 100;
+            contrast_options[i].value = value;
+            contrast_options[i].label_value = percentage;
+            sprintf(text, " %hhu%%", percentage);
+
+            cont = ui_menu_cont_create_nav(contrast_page);
+            contrast_options[i].selection_lbl = ui_label_create_grow(cont, text);
+            lv_obj_add_event_cb(cont, evt_set_display_contrast, LV_EVENT_CLICKED, (void*)(intptr_t)value);
+        }
+    }
+
+    /* display / vcomh submenu */
+    lv_obj_t *vcomh_page = ui_menu_subpage_create(menu, "VCOMH");
+    {
+        vcomh_options[0].value = 0x00;
+        vcomh_options[1].value = 0x20;
+        vcomh_options[2].value = 0x30;
+
+        strcpy(vcomh_options[0].label_text, "00h");
+        strcpy(vcomh_options[1].label_text, "20h");
+        strcpy(vcomh_options[2].label_text, "30h");
+
+        strcpy(vcomh_options[0].selection_text, "0.65 x VCC");
+        strcpy(vcomh_options[1].selection_text, "0.77 x VCC");
+        strcpy(vcomh_options[2].selection_text, "0.83 x VCC");
+
+        for (size_t i = 0; i < ARRAY_SIZE(vcomh_options); i++) {
+            cont = ui_menu_cont_create_nav(vcomh_page);
+            vcomh_options[i].selection_lbl = ui_label_create_grow(cont, vcomh_options[i].label_text);
+            lv_obj_add_event_cb(cont, evt_set_display_vcomh, LV_EVENT_CLICKED, (void*)(intptr_t)vcomh_options[i].value);
+        }
     }
 
     /* display config */
@@ -524,20 +667,30 @@ static void create_menu_screen(void) {
     {
         cont = ui_menu_cont_create_nav(display_page);
         ui_label_create_grow(cont, "Auto off");
-        ui_label_create(cont, "30s");
+        auto_off_lbl = ui_label_create(cont, NULL);
+        ui_menu_set_load_page_event(menu, cont, auto_off_page);
+        ui_set_display_timeout(settings_get_display_timeout());
+
+        cont = ui_menu_cont_create_nav(display_page);
+        ui_label_create_grow(cont, "Contrast");
+        contrast_lbl = ui_label_create(cont, NULL);
+        ui_menu_set_load_page_event(menu, cont, contrast_page);
+        ui_set_display_contrast(settings_get_display_contrast());
+
+        cont = ui_menu_cont_create_nav(display_page);
+        ui_label_create_grow(cont, "VCOMH");
+        vcomh_lbl = ui_label_create(cont, NULL);
+        ui_menu_set_load_page_event(menu, cont, vcomh_page);
+        ui_set_display_vcomh(settings_get_display_vcomh());
     }
 
     /* ps1 */
     lv_obj_t *ps1_page = ui_menu_subpage_create(menu, "PS1 Settings");
     {
         cont = ui_menu_cont_create_nav(ps1_page);
-        ui_label_create_grow(cont, "FreePSXBoot");
-        ui_label_create(cont, ">");
-        ui_menu_set_load_page_event(menu, cont, freepsxboot_page);
-
-        cont = ui_menu_cont_create_nav(ps1_page);
-        ui_label_create_grow_scroll(cont, "Imitate a PocketStation");
-        ui_label_create(cont, "No");
+        ui_label_create_grow_scroll(cont, "Autoboot");
+        lbl_ps1_autoboot = ui_label_create(cont, settings_get_ps1_autoboot() ? " Yes" : " No");
+        lv_obj_add_event_cb(cont, evt_ps1_autoboot, LV_EVENT_CLICKED, NULL);
     }
 
     /* ps2 */
@@ -558,7 +711,7 @@ static void create_menu_screen(void) {
 
         cont = ui_menu_cont_create_nav(ps2_page);
         ui_label_create_grow_scroll(cont, "Autoboot");
-        lbl_autoboot = ui_label_create(cont, settings_get_ps2_autoboot() ? " Yes" : " No");
+        lbl_ps2_autoboot = ui_label_create(cont, settings_get_ps2_autoboot() ? " Yes" : " No");
         lv_obj_add_event_cb(cont, evt_ps2_autoboot, LV_EVENT_CLICKED, NULL);
 
         cont = ui_menu_cont_create_nav(ps2_page);
@@ -635,10 +788,8 @@ static void create_ui(void) {
     create_menu_screen();
     create_cardswitch_screen();
     create_switch_nag_screen();
-    create_freepsxboot_screen();
 
-    /* start at the main screen - TODO - or freepsxboot */
-    // UI_GOTO_SCREEN(scr_freepsxboot);
+    /* start at the main screen */
     UI_GOTO_SCREEN(scr_main);
 }
 
@@ -685,10 +836,13 @@ void gui_init(void) {
 
 void gui_request_refresh(void) {
     refresh_gui = true;
+    oled_update_last_action_time();
 }
 
 void gui_do_ps1_card_switch(void) {
     printf("switching the card now!\n");
+
+    oled_update_last_action_time();
 
     uint64_t start = time_us_64();
     ps1_cardman_open();
@@ -701,12 +855,14 @@ void gui_do_ps2_card_switch(void) {
     printf("switching the card now!\n");
     UI_GOTO_SCREEN(scr_card_switch);
 
+    oled_update_last_action_time();
+
     uint64_t start = time_us_64();
+    ps2_memory_card_enter();
     ps2_cardman_set_progress_cb(reload_card_cb);
     ps2_cardman_open();
     ps2_history_tracker_card_changed();
     ps2_cardman_set_progress_cb(NULL);
-    ps2_memory_card_enter();
     uint64_t end = time_us_64();
 
     printf("full card switch took = %.2f s\n", (end - start) / 1e6);
@@ -725,15 +881,34 @@ void gui_task(void) {
     if (settings_get_mode() == MODE_PS1) {
         static int displayed_card_idx = -1;
         static int displayed_card_channel = -1;
+        static ps1_cardman_state_t cardman_state = PS1_CM_STATE_NORMAL;
         static char card_idx_s[8];
         static char card_channel_s[8];
 
-        if (displayed_card_idx != ps1_cardman_get_idx() || displayed_card_channel != ps1_cardman_get_channel() || refresh_gui) {
+        if (displayed_card_idx != ps1_cardman_get_idx() || displayed_card_channel != ps1_cardman_get_channel() || cardman_state != ps1_cardman_get_state() || refresh_gui) {
             displayed_card_idx = ps1_cardman_get_idx();
             displayed_card_channel = ps1_cardman_get_channel();
             folder_name = ps1_cardman_get_folder_name();
+            cardman_state = ps1_cardman_get_state();
 
-            snprintf(card_channel_s, sizeof(card_channel_s), "%d", displayed_card_channel);
+            switch (cardman_state) {
+                case PS1_CM_STATE_BOOT:
+                    lv_label_set_text(scr_main_idx_lbl, "BOOT");
+                    lv_label_set_text(lbl_channel, "");
+                    snprintf(card_channel_s, sizeof(card_channel_s), " ");
+                    break;
+                case PS1_CM_STATE_GAMEID:
+                    lv_label_set_text(scr_main_idx_lbl, folder_name);
+                    lv_label_set_text(lbl_channel, "Channel");
+                    snprintf(card_channel_s, sizeof(card_channel_s), "%d", displayed_card_channel);
+                    break;
+                case PS1_CM_STATE_NORMAL:
+                    snprintf(card_idx_s, sizeof(card_idx_s), "%d", displayed_card_idx);
+                    lv_label_set_text(scr_main_idx_lbl, card_idx_s);
+                    lv_label_set_text(lbl_channel, "Channel");
+                    snprintf(card_channel_s, sizeof(card_channel_s), "%d", displayed_card_channel);
+                    break;
+            }
 
             if (displayed_card_idx > 0) {
                 snprintf(card_idx_s, sizeof(card_idx_s), "%d", displayed_card_idx);
@@ -778,7 +953,6 @@ void gui_task(void) {
                 lv_label_set_text(lbl_channel, "");
                 lv_label_set_text(scr_main_idx_lbl, card_idx_s);
             } else if (PS2_CM_STATE_GAMEID == cardman_state) {
-                lv_label_set_text(scr_main_idx_lbl, folder_name);
                 snprintf(card_channel_s, sizeof(card_channel_s), "%d", displayed_card_channel);
                 lv_label_set_text(lbl_channel, "Channel");
                 lv_label_set_text(scr_main_idx_lbl, folder_name);
@@ -808,12 +982,13 @@ void gui_task(void) {
             gui_do_ps2_card_switch();
         }
 
-        if (ps2_dirty_activity) {
-            input_flush();
-            lv_obj_clear_flag(g_activity_frame, LV_OBJ_FLAG_HIDDEN);
-        } else {
-            lv_obj_add_flag(g_activity_frame, LV_OBJ_FLAG_HIDDEN);
-        }
+    }
+
+    if (ps1_dirty_activity || ps2_dirty_activity) {
+        input_flush();
+        lv_obj_clear_flag(g_activity_frame, LV_OBJ_FLAG_HIDDEN);
+    } else {
+        lv_obj_add_flag(g_activity_frame, LV_OBJ_FLAG_HIDDEN);
     }
 
     gui_tick();

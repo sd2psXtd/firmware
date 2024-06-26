@@ -1,6 +1,6 @@
 #include "ps2_dirty.h"
 #include "history_tracker/ps2_history_tracker.h"
-#include "ps2_psram.h"
+#include "psram/psram.h"
 #include "ps2_cardman.h"
 #include "debug.h"
 
@@ -24,18 +24,30 @@ static int num_dirty;
     b = tmp; \
 } while (0);
 
+static inline bool dirty_map_is_marked(uint32_t sector) {
+    return dirty_map[sector / 8] & (1 << (sector % 8));
+}
+
+static inline void dirty_map_mark_sector(uint32_t sector) {
+    dirty_map[sector / 8] |= (1 << (sector % 8));
+}
+
+static inline void dirty_map_unmark_sector(uint32_t sector) {
+    dirty_map[sector / 8] &= ~(1 << (sector % 8));
+}
+
 void ps2_dirty_init(void) {
     ps2_dirty_spin_lock = spin_lock_init(spin_lock_claim_unused(1));
 }
 
 void __time_critical_func(ps2_dirty_mark)(uint32_t sector) {
-    if (sector < sizeof(dirty_map)) {
+    if (sector < (sizeof(dirty_map) * 8)) {
         /* already marked? */
-        if (dirty_map[sector])
+        if (dirty_map_is_marked(sector))
             return;
 
         /* update map */
-        dirty_map[sector] = 1;
+        dirty_map_mark_sector(sector);
 
         /* update heap */
         int cur = num_dirty++;
@@ -72,7 +84,7 @@ int ps2_dirty_get_marked(void) {
     heapify(0);
 
     /* update map */
-    dirty_map[ret] = 0;
+    dirty_map_unmark_sector(ret);
 
     return ret;
 }
@@ -98,7 +110,8 @@ void ps2_dirty_task(void) {
             ps2_dirty_unlock();
             break;
         }
-        psram_read(sector * 512, flushbuf, 512);
+        psram_read_dma(sector * 512, flushbuf, 512, NULL);
+        psram_wait_for_dma();
         ps2_dirty_unlock();
 
         ++hit;

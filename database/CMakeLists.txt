@@ -28,7 +28,7 @@ add_custom_target(gamedbobjs_ps2 ALL
                         -D SYSTEM=ps2
                         -P ${CMAKE_CURRENT_SOURCE_DIR}/db_obj_builder.cmake
                     VERBATIM
-                    BYPRODUCTS ${GAMEDB_PS1_OBJ})
+                    BYPRODUCTS ${GAMEDB_PS2_OBJ})
 
 add_dependencies(gamedb gamedbobjs_ps2)
 

@@ -2,13 +2,12 @@
 
 typedef union {
     struct {
-        uint8_t card_image[128 * 1024];
         uint16_t dirty_heap[1024];
         uint8_t dirty_map[1024]; /* every 128 byte block */
     } ps1;
     struct {
         uint16_t dirty_heap[8 * 1024 * 1024 / 512];
-        uint8_t dirty_map[8 * 1024 * 1024 / 512]; // TODO: make an actual bitmap to save 8x mem?
+        uint8_t dirty_map[8 * 1024 * 1024 / 512 / 8];
     } ps2;
 } bigmem_t;
 
