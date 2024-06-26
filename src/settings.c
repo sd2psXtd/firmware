@@ -24,9 +24,11 @@ typedef struct {
     // TODO: how do we store last used channel for cards that use autodetecting w/ gameid?
 } settings_t;
 
-#define SETTINGS_VERSION_MAGIC (0xAACD0002)
+#define SETTINGS_VERSION_MAGIC (0xAACD0003)
 #define SETTINGS_PS1_FLAGS_AUTOBOOT (0b0000001)
+#define SETTINGS_PS1_FLAGS_GAME_ID  (0b0000010)
 #define SETTINGS_PS2_FLAGS_AUTOBOOT (0b0000001)
+#define SETTINGS_PS2_FLAGS_GAME_ID  (0b0000010)
 
 _Static_assert(sizeof(settings_t) == 16, "unexpected padding in the settings structure");
 
@@ -38,6 +40,8 @@ static void settings_reset(void) {
     settings.display_timeout = 0; // off
     settings.display_contrast = 255; // 100%
     settings.display_vcomh = 0x30; // 0.83 x VCC
+    settings.ps1_flags = SETTINGS_PS1_FLAGS_GAME_ID;
+    settings.ps2_flags = SETTINGS_PS2_FLAGS_GAME_ID;
     if (wear_leveling_write(0, &settings, sizeof(settings)) == WEAR_LEVELING_FAILED)
         fatal("failed to reset settings");
 }
@@ -147,6 +151,16 @@ void settings_set_ps1_autoboot(bool autoboot) {
     SETTINGS_UPDATE_FIELD(ps1_flags);
 }
 
+bool settings_get_ps1_game_id(void) {
+    return (settings.ps1_flags & SETTINGS_PS1_FLAGS_GAME_ID);
+}
+
+void settings_set_ps1_game_id(bool enabled) {
+    if (enabled != settings_get_ps1_game_id())
+        settings.ps1_flags ^= SETTINGS_PS1_FLAGS_AUTOBOOT;
+    SETTINGS_UPDATE_FIELD(ps1_flags);
+}
+
 bool settings_get_ps2_autoboot(void) {
     return (settings.ps2_flags & SETTINGS_PS2_FLAGS_AUTOBOOT);
 }
@@ -154,6 +168,16 @@ bool settings_get_ps2_autoboot(void) {
 void settings_set_ps2_autoboot(bool autoboot) {
     if (autoboot != settings_get_ps2_autoboot())
         settings.ps2_flags ^= SETTINGS_PS2_FLAGS_AUTOBOOT;
+    SETTINGS_UPDATE_FIELD(ps2_flags);
+}
+
+bool settings_get_ps2_game_id(void) {
+    return (settings.ps2_flags & SETTINGS_PS2_FLAGS_GAME_ID);
+}
+
+void settings_set_ps2_game_id(bool enabled) {
+    if (enabled != settings_get_ps2_game_id())
+        settings.ps2_flags ^= SETTINGS_PS2_FLAGS_GAME_ID;
     SETTINGS_UPDATE_FIELD(ps2_flags);
 }
 

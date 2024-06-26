@@ -47,6 +47,9 @@ static void set_default_card() {
 }
 
 static bool try_set_game_id_card() {
+    if (!settings_get_ps1_game_id())
+        return false;
+
     const char *game_id = ps1_memory_card_get_game_id();
     if (!game_id[0])
         return false;
