@@ -81,8 +81,10 @@ int page_write(mcfat_cardspecs_t* info, uint32_t page, void* buff) {
 }
 
 int page_read(mcfat_cardspecs_t* info, uint32_t page, uint32_t count, void* buff) {
+    ps2_dirty_lock();
     psram_read_dma(page * info->pagesize, buff, count, NULL);
     psram_wait_for_dma();
+    ps2_dirty_unlock();
     return sceMcResSucceed;
 }
 
