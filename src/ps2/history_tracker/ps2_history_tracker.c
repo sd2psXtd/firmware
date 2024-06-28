@@ -19,7 +19,9 @@
 #include "ps2_dirty.h"
 #include "psram/psram.h"
 
-#define USE_INJECT_LOGIC
+//#define USE_INJECT_LOGIC
+
+#define DEBUG(fmt , x...) //printf(fmt, ##x)
 
 #define HISTORY_FILE_SIZE           462
 #define HISTORY_ENTRY_COUNT         21
@@ -37,13 +39,14 @@
 #define HISTORY_FILENAME_FORMAT "/B%cDATA-SYSTEM/history"
 #define HISTORY_ICON_NAME       "/B%cDATA-SYSTEM/icon.sys"
 
+#ifdef USE_INJECT_LOGIC
 extern const char   _binary_icon_A_sys_start, 
                     _binary_icon_A_sys_size;
 extern const char   _binary_icon_C_sys_start, 
                     _binary_icon_C_sys_size;
 extern const char   _binary_icon_J_sys_start, 
                     _binary_icon_J_sys_size;
-
+#endif
 
 static mcfat_cardspecs_t cardspecs;
 static mcfat_mcops_t mcOps;
@@ -51,7 +54,7 @@ static uint64_t lastAccess = 0U;
 
 const char regionList[] = {CHAR_CHINA, CHAR_NORTHAMERICA, CHAR_EUROPE, CHAR_JAPAN};
 static uint8_t slotCount[HISTORY_NUMBER_OF_REGIONS][HISTORY_ENTRY_COUNT] = {};
-static uint32_t fileCluster[HISTORY_NUMBER_OF_REGIONS] = {};
+static uint32_t fileCluster[HISTORY_NUMBER_OF_REGIONS] = { 0, 0, 0, 0};
 static bool refreshRequired[HISTORY_NUMBER_OF_REGIONS];
 
 int page_erase(mcfat_cardspecs_t* info, uint32_t page) {
@@ -81,6 +84,10 @@ int page_write(mcfat_cardspecs_t* info, uint32_t page, void* buff) {
 }
 
 int page_read(mcfat_cardspecs_t* info, uint32_t page, uint32_t count, void* buff) {
+    if (!ps2_cardman_is_sector_available(page)) {
+        ps2_cardman_set_priority_sector(page);
+        while (!ps2_cardman_is_sector_available(page)) {sleep_us(1);} // wait for core 0 to load the sector into PSRAM
+    }
     ps2_dirty_lock();
     psram_read_dma(page * info->pagesize, buff, count, NULL);
     psram_wait_for_dma();
@@ -91,7 +98,7 @@ int page_read(mcfat_cardspecs_t* info, uint32_t page, uint32_t count, void* buff
 
 static bool fileExists(char* filename) {
     int fd = mcio_mcOpen(filename, sceMcFileAttrReadable);
-    debug_printf("File %s status %d\n", filename, fd);
+    DEBUG("File %s status %d\n", filename, fd);
     if ( fd < 0 )
         return false;
     else
@@ -102,7 +109,7 @@ static bool fileExists(char* filename) {
 
 static bool dirExists(char* dirname) {
     int fd = mcio_mcDopen(dirname);
-    debug_printf("Dir %s status %d\n", dirname, fd);
+    DEBUG("Dir %s status %d\n", dirname, fd);
 
     if ( fd < 0 )
         return false;
@@ -110,6 +117,7 @@ static bool dirExists(char* dirname) {
         mcio_mcDclose(fd);
     return true;
 }
+#ifdef USE_INJECT_LOGIC
 
 static void checkInjectHistoryIcon(char region)
 {
@@ -138,7 +146,7 @@ static void checkInjectHistoryIcon(char region)
                     icon_ptr = (void*) &_binary_icon_A_sys_start;
                     break;
             }
-            debug_printf("Icon size is %i, filename is %s\n", icon_size, filename);
+            DEBUG("Icon size is %i, filename is %s\n", icon_size, filename);
             remaining -= mcio_mcWrite(fd, icon_ptr, icon_size);
             while (remaining > 0) {
                 remaining -= mcio_mcWrite(fd, buff, remaining > 128 ? 128 : remaining);
@@ -147,19 +155,20 @@ static void checkInjectHistoryIcon(char region)
             mcio_mcClose(fd);
         }
     } else {
-        debug_printf("Icon: %s already exists\n", filename);
+        DEBUG("Icon: %s already exists\n", filename);
     }
 
 }
+#endif
 
 static void readSlots(uint8_t historyFile[HISTORY_FILE_SIZE], uint8_t slots[HISTORY_ENTRY_COUNT]) {
     for (int i = 0; i < HISTORY_ENTRY_COUNT; i++) {
         if (historyFile[i * HISTORY_ENTRY_SIZE]) {
-            //slots[i] = historyFile[i * HISTORY_ENTRY_SIZE + HISTORY_ENTRY_POS_LAUNCH];
+            
             for (int j = i * HISTORY_ENTRY_SIZE + HISTORY_ENTRY_POS_LAUNCH; j < (i+1) * HISTORY_ENTRY_SIZE; j++) {
                 slots[i] ^= historyFile[j];
             }
-            debug_printf("Found game %s with %d XOR\n", (char*)&historyFile[i * HISTORY_ENTRY_SIZE],
+            DEBUG("Found game %s with %02x XOR\n", (char*)&historyFile[i * HISTORY_ENTRY_SIZE],
                    historyFile[i * HISTORY_ENTRY_SIZE + HISTORY_ENTRY_POS_LAUNCH]);
         } else {
             slots[i] = 0;
@@ -170,7 +179,7 @@ static void readSlots(uint8_t historyFile[HISTORY_FILE_SIZE], uint8_t slots[HIST
 void ps2_history_tracker_registerPageWrite(uint32_t page) {
     uint32_t cluster = page / 2;
     for (int i = 0; i < HISTORY_NUMBER_OF_REGIONS; i++) {
-        if (cluster == fileCluster[i]) {
+        if ((cluster == fileCluster[i]) || (fileCluster[i] == 0)) {
             refreshRequired[i] = true;
         }
     }
@@ -194,22 +203,22 @@ void ps2_history_tracker_card_changed() {
         #ifdef USE_INJECT_LOGIC
         if (!dirExists(dirname)) {
             int dirsts = mcio_mcMkDir(dirname);
-            debug_printf("Dir Creating Status is %d\n", dirsts);
+            DEBUG("Dir Creating Status is %d\n", dirsts);
         }
         #endif
         if (fileExists(filename)) {
             int fh = mcio_mcOpen(filename, sceMcFileAttrReadable);
-            debug_printf("Initially reading filename %s, fd %d\n", filename, fh);
+            DEBUG("Initially reading filename %s, fd %d\n", filename, fh);
             if (fh >= 0) {
                 mcio_mcRead(fh, buff, HISTORY_FILE_SIZE);
                 readSlots(buff, slotCount[i]);
                 fileCluster[i] = mcio_mcGetCluster(fh);
-                debug_printf("Registering Cluster %d\n", fileCluster[i]);
+                DEBUG("Registering Cluster %d\n", fileCluster[i]);
                 mcio_mcClose(fh);
             }
         } else {
         #ifdef USE_INJECT_LOGIC
-            debug_printf("Writing history to %s\n", filename);
+            DEBUG("Writing history to %s\n", filename);
             int flag = sceMcFileAttrWriteable | sceMcFileCreateFile;
             int fh = mcio_mcOpen(filename, flag);
             if (fh >= 0)
@@ -219,15 +228,18 @@ void ps2_history_tracker_card_changed() {
                 fh = mcio_mcOpen(filename, sceMcFileAttrReadable);
                 fileCluster[i] = mcio_mcGetCluster(fh);
                 mcio_mcClose(fh);
-                debug_printf("Registering new Cluster %d\n", fileCluster[i]);
+                DEBUG("Registering new Cluster %d\n", fileCluster[i]);
             } else {
-                debug_printf("File handle is %d\n", fh);
+                DEBUG("File handle is %d\n", fh);
             }
 
         #endif
             memset(slotCount[i], 0x00, HISTORY_ENTRY_COUNT);
+            fileCluster[i] = 0;
         }
+        #ifdef USE_INJECT_LOGIC
         checkInjectHistoryIcon(regionList[i]);
+        #endif
     }
 }
 
@@ -256,6 +268,8 @@ void ps2_history_tracker_run() {
         char filename[23] = {0x00};
         char dirname[15] = {0x00};        
 
+        mcio_init(); // Call init to invalidate caches...
+
         for (int i = 0; i < HISTORY_NUMBER_OF_REGIONS; i++) {
             uint8_t slots_new[21] = {};
             // Read current history file for each region
@@ -264,8 +278,10 @@ void ps2_history_tracker_run() {
             snprintf(filename, 23, HISTORY_FILENAME_FORMAT, regionList[i]);
             if (refreshRequired[i] && dirExists(dirname) && fileExists(filename)) {
                 int fh = mcio_mcOpen(filename, sceMcFileAttrReadable);
+                if (fileCluster[i] == 0x0)
+                    fileCluster[i] = mcio_mcGetCluster(fh);
 
-                debug_printf("Updating filename %s, fd %d\n", filename, fh);
+                DEBUG("Updating filename %s, fd %d, new cluster %u\n", filename, fh, fileCluster[i]);
                 if (fh >= 0) {
                     mcio_mcRead(fh, buff, HISTORY_FILE_SIZE);
                     readSlots(buff, slots_new);
@@ -273,17 +289,17 @@ void ps2_history_tracker_run() {
                         if (slots_new[j] != slotCount[i][j]) {
                             char sanitized_game_id[11] = {0};
                             game_names_extract_title_id(&buff[j * HISTORY_ENTRY_SIZE], sanitized_game_id, 16, sizeof(sanitized_game_id));
-                            debug_printf("Game ID: %s\n", sanitized_game_id);
+                            DEBUG("Game ID: %s\n", sanitized_game_id);
                             if (game_names_sanity_check_title_id(sanitized_game_id)) {
                                 ps2_sd2psxman_set_gameid(sanitized_game_id);
-                                sd2psxman_cmd = SD2PSXMAN_SET_GAMEID;
+                                break;
                             }
                         }
                     }
                     mcio_mcClose(fh);
                     memcpy((void*)slotCount[i], (void*)slots_new, HISTORY_ENTRY_COUNT);
                 } else {
-                    debug_printf("File exists, but handle returned %d\n", fh);
+                    DEBUG("File exists, but handle returned %d\n", fh);
                 }
             }
             refreshRequired[i] = false;

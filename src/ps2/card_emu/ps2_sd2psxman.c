@@ -1,6 +1,7 @@
 #include "ps2/card_emu/ps2_sd2psxman.h"
 
 #include <stdio.h>
+#include <string.h>
 
 #include "debug.h"
 #include "gui.h"
@@ -74,7 +75,10 @@ void ps2_sd2psxman_task(void) {
 }
 
 void __time_critical_func(ps2_sd2psxman_set_gameid)(const char* const game_id) {
-    snprintf(sd2psxman_gameid, sizeof(sd2psxman_gameid), "%s", game_id);
+    if (strcmp(game_id, sd2psxman_gameid)) {
+        snprintf(sd2psxman_gameid, sizeof(sd2psxman_gameid), "%s", game_id);
+        sd2psxman_cmd = SD2PSXMAN_SET_GAMEID;
+    }
 }
 
 const char* ps2_sd2psxman_get_gameid(void) {
