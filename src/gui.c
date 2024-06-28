@@ -24,7 +24,7 @@ static lv_obj_t *g_navbar, *g_progress_bar, *g_progress_text, *g_activity_frame;
 
 static lv_obj_t *scr_switch_nag, *scr_card_switch, *scr_main, *scr_menu, *menu, *main_page;
 static lv_style_t style_inv;
-static lv_obj_t *scr_main_idx_lbl, *scr_main_channel_lbl, *src_main_title_lbl, *lbl_channel, *lbl_ps1_autoboot, *lbl_ps2_autoboot, *lbl_civ_err, *auto_off_lbl, *contrast_lbl, *vcomh_lbl;
+static lv_obj_t *scr_main_idx_lbl, *scr_main_channel_lbl, *src_main_title_lbl, *lbl_channel, *lbl_ps1_autoboot, *lbl_ps1_game_id, *lbl_ps2_autoboot, *lbl_ps2_game_id, *lbl_civ_err, *auto_off_lbl, *contrast_lbl, *vcomh_lbl;
 
 static struct {
     uint8_t value;
@@ -418,10 +418,24 @@ static void evt_ps1_autoboot(lv_event_t *event) {
     lv_event_stop_bubbling(event);
 }
 
+static void evt_ps1_gameid(lv_event_t *event) {
+    bool current = settings_get_ps1_game_id();
+    settings_set_ps1_game_id(!current);
+    lv_label_set_text(lbl_ps1_game_id, !current ? "Yes" : "No");
+    lv_event_stop_bubbling(event);
+}
+
 static void evt_ps2_autoboot(lv_event_t *event) {
     bool current = settings_get_ps2_autoboot();
     settings_set_ps2_autoboot(!current);
     lv_label_set_text(lbl_ps2_autoboot, !current ? "Yes" : "No");
+    lv_event_stop_bubbling(event);
+}
+
+static void evt_ps2_gameid(lv_event_t *event) {
+    bool current = settings_get_ps2_game_id();
+    settings_set_ps2_game_id(!current);
+    lv_label_set_text(lbl_ps2_game_id, !current ? "Yes" : "No");
     lv_event_stop_bubbling(event);
 }
 
@@ -691,6 +705,11 @@ static void create_menu_screen(void) {
         ui_label_create_grow_scroll(cont, "Autoboot");
         lbl_ps1_autoboot = ui_label_create(cont, settings_get_ps1_autoboot() ? " Yes" : " No");
         lv_obj_add_event_cb(cont, evt_ps1_autoboot, LV_EVENT_CLICKED, NULL);
+
+        cont = ui_menu_cont_create_nav(ps1_page);
+        ui_label_create_grow_scroll(cont, "Game ID");
+        lbl_ps1_game_id = ui_label_create(cont, settings_get_ps1_game_id() ? " Yes" : " No");
+        lv_obj_add_event_cb(cont, evt_ps1_gameid, LV_EVENT_CLICKED, NULL);
     }
 
     /* ps2 */
@@ -713,6 +732,11 @@ static void create_menu_screen(void) {
         ui_label_create_grow_scroll(cont, "Autoboot");
         lbl_ps2_autoboot = ui_label_create(cont, settings_get_ps2_autoboot() ? " Yes" : " No");
         lv_obj_add_event_cb(cont, evt_ps2_autoboot, LV_EVENT_CLICKED, NULL);
+
+        cont = ui_menu_cont_create_nav(ps2_page);
+        ui_label_create_grow_scroll(cont, "Game ID");
+        lbl_ps2_game_id = ui_label_create(cont, settings_get_ps2_game_id() ? " Yes" : " No");
+        lv_obj_add_event_cb(cont, evt_ps2_gameid, LV_EVENT_CLICKED, NULL);
 
         cont = ui_menu_cont_create_nav(ps2_page);
         ui_label_create_grow(cont, "Deploy CIV.bin");

@@ -24,8 +24,12 @@ int settings_get_mode(void);
 void settings_set_mode(int mode);
 bool settings_get_ps1_autoboot(void);
 void settings_set_ps1_autoboot(bool autoboot);
+bool settings_get_ps1_game_id(void);
+void settings_set_ps1_game_id(bool enabled);
 bool settings_get_ps2_autoboot(void);
 void settings_set_ps2_autoboot(bool autoboot);
+bool settings_get_ps2_game_id(void);
+void settings_set_ps2_game_id(bool enabled);
 
 #define IDX_MIN 1
 #define IDX_BOOT 0

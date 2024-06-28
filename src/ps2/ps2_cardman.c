@@ -393,7 +393,9 @@ void ps2_cardman_set_idx(uint16_t idx_num) {
 
 static void ps2_cardman_special_idx(int newIndx) {
     char parent_id[MAX_GAME_ID_LENGTH] = { 0x00 };
-    game_names_get_parent(sd2psxman_gameid, parent_id);
+    if (settings_get_ps2_game_id())
+        game_names_get_parent(sd2psxman_gameid, parent_id);
+
     debug_printf("Parent ID is %s, State is %i, new Index: %i\n", parent_id, cardman_state, newIndx);
     if (PS2_CM_STATE_NORMAL == cardman_state) {
         if (parent_id[0]) {
@@ -472,6 +474,9 @@ int ps2_cardman_get_channel(void) {
 }
 
 void ps2_cardman_set_gameid(const char *const card_game_id) {
+    if (!settings_get_ps2_game_id())
+        return;
+
     char new_folder_name[MAX_GAME_ID_LENGTH];
     if (card_game_id[0]) {
         char parent_id[MAX_GAME_ID_LENGTH];
