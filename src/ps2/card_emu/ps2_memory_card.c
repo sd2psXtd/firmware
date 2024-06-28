@@ -1,4 +1,5 @@
 #include "../ps2_dirty.h"
+#include "history_tracker/ps2_history_tracker.h"
 #include "psram/psram.h"
 #include "debug.h"
 #include "hardware/gpio.h"
@@ -248,6 +249,8 @@ static void __no_inline_not_in_flash_func(mc_main)(void) {
         mc_enter_response = 1;
         
         reset_pio();
+
+        ps2_history_tracker_card_changed();
         mc_main_loop();
     }
 }

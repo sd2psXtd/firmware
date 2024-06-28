@@ -885,7 +885,6 @@ void gui_do_ps2_card_switch(void) {
     ps2_memory_card_enter();
     ps2_cardman_set_progress_cb(reload_card_cb);
     ps2_cardman_open();
-    ps2_history_tracker_card_changed();
     ps2_cardman_set_progress_cb(NULL);
     uint64_t end = time_us_64();
 

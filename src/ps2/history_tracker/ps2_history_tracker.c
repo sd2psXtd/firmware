@@ -21,7 +21,7 @@
 
 //#define USE_INJECT_LOGIC
 
-#define DEBUG(fmt , x...) //printf(fmt, ##x)
+#define DEBUG(fmt , x...) printf(fmt, ##x)
 
 #define HISTORY_FILE_SIZE           462
 #define HISTORY_ENTRY_COUNT         21
@@ -84,6 +84,10 @@ int page_write(mcfat_cardspecs_t* info, uint32_t page, void* buff) {
 }
 
 int page_read(mcfat_cardspecs_t* info, uint32_t page, uint32_t count, void* buff) {
+    if (!ps2_cardman_is_sector_available(page)) {
+        ps2_cardman_set_priority_sector(page);
+        while (!ps2_cardman_is_sector_available(page)) {sleep_us(1);} // wait for core 0 to load the sector into PSRAM
+    }
     ps2_dirty_lock();
     psram_read_dma(page * info->pagesize, buff, count, NULL);
     psram_wait_for_dma();
