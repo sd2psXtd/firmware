@@ -185,10 +185,6 @@ void ps2_history_tracker_registerPageWrite(uint32_t page) {
     }
 }
 
-void __time_critical_func(ps2_history_tracker_registerRead)(void) {
-    lastAccess = time_us_64();
-}
-
 void ps2_history_tracker_card_changed() {
     mcfat_setCardChanged(true);
     mcio_init();
