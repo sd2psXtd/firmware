@@ -8,6 +8,7 @@
 #include "debug.h"
 #include "game_names/game_names.h"
 #include "hardware/timer.h"
+#include "pico/multicore.h"
 #include "ps2_dirty.h"
 #include "psram/psram.h"
 #include "sd.h"
@@ -221,9 +222,12 @@ void ps2_cardman_open(void) {
         snprintf(path, sizeof(path), "MemoryCards/PS2/%s/%s-%d.mcd", folder_name, folder_name, card_chan);
 
     if (card_idx != PS2_CARD_IDX_SPECIAL) {
+        multicore_lockout_start_blocking();
+
         /* this is ok to do on every boot because it wouldn't update if the value is the same as currently stored */
         settings_set_ps2_card(card_idx);
         settings_set_ps2_channel(card_chan);
+        multicore_lockout_end_blocking();
     }
 
     printf("Switching to card path = %s\n", path);

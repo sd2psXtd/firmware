@@ -58,6 +58,7 @@ static uint32_t fileCluster[HISTORY_NUMBER_OF_REGIONS] = { 0, 0, 0, 0};
 static bool refreshRequired[HISTORY_NUMBER_OF_REGIONS];
 
 int page_erase(mcfat_cardspecs_t* info, uint32_t page) {
+    #ifdef USE_INJECT_LOGIC
     if (page * info->pagesize + info->pagesize <= ps2_cardman_get_card_size()) {
         uint8_t buff[info->pagesize];
         memset((void*)buff, 0xFF, info->pagesize);
@@ -68,10 +69,12 @@ int page_erase(mcfat_cardspecs_t* info, uint32_t page) {
         ps2_dirty_mark(page);
         ps2_dirty_unlock();
     }
+    #endif
     return sceMcResSucceed;
 }
 
 int page_write(mcfat_cardspecs_t* info, uint32_t page, void* buff) {
+    #ifdef USE_INJECT_LOGIC
     if (page * info->pagesize + info->pagesize <= ps2_cardman_get_card_size()) {
         ps2_dirty_lockout_renew();
         ps2_dirty_lock();
@@ -80,6 +83,7 @@ int page_write(mcfat_cardspecs_t* info, uint32_t page, void* buff) {
         ps2_dirty_mark(page);
         ps2_dirty_unlock();
     }
+    #endif
     return sceMcResSucceed;
 }
 
@@ -88,6 +92,7 @@ int page_read(mcfat_cardspecs_t* info, uint32_t page, uint32_t count, void* buff
         ps2_cardman_set_priority_sector(page);
         while (!ps2_cardman_is_sector_available(page)) {sleep_us(1);} // wait for core 0 to load the sector into PSRAM
     }
+    ps2_dirty_lockout_renew();
     ps2_dirty_lock();
     psram_read_dma(page * info->pagesize, buff, count, NULL);
     psram_wait_for_dma();
