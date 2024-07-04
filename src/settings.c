@@ -4,6 +4,7 @@
 #include <string.h>
 
 #include "debug.h"
+#include "pico/multicore.h"
 #include "wear_leveling/wear_leveling.h"
 
 /* NOTE: for any change to the layout/size of this structure (that gets shipped to users),
@@ -68,7 +69,9 @@ void settings_update(void) {
 }
 
 void settings_update_part(void *settings_ptr, uint32_t sz) {
+    multicore_lockout_start_blocking();
     wear_leveling_write((uint8_t*)settings_ptr - (uint8_t*)&settings, settings_ptr, sz);
+    multicore_lockout_end_blocking();
 }
 
 #define SETTINGS_UPDATE_FIELD(field) settings_update_part(&settings.field, sizeof(settings.field))
