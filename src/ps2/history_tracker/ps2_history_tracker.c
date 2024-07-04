@@ -87,7 +87,7 @@ int page_write(mcfat_cardspecs_t* info, uint32_t page, void* buff) {
     return sceMcResSucceed;
 }
 
-int page_read(mcfat_cardspecs_t* info, uint32_t page, uint32_t count, void* buff) {
+int __time_critical_func(page_read)(mcfat_cardspecs_t* info, uint32_t page, uint32_t count, void* buff) {
     if (!ps2_cardman_is_sector_available(page)) {
         ps2_cardman_set_priority_sector(page);
         while (!ps2_cardman_is_sector_available(page)) {sleep_us(1);} // wait for core 0 to load the sector into PSRAM
