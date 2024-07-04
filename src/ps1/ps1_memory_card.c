@@ -1,6 +1,7 @@
 #include "hardware/gpio.h"
 #include "hardware/timer.h"
 #include "pico/platform.h"
+#include "pico/multicore.h"
 #include "string.h"
 #include <stdint.h>
 
@@ -345,7 +346,9 @@ static void my_gpio_set_irq_enabled_with_callback(uint gpio, uint32_t events, bo
     if (enabled) irq_set_enabled(IO_IRQ_BANK0, true);
 }
 
-void ps1_memory_card_main(void) {
+void ps1_memory_card_main(void) {    
+    multicore_lockout_victim_init();
+
     init_pio();
 
     us_startup = time_us_64();
