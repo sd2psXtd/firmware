@@ -132,7 +132,9 @@ int main() {
         while (1) {
             debug_task();
             ps2_sd2psxman_task();
-            ps2_dirty_task();
+            ps2_cardman_run();
+            if (ps2_cardman_is_idle())
+                ps2_dirty_task();
             ps2_history_tracker_run();
             gui_task();
             input_task();

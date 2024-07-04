@@ -46,6 +46,8 @@ static struct {
 
 static int have_oled;
 static int switching_card;
+static bool waiting_card;
+static int current_progress;
 static uint64_t switching_card_timeout;
 static int terminated;
 static bool refresh_gui;
@@ -128,6 +130,18 @@ static lv_obj_t *ui_header_create(lv_obj_t *parent, const char *text) {
     return lbl;
 }
 
+static void update_bar(void) {
+    static lv_point_t line_points[2] = {{0, DISPLAY_HEIGHT / 2}, {0, DISPLAY_HEIGHT / 2}};
+    static int prev_progress;
+    current_progress += 5;
+    if (current_progress / 5 == prev_progress / 5)
+        return;
+    prev_progress = current_progress;
+    line_points[1].x = DISPLAY_WIDTH * current_progress / 100;
+    lv_line_set_points(g_progress_bar, line_points, 2);
+    lv_label_set_text(g_progress_text, ps2_cardman_get_progress_text());
+}
+
 static void flush_cb(lv_disp_drv_t *disp_drv, const lv_area_t *area, lv_color_t *color_p) {
     if (have_oled) {
         oled_clear();
@@ -199,19 +213,7 @@ static void gui_tick(void) {
 }
 
 static void reload_card_cb(int progress) {
-    static lv_point_t line_points[2] = {{0, DISPLAY_HEIGHT / 2}, {0, DISPLAY_HEIGHT / 2}};
-    static int prev_progress;
-    progress += 5;
-    if (progress / 5 == prev_progress / 5)
-        return;
-    prev_progress = progress;
-    line_points[1].x = DISPLAY_WIDTH * progress / 100;
-    lv_line_set_points(g_progress_bar, line_points, 2);
-
-    lv_label_set_text(g_progress_text, ps2_cardman_get_progress_text());
-
-    oled_update_last_action_time();
-    gui_tick();
+    current_progress = progress;
 }
 
 static void ui_set_display_timeout(uint8_t display_timeout) {
@@ -856,6 +858,7 @@ void gui_init(void) {
     create_ui();
     refresh_gui = false;
     installing_exploit = false;
+    waiting_card = false;
 }
 
 void gui_request_refresh(void) {
@@ -877,22 +880,17 @@ void gui_do_ps1_card_switch(void) {
 
 void gui_do_ps2_card_switch(void) {
     printf("switching the card now!\n");
+    current_progress = 0;
+    update_bar();
     UI_GOTO_SCREEN(scr_card_switch);
 
     oled_update_last_action_time();
 
-    uint64_t start = time_us_64();
+    ps2_cardman_open();
     ps2_memory_card_enter();
     ps2_cardman_set_progress_cb(reload_card_cb);
-    ps2_cardman_open();
-    ps2_cardman_set_progress_cb(NULL);
-    uint64_t end = time_us_64();
 
-    printf("full card switch took = %.2f s\n", (end - start) / 1e6);
-
-    UI_GOTO_SCREEN(scr_main);
-
-    input_flush();
+    waiting_card = true;
 }
 
 void gui_task(void) {
@@ -901,7 +899,19 @@ void gui_task(void) {
     char card_name[127];
     const char *folder_name = NULL;
 
-    if (settings_get_mode() == MODE_PS1) {
+    if (waiting_card) {
+        if (ps2_cardman_is_idle()) {
+            ps2_cardman_set_progress_cb(NULL);
+            UI_GOTO_SCREEN(scr_main);
+            input_flush();
+            waiting_card = false;
+        } else {
+            update_bar();
+
+            oled_update_last_action_time();
+            gui_tick();
+        }
+    } else if (settings_get_mode() == MODE_PS1) {
         static int displayed_card_idx = -1;
         static int displayed_card_channel = -1;
         static ps1_cardman_state_t cardman_state = PS1_CM_STATE_NORMAL;

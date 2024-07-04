@@ -18,6 +18,7 @@ typedef enum  {
 } ps2_cardman_state_t;
 
 void ps2_cardman_init(void);
+void ps2_cardman_run(void);
 int ps2_cardman_write_sector(int sector, void *buf512);
 bool ps2_cardman_is_sector_available(int sector);
 void ps2_cardman_mark_sector_available(int sector);
@@ -49,3 +50,4 @@ const char* ps2_cardman_get_folder_name(void);
 ps2_cardman_state_t ps2_cardman_get_state(void);
 
 bool ps2_cardman_needs_update(void);
+bool ps2_cardman_is_idle(void);
