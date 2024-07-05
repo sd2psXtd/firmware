@@ -267,7 +267,8 @@ int ps1_cardman_get_channel(void) {
 }
 
 void ps1_cardman_set_ode_idx(void) {
-    if (!try_set_game_id_card()) {
+    if ((!try_set_game_id_card()) 
+        && (cardman_state == PS1_CARD_IDX_SPECIAL)) {
         set_default_card();
     }
 }
