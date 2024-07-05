@@ -19,6 +19,7 @@ add_subdirectory(misc)
 add_subdirectory(src/version)
 add_subdirectory(src/ps2)
 add_subdirectory(src/ps1)
+add_subdirectory(src/psram)
 add_subdirectory(ext/)
 
 # SD2PSX Main Lib

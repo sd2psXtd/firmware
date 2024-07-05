@@ -1,6 +1,6 @@
 #include "ps2_dirty.h"
 #include "history_tracker/ps2_history_tracker.h"
-#include "psram/psram.h"
+#include "psram.h"
 #include "ps2_cardman.h"
 #include "debug.h"
 

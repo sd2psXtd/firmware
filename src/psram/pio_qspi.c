@@ -6,7 +6,6 @@
 
 #include "pio_qspi.h"
 #include "config.h"
-#include "ps2_dirty.h"
 #include "hardware/dma.h"
 
 #define QSPI_DAT_MASK ((1 << (PSRAM_DAT+0)) | (1 << (PSRAM_DAT+1)) | (1 << (PSRAM_DAT+2)) | (1 << (PSRAM_DAT+3)))
