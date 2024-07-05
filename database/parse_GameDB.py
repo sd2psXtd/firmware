@@ -116,8 +116,6 @@ def getGamesGameDB() -> ([], [], {}, int):
                             game.parent_id = parent_id.split("-")[1]
                     games_sorted[game.prefix].append(game)
                     games_count += 1
-                    if "Gokujou Parodius Da! Deluxe Pack" in game.name:
-                        print(game)
             except ValueError:
                 #print(f"{game} not parsed - wrong value")
                 continue
@@ -135,7 +133,7 @@ games_sorted = {}
 games_count = 0
 
 
-with open("gamedbps2.dat", "wb") as out:
+with open("gamedbps1.dat", "wb") as out:
     (prefixes, gamenames, games_sorted, games_count) = getGamesGameDB()
     writeSortedGameList(out, prefixes, games_count, games_sorted, gamenames)
 
