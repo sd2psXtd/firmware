@@ -21,7 +21,7 @@
 
 //#define USE_INJECT_LOGIC
 
-#define DEBUG(fmt , x...) printf(fmt, ##x)
+#define DEBUG(fmt , x...) // printf(fmt, ##x)
 
 #define HISTORY_FILE_SIZE           462
 #define HISTORY_ENTRY_COUNT         21
