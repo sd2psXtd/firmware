@@ -25,7 +25,7 @@ void ps1_odeman_task(void) {
                 const char *game_id;
                 game_id = ps1_memory_card_get_game_id();
                 debug_printf("Received Game ID: %s\n", game_id);
-                ps1_cardman_set_ode_idx(game_id);
+                ps1_cardman_set_ode_idx();
                 break;
             }
             case MCP_NXT_CARD:

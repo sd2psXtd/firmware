@@ -1,6 +1,7 @@
 #include "../ps2_dirty.h"
-#include "../ps2_exploit.h"
-#include "../ps2_psram.h"
+#include "history_tracker/ps2_history_tracker.h"
+#include "ps2_cardman.h"
+#include "psram/psram.h"
 #include "debug.h"
 #include "hardware/gpio.h"
 #include "hardware/timer.h"
@@ -24,8 +25,6 @@ uint64_t us_startup;
 
 volatile int reset;
 
-bool flash_mode = false;
-
 typedef struct {
     uint32_t offset;
     uint32_t sm;
@@ -35,23 +34,6 @@ pio_t cmd_reader, dat_writer, clock_probe;
 uint8_t term = 0xFF;
 
 static volatile int mc_exit_request, mc_exit_response, mc_enter_request, mc_enter_response;
-
-inline void __time_critical_func(read_mc)(uint32_t addr, void *buf, size_t sz) {
-    if (flash_mode) {
-        ps2_exploit_read(addr, buf, sz);
-        ps2_dirty_unlock();
-    } else {
-        psram_read_dma(addr, buf, sz);
-    }
-}
-
-inline void __time_critical_func(write_mc)(uint32_t addr, void *buf, size_t sz) {
-    if (!flash_mode) {
-        psram_write(addr, buf, sz);
-    } else {
-        ps2_dirty_unlock();
-    }
-}
 
 static inline void __time_critical_func(RAM_pio_sm_drain_tx_fifo)(PIO pio, uint sm) {
     uint instr = (pio->sm[sm].shiftctrl & PIO_SM0_SHIFTCTRL_AUTOPULL_BITS) ? pio_encode_out(pio_null, 32) : pio_encode_pull(false, false);
@@ -266,6 +248,7 @@ static void __no_inline_not_in_flash_func(mc_main)(void) {
     while (1) {
         while (!mc_enter_request) {}
         mc_enter_response = 1;
+        ps2_history_tracker_card_changed();
         
         reset_pio();
         mc_main_loop();
@@ -347,22 +330,11 @@ void ps2_memory_card_exit(void) {
 }
 
 void ps2_memory_card_enter(void) {
-    if (flash_mode) {
-        ps2_memory_card_exit();
-    } else if (memcard_running)
+    if (memcard_running)
         return;
 
     mc_enter_request = 1;
     while (!mc_enter_response) {}
     mc_enter_request = mc_enter_response = 0;
     memcard_running = 1;
-    flash_mode = false;
-}
-
-void ps2_memory_card_enter_flash(void) {
-    mc_enter_request = 1;
-    while (!mc_enter_response) {}
-    mc_enter_request = mc_enter_response = 0;
-    memcard_running = 1;
-    flash_mode = true;
 }

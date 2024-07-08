@@ -6,6 +6,7 @@
 #include "hardware/clocks.h"
 #include "hardware/structs/bus_ctrl.h"
 
+#include "oled.h"
 #include "gui.h"
 #include "input.h"
 #include "config.h"
@@ -15,6 +16,7 @@
 #include "keystore.h"
 #include "settings.h"
 #include "version/version.h"
+#include "psram/psram.h"
 
 #include "ps1/ps1_memory_card.h"
 #include "ps1/ps1_dirty.h"
@@ -24,7 +26,6 @@
 #include "ps2/ps2_dirty.h"
 #include "ps2/card_emu/ps2_memory_card.h"
 #include "ps2/ps2_cardman.h"
-#include "ps2/ps2_psram.h"
 
 #include "ps2/card_emu/ps2_sd2psxman.h"
 
@@ -37,7 +38,7 @@ static void check_bootloader_reset(void) {
         sleep_ms(1);
     }
 
-    if (input_is_down(0) || input_is_down(1))
+    if (input_is_down_raw(0) || input_is_down_raw(1))
         reset_usb_boot(0, 0);
 }
 
@@ -86,6 +87,7 @@ int main() {
     if (settings_get_mode() == MODE_PS1) {
         printf("starting in PS1 mode\n");
 
+        psram_init();
         sd_init();
         ps1_cardman_init();
         ps1_dirty_init();
@@ -105,6 +107,7 @@ int main() {
             ps1_dirty_task();
             gui_task();
             input_task();
+            oled_task();
         }
     } else {
         printf("starting in PS2 mode\n");
@@ -119,9 +122,6 @@ int main() {
 
         multicore_launch_core1(ps2_memory_card_main);
 
-        if (settings_get_ps2_autoboot())
-            ps2_memory_card_enter_flash();
-
         printf("Starting memory card... ");
         uint64_t start = time_us_64();
         gui_do_ps2_card_switch();
@@ -132,10 +132,13 @@ int main() {
         while (1) {
             debug_task();
             ps2_sd2psxman_task();
-            ps2_dirty_task();
+            ps2_cardman_run();
+            if (ps2_cardman_is_idle())
+                ps2_dirty_task();
             ps2_history_tracker_run();
             gui_task();
             input_task();
+            oled_task();
         }
     }
 }

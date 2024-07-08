@@ -141,7 +141,6 @@ inline __attribute__((always_inline)) void __time_critical_func(ps2_sd2psxman_cm
     game_names_extract_title_id(received_id, sanitized_game_id, gameid_len, sizeof(sanitized_game_id));
     if (game_names_sanity_check_title_id(sanitized_game_id)) {
         ps2_sd2psxman_set_gameid(sanitized_game_id);
-        sd2psxman_cmd = SD2PSXMAN_SET_GAMEID;
     }
 
 #ifdef DEBUG_SD2PSXMAN_PROTOCOL
