@@ -205,10 +205,9 @@ static int __time_critical_func(mc_do_state)(uint8_t ch) {
             if (byte_count == game_id_length + 4)
             {
                 game_names_extract_title_id(&payload[4], received_game_id, game_id_length, sizeof(received_game_id));
-                if (game_names_sanity_check_title_id(received_game_id))
-                    mc_pro_command = MCP_GAME_ID;
-                else
+                if (!game_names_sanity_check_title_id(received_game_id))
                     memset(received_game_id, 0, sizeof(received_game_id));
+                mc_pro_command = MCP_GAME_ID;
             }
             switch (byte_count) {
                 case 2: memset(received_game_id, 0, sizeof(received_game_id)); return 0x00;
