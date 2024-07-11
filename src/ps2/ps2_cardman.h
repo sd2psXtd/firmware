@@ -18,7 +18,7 @@ typedef enum  {
 } ps2_cardman_state_t;
 
 void ps2_cardman_init(void);
-void ps2_cardman_run(void);
+void ps2_cardman_task(void);
 int ps2_cardman_write_sector(int sector, void *buf512);
 bool ps2_cardman_is_sector_available(int sector);
 void ps2_cardman_mark_sector_available(int sector);

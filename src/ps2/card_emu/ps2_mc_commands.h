@@ -1,6 +1,7 @@
 #pragma once
 
 #define PS2_SIO2_CMD_IDENTIFIER         0x81
+#define PS1_SIO2_CMD_IDENTIFIER         0x01
 
 #define PS2_SIO2_CMD_0x11               0x11
 #define PS2_SIO2_CMD_0x12               0x12

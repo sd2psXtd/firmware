@@ -1,4 +1,5 @@
 #include "hardware/gpio.h"
+#include "hardware/pio.h"
 #include "hardware/timer.h"
 #include "pico/platform.h"
 #include "pico/multicore.h"
@@ -11,7 +12,7 @@
 #include <psram/psram.h>
 #include "ps1_dirty.h"
 #include "ps1/ps1_memory_card.h"
-#include "game_names/game_names.h"
+#include "game_db/game_db.h"
 
 static uint64_t us_startup;
 
@@ -204,8 +205,8 @@ static int __time_critical_func(mc_do_state)(uint8_t ch) {
         } else if (cmd == 0x21) { // MCP Game ID
             if (byte_count == game_id_length + 4)
             {
-                game_names_extract_title_id(&payload[4], received_game_id, game_id_length, sizeof(received_game_id));
-                if (!game_names_sanity_check_title_id(received_game_id))
+                game_db_extract_title_id(&payload[4], received_game_id, game_id_length, sizeof(received_game_id));
+                if (!game_db_sanity_check_title_id(received_game_id))
                     memset(received_game_id, 0, sizeof(received_game_id));
                 mc_pro_command = MCP_GAME_ID;
             }
@@ -355,6 +356,9 @@ void ps1_memory_card_main(void) {
 
     my_gpio_set_irq_enabled_with_callback(PIN_PSX_SEL, GPIO_IRQ_EDGE_RISE, 1, card_deselected);
 
+    gpio_set_slew_rate(PIN_PSX_DAT, GPIO_SLEW_RATE_SLOW);
+    gpio_set_drive_strength(PIN_PSX_DAT, GPIO_DRIVE_STRENGTH_4MA);
+
     mc_main();
 }
 
@@ -393,4 +397,11 @@ uint8_t ps1_memory_card_get_ode_command(void) {
 
 const char* ps1_memory_card_get_game_id(void) {
     return received_game_id;
+}
+
+void ps1_memory_card_unload(void) {
+    pio_remove_program(pio0, &cmd_reader_program, cmd_reader.offset);
+    pio_sm_unclaim(pio0, cmd_reader.sm);
+    pio_remove_program(pio0, &dat_writer_program, dat_writer.offset);
+    pio_sm_unclaim(pio0, dat_writer.sm);
 }

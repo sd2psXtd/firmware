@@ -1,4 +1,5 @@
 #include "../ps2_dirty.h"
+#include "hardware/pio.h"
 #include "history_tracker/ps2_history_tracker.h"
 #include "ps2_cardman.h"
 #include "psram/psram.h"
@@ -13,6 +14,7 @@
 #include "ps2_mc_internal.h"
 #include "ps2_mc_spi.pio.h"
 
+#include <settings.h>
 #include <stdbool.h>
 #include <stdint.h>
 #include <stdio.h>
@@ -237,10 +239,13 @@ static void __time_critical_func(mc_main_loop)(void) {
                 case SD2PSXMAN_UNMOUNT_BOOTCARD: ps2_sd2psxman_cmds_unmount_bootcard(); break;
                 default: debug_printf("Unknown Subcommand: %02x\n", cmd); break;
             }
+        } else if (cmd == PS1_SIO2_CMD_IDENTIFIER) {
+            settings_set_mode(MODE_TEMP_PS1);
+            continue;;
         } else {
             // not for us
             continue;
-        }
+        } 
     }
 }
 
@@ -337,4 +342,13 @@ void ps2_memory_card_enter(void) {
     while (!mc_enter_response) {}
     mc_enter_request = mc_enter_response = 0;
     memcard_running = 1;
+}
+
+void ps2_memory_card_unload(void) {
+    pio_remove_program(pio0, &cmd_reader_program, cmd_reader.offset);
+    pio_sm_unclaim(pio0, cmd_reader.sm);
+    pio_remove_program(pio0, &dat_writer_program, dat_writer.offset);
+    pio_sm_unclaim(pio0, dat_writer.sm);
+    pio_remove_program(pio0, &clock_probe_program, clock_probe.offset);
+    pio_sm_unclaim(pio0, clock_probe.sm);
 }

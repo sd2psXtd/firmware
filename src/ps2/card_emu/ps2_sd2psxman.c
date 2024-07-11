@@ -1,5 +1,6 @@
 #include "ps2/card_emu/ps2_sd2psxman.h"
 
+#include <settings.h>
 #include <stdio.h>
 #include <string.h>
 
@@ -8,6 +9,8 @@
 #include "ps2/card_emu/ps2_memory_card.h"
 #include "ps2/card_emu/ps2_sd2psxman_commands.h"
 #include "ps2/ps2_cardman.h"
+
+#include "game_db/game_db.h"
 
 #include "pico/platform.h"
 #include "ps2_dirty.h"
@@ -48,9 +51,14 @@ void ps2_sd2psxman_task(void) {
                 break;
 
             case SD2PSXMAN_SET_GAMEID: 
+            {
+                if (MODE_PS1 == game_db_update_game(sd2psxman_gameid))
+                    settings_set_mode(MODE_TEMP_PS1);
+                else
                     ps2_cardman_set_gameid(sd2psxman_gameid); 
-                    debug_printf("set next channel\n");
+                debug_printf("%s: set game id\n", __func__);
                 break;
+            }
             case SD2PSXMAN_UNMOUNT_BOOTCARD:
                 if (ps2_cardman_get_idx() == 0) {
                     ps2_cardman_next_idx();

@@ -29,6 +29,8 @@
 
 #include "ps2/card_emu/ps2_sd2psxman.h"
 
+#include "game_db/game_db.h"
+
 /* reboot to bootloader if either button is held on startup
    to make the device easier to flash when assembled inside case */
 static void check_bootloader_reset(void) {
@@ -58,6 +60,71 @@ static void debug_task(void) {
     }
 }
 
+static void init_ps1(void) {
+    printf("starting in PS1 mode\n");
+
+    ps1_cardman_init();
+    ps1_dirty_init();
+
+    gui_init();
+
+    multicore_launch_core1(ps1_memory_card_main);
+
+    printf("Starting memory card... ");
+    uint64_t start = time_us_64();
+    gui_do_ps1_card_switch();
+    uint64_t end = time_us_64();
+    printf("DONE! (%d us)\n", (int)(end - start));
+}
+
+static void init_ps2(void) {
+    printf("starting in PS2 mode\n");
+
+    keystore_init();
+    
+    ps2_cardman_init();
+    ps2_dirty_init();
+    ps2_history_tracker_init();
+
+    multicore_launch_core1(ps2_memory_card_main);
+    gui_init();
+
+    printf("Starting memory card... ");
+    uint64_t start = time_us_64();
+    gui_do_ps2_card_switch();
+    uint64_t end = time_us_64();
+    printf("DONE! (%d us)\n", (int)(end - start));
+}
+
+static void run_ps1(void) {
+    while (1) {
+        debug_task();
+        ps1_odeman_task();
+        ps1_dirty_task();
+        gui_task();
+        input_task();
+        oled_task();
+        if ((settings_get_mode() == MODE_PS2))
+            break;
+    }
+}
+
+static void run_ps2(void) {
+    while (1) {
+        debug_task();
+        ps2_sd2psxman_task();
+        ps2_cardman_task();
+        if (ps2_cardman_is_idle())
+            ps2_dirty_task();
+        ps2_history_tracker_task();
+        gui_task();
+        input_task();
+        oled_task();
+        if ((settings_get_mode() == MODE_PS1) && (ps2_cardman_is_idle()))
+            break;
+    }
+}
+
 int main() {
     input_init();
     check_bootloader_reset();
@@ -81,64 +148,33 @@ int main() {
     while (!bus_ctrl_hw->priority_ack) {}
 
     printf("\n\n\nStarted! Clock %d; bus priority 0x%X\n", (int)clock_get_hz(clk_sys), (unsigned)bus_ctrl_hw->priority);
+    printf("SD2PSX Version %s\n", sd2psx_version);
 
     settings_init();
+    psram_init();
+    sd_init();
 
-    if (settings_get_mode() == MODE_PS1) {
-        printf("starting in PS1 mode\n");
+    game_db_init();
 
-        psram_init();
-        sd_init();
-        ps1_cardman_init();
-        ps1_dirty_init();
-        gui_init();
-
-        multicore_launch_core1(ps1_memory_card_main);
-
-        printf("Starting memory card... ");
-        uint64_t start = time_us_64();
-        gui_do_ps1_card_switch();
-        uint64_t end = time_us_64();
-        printf("DONE! (%d us)\n", (int)(end - start));
-
-        while (1) {
-            debug_task();
-            ps1_odeman_task();
-            ps1_dirty_task();
-            gui_task();
-            input_task();
-            oled_task();
-        }
-    } else {
-        printf("starting in PS2 mode\n");
-
-        keystore_init();
-        psram_init();
-        sd_init();
-        ps2_cardman_init();
-        ps2_dirty_init();
-        ps2_history_tracker_init();
-        gui_init();
-
-        multicore_launch_core1(ps2_memory_card_main);
-
-        printf("Starting memory card... ");
-        uint64_t start = time_us_64();
-        gui_do_ps2_card_switch();
-        uint64_t end = time_us_64();
-        printf("DONE! (%d us)\n", (int)(end - start));
-        printf("SD2PSX Version %s\n", sd2psx_version);
-
-        while (1) {
-            debug_task();
-            ps2_sd2psxman_task();
-            ps2_cardman_run();
-            if (ps2_cardman_is_idle())
+    while (1) {
+        if (settings_get_mode() == MODE_PS2) {
+            init_ps2();
+            run_ps2();
+            ps2_memory_card_exit();
+            while(ps2_dirty_activity)
                 ps2_dirty_task();
-            ps2_history_tracker_run();
-            gui_task();
-            input_task();
-            oled_task();
+            multicore_reset_core1();
+            ps2_cardman_close();
+            ps2_memory_card_unload();
+        } else {
+            init_ps1();
+            run_ps1();
+            ps1_memory_card_exit();
+            while(ps1_dirty_activity)
+                ps1_dirty_task();        
+            ps1_cardman_close();
+            multicore_reset_core1();
+            ps1_memory_card_unload();
         }
     }
 }
