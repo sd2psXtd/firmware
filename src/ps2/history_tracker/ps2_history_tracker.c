@@ -257,7 +257,7 @@ void ps2_history_tracker_init() {
     mcfat_setConfig(mcOps, cardspecs);
 }
 
-void ps2_history_tracker_run() {
+void ps2_history_tracker_task() {
     static bool prevDirty = false;
     uint64_t micros = time_us_64();
     if (ps2_dirty_activity) {

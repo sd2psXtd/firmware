@@ -34,6 +34,7 @@ typedef struct {
 _Static_assert(sizeof(settings_t) == 16, "unexpected padding in the settings structure");
 
 static settings_t settings;
+static int tempmode;
 
 static void settings_reset(void) {
     memset(&settings, 0, sizeof(settings));
@@ -58,6 +59,7 @@ void settings_init(void) {
     }
 
     wear_leveling_read(0, &settings, sizeof(settings));
+    tempmode = settings.sys_flags & 1;
     if (settings.version_magic != SETTINGS_VERSION_MAGIC) {
         printf("version magic mismatch, reset settings\n");
         settings_reset();
@@ -129,11 +131,18 @@ void settings_set_ps1_channel(int chan) {
 }
 
 int settings_get_mode(void) {
-    return settings.sys_flags & 1;
+    if ((settings.sys_flags & 1) != tempmode)
+        return MODE_PS1;
+    else
+        return settings.sys_flags & 1;
 }
 
 void settings_set_mode(int mode) {
-    if (mode != MODE_PS1 && mode != MODE_PS2)
+    if (mode == MODE_TEMP_PS1) {
+        tempmode = MODE_TEMP_PS1;
+        debug_printf("Setting PS1 Tempmode\n");
+        return;
+    } else if (mode != MODE_PS1 && mode != MODE_PS2)
         return;
 
     if (mode != settings_get_mode()) {

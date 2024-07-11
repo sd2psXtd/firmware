@@ -2,6 +2,11 @@
 
 #include <game_names/game_names.h>
 #include <ps2/history_tracker/ps2_history_tracker.h>
+#include <src/core/lv_obj.h>
+#include <src/core/lv_obj_class.h>
+#include <src/core/lv_obj_tree.h>
+#include <src/hal/lv_hal_disp.h>
+#include <src/widgets/lv_label.h>
 #include <stdio.h>
 
 #include "config.h"
@@ -22,9 +27,9 @@
 /* Displays the line at the bottom for long pressing buttons */
 static lv_obj_t *g_navbar, *g_progress_bar, *g_progress_text, *g_activity_frame;
 
-static lv_obj_t *scr_switch_nag, *scr_card_switch, *scr_main, *scr_menu, *menu, *main_page;
+static lv_obj_t *scr_switch_nag, *scr_card_switch, *scr_main, *scr_menu, *menu, *main_page, *main_header;
 static lv_style_t style_inv;
-static lv_obj_t *scr_main_idx_lbl, *scr_main_channel_lbl, *src_main_title_lbl, *lbl_channel, *lbl_ps1_autoboot, *lbl_ps1_game_id, *lbl_ps2_autoboot, *lbl_ps2_game_id, *lbl_civ_err, *auto_off_lbl, *contrast_lbl, *vcomh_lbl;
+static lv_obj_t *scr_main_idx_lbl, *scr_main_channel_lbl, *src_main_title_lbl, *lbl_channel, *lbl_ps1_autoboot, *lbl_ps1_game_id, *lbl_ps2_autoboot, *lbl_ps2_game_id, *lbl_civ_err, *auto_off_lbl, *contrast_lbl, *vcomh_lbl, *lbl_mode;
 
 static struct {
     uint8_t value;
@@ -49,7 +54,6 @@ static int switching_card;
 static bool waiting_card;
 static int current_progress;
 static uint64_t switching_card_timeout;
-static int terminated;
 static bool refresh_gui;
 static bool installing_exploit;
 
@@ -456,18 +460,19 @@ static void evt_switch_to_ps1(lv_event_t *event) {
     (void)event;
 
     settings_set_mode(MODE_PS1);
-
-    UI_GOTO_SCREEN(scr_switch_nag);
-    terminated = 1;
+    lv_label_set_text(lbl_mode, "PS1");
+    /* start at the main screen */
+    UI_GOTO_SCREEN(scr_main);
 }
 
 static void evt_switch_to_ps2(lv_event_t *event) {
     (void)event;
 
     settings_set_mode(MODE_PS2);
+    lv_label_set_text(lbl_mode, "PS2");
 
-    UI_GOTO_SCREEN(scr_switch_nag);
-    terminated = 1;
+    /* start at the main screen */
+    UI_GOTO_SCREEN(scr_main);
 }
 
 static void evt_set_display_timeout(lv_event_t *event) {
@@ -498,12 +503,12 @@ static void create_main_screen(void) {
     lv_obj_add_event_cb(scr_main, evt_scr_main, LV_EVENT_ALL, NULL);
 
     if (settings_get_mode() == MODE_PS1) {
-        ui_header_create(scr_main, "PS1 Memory Card");
+        main_header = ui_header_create(scr_main, "PS1 Memory Card");
     } else {
         if (!ps2_magicgate)
-            ui_header_create(scr_main, "PS2: No CIV!");
+            main_header = ui_header_create(scr_main, "PS2: No CIV!");
         else
-            ui_header_create(scr_main, "PS2 Memory Card");
+            main_header = ui_header_create(scr_main, "PS2 Memory Card");
     }
 
     ui_label_create_at(scr_main, 0, 24, "Card");
@@ -771,8 +776,8 @@ static void create_menu_screen(void) {
     main_page = ui_menu_subpage_create(menu, NULL);
     {
         cont = ui_menu_cont_create_nav(main_page);
-        ui_label_create_grow(cont, "Mode");
-        ui_label_create(cont, (settings_get_mode() == MODE_PS1) ? "PS1" : "PS2");
+        ui_label_create_grow(cont, "Boot Mode");
+        lbl_mode = ui_label_create(cont, (settings_get_mode() == MODE_PS1) ? "PS1" : "PS2");
         ui_menu_set_load_page_event(menu, cont, mode_page);
 
         cont = ui_menu_cont_create_nav(main_page);
@@ -820,46 +825,54 @@ static void create_ui(void) {
 }
 
 void gui_init(void) {
-    if ((have_oled = oled_init())) {
-        oled_clear();
-        oled_show();
+    if (!lv_is_initialized())
+    {
+            
+        if ((have_oled = oled_init())) {
+            oled_clear();
+            oled_show();
+        }
+
+        lv_init();
+
+        printf("lv_init done \n");
+
+        static lv_disp_draw_buf_t disp_buf;
+        static lv_color_t buf_1[DISPLAY_WIDTH * DISPLAY_HEIGHT];
+        lv_disp_draw_buf_init(&disp_buf, buf_1, NULL, DISPLAY_WIDTH * DISPLAY_HEIGHT);
+
+        static lv_disp_drv_t disp_drv;
+        lv_disp_drv_init(&disp_drv);
+        disp_drv.draw_buf = &disp_buf;
+        disp_drv.flush_cb = flush_cb;
+        disp_drv.hor_res = DISPLAY_WIDTH;
+        disp_drv.ver_res = DISPLAY_HEIGHT;
+        disp_drv.direct_mode = disp_drv.full_refresh = 1;
+
+        lv_disp_t *disp;
+        disp = lv_disp_drv_register(&disp_drv);
+
+        static lv_indev_drv_t indev_drv;
+        lv_indev_drv_init(&indev_drv);
+        indev_drv.type = LV_INDEV_TYPE_KEYPAD;
+        indev_drv.read_cb = keypad_read;
+
+        lv_indev_t *indev = lv_indev_drv_register(&indev_drv);
+        lv_group_t *g = lv_group_create();
+        lv_group_set_default(g);
+        lv_indev_set_group(indev, g);
+
+        lv_theme_t *th = ui_theme_mono_init(disp, 1, LV_FONT_DEFAULT);
+        lv_disp_set_theme(disp, th);
+
+        create_ui();
+
+        refresh_gui = false;
+        installing_exploit = false;
+        waiting_card = false;
     }
-
-    lv_init();
-
-    static lv_disp_draw_buf_t disp_buf;
-    static lv_color_t buf_1[DISPLAY_WIDTH * DISPLAY_HEIGHT];
-    lv_disp_draw_buf_init(&disp_buf, buf_1, NULL, DISPLAY_WIDTH * DISPLAY_HEIGHT);
-
-    static lv_disp_drv_t disp_drv;
-    lv_disp_drv_init(&disp_drv);
-    disp_drv.draw_buf = &disp_buf;
-    disp_drv.flush_cb = flush_cb;
-    disp_drv.hor_res = DISPLAY_WIDTH;
-    disp_drv.ver_res = DISPLAY_HEIGHT;
-    disp_drv.direct_mode = disp_drv.full_refresh = 1;
-
-    lv_disp_t *disp;
-    disp = lv_disp_drv_register(&disp_drv);
-
-    static lv_indev_drv_t indev_drv;
-    lv_indev_drv_init(&indev_drv);
-    indev_drv.type = LV_INDEV_TYPE_KEYPAD;
-    indev_drv.read_cb = keypad_read;
-
-    lv_indev_t *indev = lv_indev_drv_register(&indev_drv);
-    lv_group_t *g = lv_group_create();
-    lv_group_set_default(g);
-    lv_indev_set_group(indev, g);
-
-    lv_theme_t *th = ui_theme_mono_init(disp, 1, LV_FONT_DEFAULT);
-    lv_disp_set_theme(disp, th);
-
-    create_ui();
-    refresh_gui = false;
-    installing_exploit = false;
-    waiting_card = false;
 }
+
 
 void gui_request_refresh(void) {
     refresh_gui = true;
@@ -918,11 +931,14 @@ void gui_task(void) {
         static char card_idx_s[8];
         static char card_channel_s[8];
 
+        lv_label_set_text(main_header, "PS1 Memory Card");
+
         if (displayed_card_idx != ps1_cardman_get_idx() || displayed_card_channel != ps1_cardman_get_channel() || cardman_state != ps1_cardman_get_state() || refresh_gui) {
             displayed_card_idx = ps1_cardman_get_idx();
             displayed_card_channel = ps1_cardman_get_channel();
             folder_name = ps1_cardman_get_folder_name();
             cardman_state = ps1_cardman_get_state();
+            memset(card_name, 0, sizeof(card_name));
 
             switch (cardman_state) {
                 case PS1_CM_STATE_BOOT:
@@ -934,12 +950,15 @@ void gui_task(void) {
                     lv_label_set_text(scr_main_idx_lbl, folder_name);
                     lv_label_set_text(lbl_channel, "Channel");
                     snprintf(card_channel_s, sizeof(card_channel_s), "%d", displayed_card_channel);
+                    game_db_get_current_name(card_name);
                     break;
                 case PS1_CM_STATE_NORMAL:
+                default:
                     snprintf(card_idx_s, sizeof(card_idx_s), "%d", displayed_card_idx);
                     lv_label_set_text(scr_main_idx_lbl, card_idx_s);
                     lv_label_set_text(lbl_channel, "Channel");
                     snprintf(card_channel_s, sizeof(card_channel_s), "%d", displayed_card_channel);
+                    game_db_get_folderbased_name(folder_name, card_name);
                     break;
             }
 
@@ -949,9 +968,6 @@ void gui_task(void) {
             } else {
                 lv_label_set_text(scr_main_idx_lbl, folder_name);
             }
-
-            memset(card_name, 0, sizeof(card_name));
-            game_names_get_name_by_folder(folder_name, card_name);
 
             if (card_name[0]) {
                 lv_label_set_text(src_main_title_lbl, card_name);
@@ -973,31 +989,44 @@ void gui_task(void) {
         static ps2_cardman_state_t cardman_state = PS2_CM_STATE_NORMAL;
         static char card_idx_s[8];
         static char card_channel_s[8];
+
+
+        if (!ps2_magicgate)
+            lv_label_set_text(main_header, "PS2: No CIV!");
+        else
+            lv_label_set_text(main_header, "PS2 Memory Card");
+
+
         if (displayed_card_idx != ps2_cardman_get_idx() || displayed_card_channel != ps2_cardman_get_channel() || cardman_state != ps2_cardman_get_state() ||
             refresh_gui) {
             displayed_card_idx = ps2_cardman_get_idx();
             displayed_card_channel = ps2_cardman_get_channel();
             folder_name = ps2_cardman_get_folder_name();
             cardman_state = ps2_cardman_get_state();
-
-            if (PS2_CM_STATE_BOOT == cardman_state) {
-                snprintf(card_idx_s, sizeof(card_idx_s), "BOOT");
-                snprintf(card_channel_s, sizeof(card_channel_s), " ");
-                lv_label_set_text(lbl_channel, "");
-                lv_label_set_text(scr_main_idx_lbl, card_idx_s);
-            } else if (PS2_CM_STATE_GAMEID == cardman_state) {
-                snprintf(card_channel_s, sizeof(card_channel_s), "%d", displayed_card_channel);
-                lv_label_set_text(lbl_channel, "Channel");
-                lv_label_set_text(scr_main_idx_lbl, folder_name);
-            } else {
-                snprintf(card_idx_s, sizeof(card_idx_s), "%d", displayed_card_idx);
-                snprintf(card_channel_s, sizeof(card_channel_s), "%d", displayed_card_channel);
-                lv_label_set_text(lbl_channel, "Channel");
-                lv_label_set_text(scr_main_idx_lbl, card_idx_s);
-            }
-
             memset(card_name, 0, sizeof(card_name));
-            game_names_get_name_by_folder(folder_name, card_name);
+
+            switch (cardman_state) {
+                case PS2_CM_STATE_BOOT:
+                    snprintf(card_idx_s, sizeof(card_idx_s), "BOOT");
+                    snprintf(card_channel_s, sizeof(card_channel_s), " ");
+                    lv_label_set_text(lbl_channel, "");
+                    lv_label_set_text(scr_main_idx_lbl, card_idx_s);
+                    break;
+                case PS2_CM_STATE_GAMEID:
+                    snprintf(card_channel_s, sizeof(card_channel_s), "%d", displayed_card_channel);
+                    lv_label_set_text(lbl_channel, "Channel");
+                    lv_label_set_text(scr_main_idx_lbl, folder_name);
+                    game_db_get_current_name(card_name);
+                    break;
+                case PS2_CM_STATE_NORMAL:
+                default:
+                    snprintf(card_idx_s, sizeof(card_idx_s), "%d", displayed_card_idx);
+                    snprintf(card_channel_s, sizeof(card_channel_s), "%d", displayed_card_channel);
+                    lv_label_set_text(lbl_channel, "Channel");
+                    lv_label_set_text(scr_main_idx_lbl, card_idx_s);
+                    game_db_get_folderbased_name(folder_name, card_name);
+                    break;
+            }
 
             if (card_name[0]) {
                 lv_label_set_text(src_main_title_lbl, card_name);
@@ -1026,10 +1055,4 @@ void gui_task(void) {
 
     gui_tick();
 
-    /* fatal error, or mode switch between ps1/ps2 - kill all input until replugged */
-    if (terminated) {
-        while (1) {
-            gui_tick();
-        }
-    }
 }

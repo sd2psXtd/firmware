@@ -7,7 +7,7 @@
 
 #include "card_emu/ps2_sd2psxman.h"
 #include "debug.h"
-#include "game_names/game_names.h"
+#include "game_db/game_db.h"
 #include "hardware/timer.h"
 #include "pico/multicore.h"
 #include "ps2_dirty.h"
@@ -26,7 +26,6 @@ int current_read_sector = 0, priority_sector = -1;
 
 #define MAX_GAME_NAME_LENGTH (127)
 #define MAX_PREFIX_LENGTH    (4)
-#define MAX_GAME_ID_LENGTH   (16)
 #define MAX_SLICE_LENGTH     ( 10 * 1000 )
 
 static int card_idx;
@@ -412,7 +411,7 @@ void ps2_cardman_set_idx(uint16_t idx_num) {
 static void ps2_cardman_special_idx(int newIndx) {
     char parent_id[MAX_GAME_ID_LENGTH] = { 0x00 };
     if (settings_get_ps2_game_id())
-        game_names_get_parent(sd2psxman_gameid, parent_id);
+        (void)game_db_get_current_parent(parent_id);
 
     debug_printf("Parent ID is %s, State is %i, new Index: %i\n", parent_id, cardman_state, newIndx);
     if (PS2_CM_STATE_NORMAL == cardman_state) {
@@ -497,15 +496,13 @@ void ps2_cardman_set_gameid(const char *const card_game_id) {
 
     char new_folder_name[MAX_GAME_ID_LENGTH];
     if (card_game_id[0]) {
-        char parent_id[MAX_GAME_ID_LENGTH];
-        game_names_get_parent(card_game_id, parent_id);
-        snprintf(new_folder_name, sizeof(new_folder_name), "%s", parent_id);
+        snprintf(new_folder_name, sizeof(new_folder_name), "%s", card_game_id);
         if ((strcmp(new_folder_name, folder_name) != 0) 
             || (PS2_CM_STATE_GAMEID != cardman_state)){
             card_idx = PS2_CARD_IDX_SPECIAL;
             cardman_state = PS2_CM_STATE_GAMEID;
             card_chan = CHAN_MIN;
-            snprintf(folder_name, sizeof(folder_name), "%s", parent_id);
+            snprintf(folder_name, sizeof(folder_name), "%s", card_game_id);
             needs_update = true;
         }
     }
@@ -561,6 +558,6 @@ void ps2_cardman_init(void) {
     cardman_operation = CARDMAN_IDLE;
 }
 
-void ps2_cardman_run(void) {
+void ps2_cardman_task(void) {
     ps2_cardman_continue();
 }

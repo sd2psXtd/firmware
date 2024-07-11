@@ -18,6 +18,7 @@ void settings_set_ps2_channel(int x);
 enum {
     MODE_PS1 = 0,
     MODE_PS2 = 1,
+    MODE_TEMP_PS1 = 2
 };
 
 int settings_get_mode(void);

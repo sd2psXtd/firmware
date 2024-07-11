@@ -12,7 +12,7 @@
 #include <psram/psram.h>
 #include "ps1_empty_card.h"
 
-#include "game_names/game_names.h"
+#include "game_db/game_db.h"
 
 #include "hardware/timer.h"
 
@@ -25,7 +25,6 @@ static int fd = -1;
 #define CHAN_MIN 1
 #define CHAN_MAX 8
 
-#define MAX_GAME_ID_LENGTH      (16)
 
 static int card_idx;
 static int card_chan;
@@ -50,12 +49,12 @@ static bool try_set_game_id_card() {
     if (!settings_get_ps1_game_id())
         return false;
 
-    const char *game_id = ps1_memory_card_get_game_id();
-    if (!game_id[0])
-        return false;
+    char parent_id[MAX_GAME_ID_LENGTH] = {};
 
-    char parent_id[MAX_GAME_ID_LENGTH];
-    game_names_get_parent(game_id, parent_id);
+    (void)game_db_get_current_parent(parent_id);
+
+    if (!parent_id[0])
+        return false;
 
     card_idx = PS1_CARD_IDX_SPECIAL;
     card_chan = CHAN_MIN;
@@ -68,7 +67,7 @@ static bool try_set_game_id_card() {
 void ps1_cardman_init(void) {
     if (settings_get_ps1_autoboot()) {
         set_boot_card();
-    } else {
+    } else if (!try_set_game_id_card()){
         set_default_card();
     }
 }

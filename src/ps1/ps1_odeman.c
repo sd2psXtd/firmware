@@ -4,8 +4,8 @@
 #include "ps1_cardman.h"
 #include "ps1_odeman.h"
 #include "debug.h"
+#include "game_db/game_db.h"
 
-#include <game_names/game_names.h>
 #include <gui.h>
 #include <string.h>
 
@@ -25,6 +25,7 @@ void ps1_odeman_task(void) {
                 const char *game_id;
                 game_id = ps1_memory_card_get_game_id();
                 debug_printf("Received Game ID: %s\n", game_id);
+                game_db_update_game(game_id);
                 ps1_cardman_set_ode_idx();
                 break;
             }

@@ -1,5 +1,5 @@
 
-#include "game_names.h"
+#include "game_db.h"
 
 #include <ctype.h>
 #include <stdbool.h>
@@ -18,7 +18,6 @@
 
 #define MAX_GAME_NAME_LENGTH (127)
 #define MAX_PREFIX_LENGTH    (5)
-#define MAX_GAME_ID_LENGTH   (16)
 #define MAX_STRING_ID_LENGTH (10)
 #define MAX_PATH_LENGTH      (64)
 
@@ -29,10 +28,15 @@ typedef struct {
     size_t offset;
     uint32_t game_id;
     uint32_t parent_id;
+    int mode;
+    int id_length;
     const char* name;
+    char prefix[MAX_PREFIX_LENGTH];
 } game_lookup;
 
-bool __time_critical_func(game_names_sanity_check_title_id)(const char* const title_id) {
+static game_lookup current_game;
+
+bool __time_critical_func(game_db_sanity_check_title_id)(const char* const title_id) {
     uint8_t i = 0U;
 
     char splittable_game_id[MAX_GAME_ID_LENGTH];
@@ -63,7 +67,7 @@ bool __time_critical_func(game_names_sanity_check_title_id)(const char* const ti
 }
 
 #pragma GCC diagnostic ignored "-Warray-bounds"
-static uint32_t game_names_char_array_to_uint32(const char in[4]) {
+static uint32_t game_db_char_array_to_uint32(const char in[4]) {
     char inter[4] = {in[3], in[2], in[1], in[0]};
     uint32_t tgt;
     memcpy((void*)&tgt, (void*)inter, sizeof(tgt));
@@ -71,13 +75,13 @@ static uint32_t game_names_char_array_to_uint32(const char in[4]) {
 }
 #pragma GCC diagnostic pop
 
-static uint32_t game_names_find_prefix_offset(uint32_t numericPrefix, const char* const db_start) {
+static uint32_t game_db_find_prefix_offset(uint32_t numericPrefix, const char* const db_start) {
     uint32_t offset = UINT32_MAX;
 
     const char* pointer = db_start;
 
     while (offset == UINT32_MAX) {
-        uint32_t currentprefix = game_names_char_array_to_uint32(pointer), currentoffset = game_names_char_array_to_uint32(&pointer[4]);
+        uint32_t currentprefix = game_db_char_array_to_uint32(pointer), currentoffset = game_db_char_array_to_uint32(&pointer[4]);
 
         if (currentprefix == numericPrefix) {
             offset = currentoffset;
@@ -94,10 +98,10 @@ static uint32_t game_names_find_prefix_offset(uint32_t numericPrefix, const char
 static game_lookup build_game_lookup(const char* const db_start, const size_t db_size, const size_t offset) {
     game_lookup game = {};
     size_t name_offset;
-    game.game_id = game_names_char_array_to_uint32(&(db_start)[offset]);
+    game.game_id = game_db_char_array_to_uint32(&(db_start)[offset]);
     game.offset = offset;
-    game.parent_id = game_names_char_array_to_uint32(&(db_start)[offset + 8]);
-    name_offset = game_names_char_array_to_uint32(&(db_start)[offset + 4]);
+    game.parent_id = game_db_char_array_to_uint32(&(db_start)[offset + 8]);
+    name_offset = game_db_char_array_to_uint32(&(db_start)[offset + 4]);
     if ((name_offset < db_size) && ((db_start)[name_offset] != 0x00))
         game.name = &((db_start)[name_offset]);
     else
@@ -125,19 +129,22 @@ static void file_remove_extension(char* const file) {
         file[file_index] = 0x00;
 }
 
-static game_lookup find_game_lookup(const char* game_id) {
+static game_lookup find_game_lookup(const char* game_id, int mode) {
     char prefixString[MAX_PREFIX_LENGTH] = {};
     char idString[10] = {};
     uint32_t numeric_id = 0, numeric_prefix = 0;
 
-    const char* const db_start = settings_get_mode() == MODE_PS1 ? &_binary_gamedbps1_dat_start : &_binary_gamedbps2_dat_start;
-    const char* const db_size = settings_get_mode() == MODE_PS1 ? &_binary_gamedbps1_dat_size : &_binary_gamedbps2_dat_size;
+    const char* const db_start = mode == MODE_PS1 ? &_binary_gamedbps1_dat_start : &_binary_gamedbps2_dat_start;
+    const char* const db_size = mode == MODE_PS1 ? &_binary_gamedbps1_dat_size : &_binary_gamedbps2_dat_size;
 
     uint32_t prefixOffset = 0;
     game_lookup ret = {
         .game_id = 0U,
         .parent_id = 0U,
-        .name = NULL
+        .mode = -1,
+        .id_length = 0,
+        .name = NULL,
+        .prefix = {}
     };
 
 
@@ -160,11 +167,11 @@ static game_lookup find_game_lookup(const char* game_id) {
         }
     }
 
-    numeric_prefix = game_names_char_array_to_uint32(prefixString);
+    numeric_prefix = game_db_char_array_to_uint32(prefixString);
 
     if (numeric_id != 0) {
         
-        prefixOffset = game_names_find_prefix_offset(numeric_prefix, db_start);
+        prefixOffset = game_db_find_prefix_offset(numeric_prefix, db_start);
 
         if (prefixOffset < (size_t)db_size) {
             uint32_t offset = prefixOffset;
@@ -176,7 +183,9 @@ static game_lookup find_game_lookup(const char* game_id) {
                     ret = game;
                     debug_printf("Found ID - Name Offset: %d, Parent ID: %d\n", (int)game.name, game.parent_id);
                     debug_printf("Name:%s\n", game.name);
-
+                    ret.mode = mode;
+                    ret.id_length = strlen(idString);
+                    memcpy(ret.prefix, prefixString, 4);
                 }
                 offset += 12;
             } while ((game.game_id != 0) && (offset < (size_t)db_size) && (ret.game_id == 0));
@@ -186,7 +195,7 @@ static game_lookup find_game_lookup(const char* game_id) {
     return ret;
 }
 
-void __time_critical_func(game_names_extract_title_id)(const uint8_t* const in_title_id, char* const out_title_id, const size_t in_title_id_length, const size_t out_buffer_size) {
+void __time_critical_func(game_db_extract_title_id)(const uint8_t* const in_title_id, char* const out_title_id, const size_t in_title_id_length, const size_t out_buffer_size) {
     uint16_t idx_in_title = 0, idx_out_title = 0;
 
     while ( (in_title_id[idx_in_title] != 0x00) 
@@ -207,51 +216,60 @@ void __time_critical_func(game_names_extract_title_id)(const uint8_t* const in_t
     }
 }
 
-void game_names_get_name_by_folder(const char* const folder, char* const game_name) {
+void game_db_get_folderbased_name(const char* const folder, char* const game_name) {
     strlcpy(game_name, "", MAX_GAME_NAME_LENGTH);    
-    if (game_names_sanity_check_title_id(folder)) {
-        game_lookup game;
 
-        game = find_game_lookup(folder);
-
-        if (game.game_id != 0) {
-            strlcpy(game_name, game.name, MAX_GAME_NAME_LENGTH);
-        }
+    int dir_fd, it_fd = -1;
+    char filename[MAX_GAME_NAME_LENGTH] = {};
+    char dir[64];
+    if (settings_get_mode() == MODE_PS1) {
+        snprintf(dir, sizeof(dir), "MemoryCards/PS1/%s", folder);
     } else {
-        int dir_fd, it_fd = -1;
-        char filename[MAX_GAME_NAME_LENGTH] = {};
-        char dir[64];
-        if (settings_get_mode() == MODE_PS1) {
-            snprintf(dir, sizeof(dir), "MemoryCards/PS1/%s", folder);
-        } else {
-            snprintf(dir, sizeof(dir), "MemoryCards/PS2/%s", folder);
-        }
+        snprintf(dir, sizeof(dir), "MemoryCards/PS2/%s", folder);
+    }
 
-        dir_fd = sd_open(dir, O_RDONLY);
-        if (dir_fd >= 0) {
-            it_fd = sd_iterate_dir(dir_fd, it_fd);
+    dir_fd = sd_open(dir, O_RDONLY);
+    if (dir_fd >= 0) {
+        it_fd = sd_iterate_dir(dir_fd, it_fd);
 
-            while (it_fd != -1) {
-                sd_get_name(it_fd, filename, MAX_GAME_NAME_LENGTH);
+        while (it_fd != -1) {
+            sd_get_name(it_fd, filename, MAX_GAME_NAME_LENGTH);
 
-                if (file_has_extension(filename, ".txt")) {
-                    file_remove_extension(filename);
-                    strlcpy(game_name, filename, MAX_GAME_NAME_LENGTH);
-                    break;
-                }
-                it_fd = sd_iterate_dir(dir_fd, it_fd);
+            if (file_has_extension(filename, ".txt")) {
+                file_remove_extension(filename);
+                strlcpy(game_name, filename, MAX_GAME_NAME_LENGTH);
+                break;
             }
-            if (it_fd != -1)
-                sd_close(it_fd);
-            sd_close(dir_fd);
+            it_fd = sd_iterate_dir(dir_fd, it_fd);
         }
+        if (it_fd != -1)
+            sd_close(it_fd);
+        sd_close(dir_fd);
     }
 }
 
-void game_names_get_parent(const char* const game_id, char* const parent_id) {
+void game_db_get_current_name(char* const game_name) {
+    strlcpy(game_name, "", MAX_GAME_NAME_LENGTH);    
+
+    if ((current_game.name != NULL) && (current_game.name[0] != 0)) {
+        strlcpy(game_name, current_game.name, MAX_GAME_NAME_LENGTH);
+    }
+}
+
+int game_db_get_current_parent(char* const parent_id) {
+
+    if (current_game.parent_id != 0)
+        snprintf(parent_id, MAX_GAME_ID_LENGTH, "%s-%0*d", current_game.prefix, current_game.id_length, (int)current_game.parent_id);
+
+    debug_printf("Parent ID: %s\n", parent_id);
+    
+    return current_game.mode;
+}
+
+int game_db_update_game(const char* const game_id) {
     char prefixString[MAX_PREFIX_LENGTH] = {};
     char idString[10] = {};
-    game_lookup game;
+    int mode = settings_get_mode();
 
     if (game_id != NULL && game_id[0]) {
         char* copy = strdup(game_id);
@@ -270,14 +288,25 @@ void game_names_get_parent(const char* const game_id, char* const parent_id) {
         }
     }
 
-    game = find_game_lookup(game_id);
+    current_game = find_game_lookup(game_id, mode);
 
-    if (game.game_id != 0) {
-        snprintf(parent_id, MAX_GAME_ID_LENGTH, "%s-%0*d", prefixString, (int)strlen(idString), (int)game.parent_id);
-
-        debug_printf("Parent ID: %s\n", parent_id);
-    } else {
-        strlcpy(parent_id, game_id, MAX_GAME_ID_LENGTH);
+    if ((current_game.game_id == 0) && (mode == MODE_PS2)){
+        current_game = find_game_lookup(game_id, MODE_PS1);
     }
+
+    if (current_game.name == NULL)
+    {
+        current_game.parent_id = current_game.game_id;
+    }
+
+    return current_game.mode;
 }
 
+void game_db_init(void) {
+    current_game.game_id = 0U;
+    current_game.parent_id = 0U;
+    current_game.mode = -1;
+    current_game.id_length = 0;
+    current_game.name = NULL;
+    memset(current_game.prefix, 0x00, MAX_PREFIX_LENGTH);
+}
