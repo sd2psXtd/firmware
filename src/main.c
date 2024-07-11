@@ -29,7 +29,7 @@
 
 #include "ps2/card_emu/ps2_sd2psxman.h"
 
-#include "game_names/game_names.h"
+#include "game_db/game_db.h"
 
 /* reboot to bootloader if either button is held on startup
    to make the device easier to flash when assembled inside case */
@@ -154,7 +154,7 @@ int main() {
     psram_init();
     sd_init();
 
-    game_names_init();
+    game_db_init();
 
     while (1) {
         if (settings_get_mode() == MODE_PS2) {
@@ -175,6 +175,6 @@ int main() {
             ps1_cardman_close();
             multicore_reset_core1();
             ps1_memory_card_unload();
-            }
+        }
     }
 }

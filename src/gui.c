@@ -1,6 +1,6 @@
 #include "gui.h"
 
-#include <game_names/game_names.h>
+#include <game_db/game_db.h>
 #include <ps2/history_tracker/ps2_history_tracker.h>
 #include <src/core/lv_obj.h>
 #include <src/core/lv_obj_class.h>

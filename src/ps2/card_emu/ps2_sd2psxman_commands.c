@@ -6,7 +6,7 @@
 #include "ps2_sd2psxman.h"
 #include "ps2_sd2psxman_commands.h"
 
-#include "game_names/game_names.h"
+#include "game_db/game_db.h"
 
 #include "debug.h"
 
@@ -138,8 +138,8 @@ inline __attribute__((always_inline)) void __time_critical_func(ps2_sd2psxman_cm
 
     mc_respond(term);
 
-    game_names_extract_title_id(received_id, sanitized_game_id, gameid_len, sizeof(sanitized_game_id));
-    if (game_names_sanity_check_title_id(sanitized_game_id)) {
+    game_db_extract_title_id(received_id, sanitized_game_id, gameid_len, sizeof(sanitized_game_id));
+    if (game_db_sanity_check_title_id(sanitized_game_id)) {
         ps2_sd2psxman_set_gameid(sanitized_game_id);
     }
 

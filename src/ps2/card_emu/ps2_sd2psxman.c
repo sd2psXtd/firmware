@@ -10,7 +10,7 @@
 #include "ps2/card_emu/ps2_sd2psxman_commands.h"
 #include "ps2/ps2_cardman.h"
 
-#include "game_names/game_names.h"
+#include "game_db/game_db.h"
 
 #include "pico/platform.h"
 #include "ps2_dirty.h"
@@ -52,7 +52,7 @@ void ps2_sd2psxman_task(void) {
 
             case SD2PSXMAN_SET_GAMEID: 
             {
-                if (MODE_PS1 == game_names_update_game(sd2psxman_gameid))
+                if (MODE_PS1 == game_db_update_game(sd2psxman_gameid))
                     settings_set_mode(MODE_TEMP_PS1);
                 else
                     ps2_cardman_set_gameid(sd2psxman_gameid); 

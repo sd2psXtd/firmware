@@ -1,7 +1,7 @@
 #include "history_tracker/ps2_history_tracker.h"
 
 #include <debug.h>
-#include <game_names/game_names.h>
+#include <game_db/game_db.h>
 #include <stdint.h>
 #include <stdio.h>
 #include <string.h>
@@ -58,6 +58,8 @@ static uint32_t fileCluster[HISTORY_NUMBER_OF_REGIONS] = { 0, 0, 0, 0};
 static bool refreshRequired[HISTORY_NUMBER_OF_REGIONS];
 
 int page_erase(mcfat_cardspecs_t* info, uint32_t page) {
+    (void)info;
+    (void)page;
     #ifdef USE_INJECT_LOGIC
     if (page * info->pagesize + info->pagesize <= ps2_cardman_get_card_size()) {
         uint8_t buff[info->pagesize];
@@ -74,6 +76,9 @@ int page_erase(mcfat_cardspecs_t* info, uint32_t page) {
 }
 
 int page_write(mcfat_cardspecs_t* info, uint32_t page, void* buff) {
+    (void)info;
+    (void)page;
+    (void)buff;
     #ifdef USE_INJECT_LOGIC
     if (page * info->pagesize + info->pagesize <= ps2_cardman_get_card_size()) {
         ps2_dirty_lockout_renew();
@@ -289,9 +294,9 @@ void ps2_history_tracker_task() {
                     for (int j = 0; j < HISTORY_ENTRY_COUNT; j++) {
                         if (slots_new[j] != slotCount[i][j]) {
                             char sanitized_game_id[11] = {0};
-                            game_names_extract_title_id(&buff[j * HISTORY_ENTRY_SIZE], sanitized_game_id, 16, sizeof(sanitized_game_id));
+                            game_db_extract_title_id(&buff[j * HISTORY_ENTRY_SIZE], sanitized_game_id, 16, sizeof(sanitized_game_id));
                             DEBUG("Game ID: %s\n", sanitized_game_id);
-                            if (game_names_sanity_check_title_id(sanitized_game_id)) {
+                            if (game_db_sanity_check_title_id(sanitized_game_id)) {
                                 ps2_sd2psxman_set_gameid(sanitized_game_id);
                                 break;
                             }
