@@ -1,6 +1,9 @@
-import requests
-import csv
+
+import re
 from unidecode import unidecode
+
+disc_pattern = r'\(Disc (\d)\)'
+replacer = r'\((.*)\)'
 
 class GameId:
     name = ""
@@ -65,50 +68,56 @@ def writeSortedGameList(outfile, prefixes, games_count, games_sorted, gamenames)
         outfile.write(game.encode('ascii'))
         outfile.write(term.to_bytes(1, 'big'))
 
-def getGamesHDLBatchInstaller() -> ([], [], {}, int):
+def getGamesGameDB(games_dict) -> ([], [], {}, int):
     prefixes = []
     gamenames = []
     games_sorted = {}
     games_count = 0
+    name_to_serials = {}
 
-    url = "https://github.com/israpps/HDL-Batch-installer/raw/main/Database/gamename.csv"
+    for id in games_dict:
+        try:
+            raw_name = games_dict[id]
+            clean_name = re.sub(replacer, "", raw_name).strip()
+            parent_id = id
+            game = GameId(clean_name, id)
+            if len(game.prefix) > 4:
+                raise ValueError
+            if int(game.id) > 0:
+                # Create Prefix list and game name list
+                # Create dict that contains all games sorted by prefix
+                if game.prefix not in prefixes:
+                    prefixes.append(game.prefix)
+                if game.name not in gamenames:
+                    gamenames.append(game.name)
+                if not game.prefix in games_sorted:
+                    games_sorted[game.prefix] = []
+                name_to_serials[f"{game.prefix}{raw_name}"] = id
+                match = re.search(disc_pattern, raw_name)
+                if match and match[0] != "(Disc 1)":
+                    parent_name = raw_name.replace(match[0], "(Disc 1)")
 
-    r = requests.get(url, allow_redirects=True)
-
-
-    if r.status_code == 200:
-        lines = r.text.split("\n")
-        csv_reader = csv.reader(lines, delimiter=";")
-        for row in csv_reader:
-            if len(row) == 2:
-                id = row[0]
-                title = row[1]
-                game = GameId(row[1], row[0])
-                try:
-                    if int(game.id) > 0:
-                        # Create Prefix list and game name list
-                        # Create dict that contains all games sorted by prefix
-                        if game.prefix not in prefixes:
-                            prefixes.append(game.prefix)
-                        if game.name not in gamenames:
-                            gamenames.append(game.name)
-                        if not game.prefix in games_sorted:
-                            games_sorted[game.prefix] = []
-                        games_sorted[game.prefix].append(game)
-                        games_count += 1
-                except ValueError:
-                    print(f"{game} not parsed")
-                    continue
+                    if f"{game.prefix}{parent_name}" in name_to_serials:
+                        parent_id = name_to_serials[f"{game.prefix}{parent_name}"]
+                        game.parent_id = parent_id.split("-")[1]
+                games_sorted[game.prefix].append(game)
+                games_count += 1
+        except ValueError:
+            #print(f"{game} not parsed - wrong value")
+            continue
+        except IndexError:
+            #print(f"{game} not parsed - wrong gameid format")
+            continue
+     
+    print(f"Parsed {games_count} games in {len(prefixes)} Prefixes")
     return (prefixes, gamenames, games_sorted, games_count)
 
-
-prefixes = []
-gamenames = []
-games_sorted = {}
-games_count = 0
-
-
-with open("gamedbps2.dat", "wb") as out:
-    (prefixes, gamenames, games_sorted, games_count) = getGamesHDLBatchInstaller()
-    writeSortedGameList(out, prefixes, games_count, games_sorted, gamenames)
+def generateDatabase(games_dict, filename):
+    with open(filename, "wb") as out:
+        prefixes = []
+        gamenames = []
+        games_sorted = {}
+        games_count = 0
+        (prefixes, gamenames, games_sorted, games_count) = getGamesGameDB(games_dict)
+        writeSortedGameList(out, prefixes, games_count, games_sorted, gamenames)
 

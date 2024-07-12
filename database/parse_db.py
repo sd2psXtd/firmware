@@ -1,4 +1,5 @@
 import os
+from gameDBGenerator import generateDatabase
 
 serial_pattern = r'([A-Z]{3,4}[- ]\d+)'
 disc_pattern = r'\(Disc (\d)\)'
@@ -83,78 +84,16 @@ def createDbFile(rootdir, outputdir):
 
     root = tree.getroot()
 
-    name_to_serials = {}
+    games_dict = {}
 
     # Create Mapping from serial to full game name
     for element in root:
         if element.tag == 'game':
             name, serials = parseGameEntry(element)
-            name_to_serials[name] = serials
+            for serial in serials:
+                games_dict[serial] = name
 
-
-    redump_games = createGameList(name_to_serials)
-
-    prefixes = []
-    gamenames = []
-    games_sorted = {}
-
-
-    # Create Prefix list and game name list
-    # Create dict that contains all games sorted by prefix
-    for game in redump_games:
-        if game.prefix not in prefixes:
-            prefixes.append(game.prefix)
-        if game.name not in gamenames:
-            gamenames.append(game.name)
-        if not game.prefix in games_sorted:
-            games_sorted[game.prefix] = []
-        games_sorted[game.prefix].append(game)
-        
-
-    print("Redump {} Game Names".format(len(gamenames)))
-    print("Redump {} Games".format(len(redump_games)))
-
-    redump_games.sort()
-    term = 0
-
-    print("{} Prefixes".format(len(prefixes)))
-    game_ids_offset = (len(prefixes) + 1) * 8
-    game_names_base_offset = game_ids_offset + (len(redump_games) * 12) + (len(prefixes) * 12)
-    prefix_offset = game_ids_offset
-
-    offset = game_names_base_offset
-    game_name_to_offset = {}
-    # Calculate offset for each game name
-    for gamename in gamenames:
-        game_name_to_offset[gamename] = offset
-        offset = offset + len(gamename) + 1
-
-    with open("{}/gamedb{}.dat".format(outputdir, dirname), "wb") as out:
-        # First: write prefix Indices in the format 
-        # 4 Byte: Index Chars, padded with ws in the end
-        # 4 Byte: Index Offset within dat
-        for prefix in games_sorted:
-            adjustedPrefix = prefix
-            if len(prefix) < 4:
-                adjustedPrefix = prefix + (4 - len(prefix) ) * " "
-            out.write(adjustedPrefix.encode('ascii'))
-            out.write(prefix_offset.to_bytes(4, 'big'))
-            prefix_offset = prefix_offset + (len(games_sorted[prefix]) + 1) * 12
-        out.write(term.to_bytes(8, 'big'))
-        # Next: write game entries for each index in the format:
-        # 4 Byte: Game ID without prefix, Big Endian
-        # 4 Byte: Offset to game name, Big Endian
-        # 4 Byte: Parent Game ID - if multi disc this is equal to Game ID
-        for prefix in games_sorted:
-            for game in games_sorted[prefix]:
-                out.write(int(game.id).to_bytes(4, 'big'))
-                out.write(game_name_to_offset[game.name].to_bytes(4, 'big'))
-                out.write(int(game.parent_id).to_bytes(4, 'big'))
-            out.write(term.to_bytes(12, 'big'))
-        # Last: write null terminated game names
-        for game in game_name_to_offset:
-            out.write(game.encode('ascii'))
-            out.write(term.to_bytes(1, 'big'))
+    generateDatabase(games_dict, f"{outputdir}/gamedb{dirname}.dat")
 
 
 from urllib.request import urlopen
