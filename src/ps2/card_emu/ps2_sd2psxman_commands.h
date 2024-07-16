@@ -13,18 +13,19 @@
 
 #define SD2PSXMAN_UNMOUNT_BOOTCARD 0x30
 
-#define SD2PSXMAN_SET_PATH 0x40
-#define SD2PSXMAN_OPEN_FILE 0x41
-#define SD2PSXMAN_CLOSE_FILE 0x42
-#define SD2PSXMAN_SEEK_FILE 0x43
-#define SD2PSXMAN_TELL_FILE 0x44
-#define SD2PSXMAN_SETUP_TRANSACTION 0x45
-#define SD2PSXMAN_READ_FILE 0x46
-#define SD2PSXMAN_WRITE_FILE 0x47
-#define SD2PSXMAN_DELETE_FILE 0x48
-#define SD2PSXMAN_RENAME_FILE 0x49
-#define SD2PSXMAN_READ_DIR_ENTRY 0x50
-#define SD2PSXMAN_READ_STAT 0x5A
+//Implemented:
+#define MMCEMAN_CMD_FS_OPEN 0x40
+#define MMCEMAN_CMD_FS_CLOSE 0x41
+#define MMCEMAN_CMD_FS_READ 0x42
+#define MMCEMAN_CMD_FS_WRITE 0x43
+#define MMCEMAN_CMD_FS_LSEEK 0x44
+#define MMCEMAN_CMD_FS_REMOVE 0x46
+#define MMCEMAN_CMD_FS_MKDIR 0x47
+#define MMCEMAN_CMD_FS_RMDIR 0x48
+#define MMCEMAN_CMD_FS_DOPEN 0x49
+#define MMCEMAN_CMD_FS_DCLOSE 0x4a
+#define MMCEMAN_CMD_FS_DREAD 0x4b
+#define MMCEMAN_CMD_FS_GETSTAT 0x4c
 
 #define SD2PSXMAN_MODE_NUM 0x0
 #define SD2PSXMAN_MODE_NEXT 0x1
@@ -40,11 +41,15 @@ extern void ps2_sd2psxman_cmds_get_gameid(void);
 extern void ps2_sd2psxman_cmds_set_gameid(void);
 extern void ps2_sd2psxman_cmds_unmount_bootcard(void);
 extern void ps2_sd2psxman_cmds_set_path(void);
-extern void ps2_sd2psxman_cmds_open_file(void);
-extern void ps2_sd2psxman_cmds_close_file(void);
-extern void ps2_sd2psxman_cmds_seek_file(void);
-extern void ps2_sd2psxman_cmds_setup_transaction(void);
-extern void ps2_sd2psxman_cmds_read_file(void);
-extern void ps2_sd2psxman_cmds_write_file(void);
-extern void ps2_sd2psxman_cmds_read_stat(void);
-extern void ps2_sd2psxman_cmds_read_dir_entry(void);
+
+extern void ps2_mmceman_cmd_fs_open(void);
+extern void ps2_mmceman_cmd_fs_close(void);
+extern void ps2_mmceman_cmd_fs_read(void);
+extern void ps2_mmceman_cmd_fs_write(void);
+extern void ps2_mmceman_cmd_fs_lseek(void);
+extern void ps2_mmceman_cmd_fs_remove(void);
+extern void ps2_mmceman_cmd_fs_mkdir(void);
+extern void ps2_mmceman_cmd_fs_rmdir(void);
+extern void ps2_mmceman_cmd_fs_dclose(void);
+extern void ps2_mmceman_cmd_fs_dopen(void);
+extern void ps2_mmceman_cmd_fs_dread(void);

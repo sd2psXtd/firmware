@@ -28,6 +28,7 @@
 #include "ps2/ps2_psram.h"
 
 #include "ps2/card_emu/ps2_sd2psxman.h"
+#include "mmce_fs/ps2_mmce_fs.h"
 
 /* reboot to bootloader if either button is held on startup
    to make the device easier to flash when assembled inside case */
@@ -117,7 +118,8 @@ int main() {
         ps2_dirty_init();
         ps2_history_tracker_init();
         gui_init();
-        ps2_file_handling_init();
+        //ps2_file_handling_init();
+        ps2_mmce_fs_init();
 
         multicore_launch_core1(ps2_memory_card_main);
 
@@ -139,7 +141,8 @@ int main() {
             ps2_history_tracker_run();
             gui_task();
             input_task();
-            ps2_file_handling_run();
+            //ps2_file_handling_run();
+            ps2_mmce_fs_run();
         }
     }
 }

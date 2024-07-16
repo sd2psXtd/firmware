@@ -67,10 +67,10 @@ extern "C" int sd_open(const char *path, int oflag) {
 #define CHECK_FD(fd) if (fd >= NUM_FILES || !files[fd].isOpen()) return -1;
 #define CHECK_FD_VOID(fd) if (fd >= NUM_FILES || !files[fd].isOpen()) return;
 
-extern "C" void sd_close(int fd) {
-    CHECK_FD_VOID(fd);
+extern "C" int sd_close(int fd) {
+    CHECK_FD(fd);
 
-    files[fd].close();
+    return files[fd].close() != true;
 }
 
 extern "C" void sd_flush(int fd) {
@@ -104,10 +104,6 @@ extern "C" size_t sd_tell(int fd) {
     return files[fd].curPosition();
 }
 
-extern "C" void sd_delete(const char* path) {
-    sd.remove(path);
-}
-
 extern "C" int sd_mkdir(const char *path) {
     /* return 1 on error */
     return sd.mkdir(path) != true;
@@ -118,7 +114,30 @@ extern "C" int sd_exists(const char *path) {
 }
 
 extern "C" int sd_filesize(int fd) {
-    return files[fd].fileSize();;
+    CHECK_FD(fd);
+    return files[fd].fileSize();
+}
+
+extern "C" int sd_rmdir(const char* path) {
+    /* return 1 on error */
+    return sd.rmdir(path) != true;
+}
+
+extern "C" int sd_remove(const char* path) {
+    /* return 1 on error */
+    return sd.remove(path) != true;
+}
+
+extern "C" int sd_seek_new(int fd, int64_t offset, int whence) {
+    CHECK_FD(fd);
+    if (whence == 0) {
+        return files[fd].seekSet(offset) != true;
+    } else if (whence == 1) {
+        return files[fd].seekCur(offset) != true;
+    } else if (whence == 2) {
+        return files[fd].seekEnd(offset) != true;
+    }
+    return -1;
 }
 
 extern "C" int sd_iterate_dir(int dir, int it) {
@@ -149,4 +168,47 @@ extern "C" int sd_getStat(int fd, sd_file_stat_t* const sd_stat) {
     sd_stat->size = files[fd].fileSize();
 
     return -1;
+}
+
+extern "C" void mapTime(const uint16_t date, const uint16_t time, uint8_t* const out_time) {
+    uint16_t year;
+    out_time[0] = 0; // Padding
+
+    out_time[4] = (date & 31); // Day
+    out_time[5] = (date >> 5) & 15; // Month
+
+    year = (date >> 9) + 1980;
+    out_time[6] = year & 0xff; // Year (low bits)
+    out_time[7] = (year >> 8) & 0xff; // Year (high bits)
+
+    out_time[3] = (time >> 11); // Hours
+    out_time[2] = (time >> 5) & 63; // Minutes
+    out_time[1] = (time << 1) & 31; // Seconds (multiplied by 2)    
+}
+
+//Get stat and convert to format fileio expects
+extern "C" int sd_get_stat(int fd, ps2_fileio_stat_t* const ps2_fileio_stat) {
+    CHECK_FD(fd);
+
+    uint16_t date, time;
+
+    ps2_fileio_stat->mode = 0x0; //TODO
+    ps2_fileio_stat->attr = 0x0; //TODO
+    ps2_fileio_stat->size = files[fd].fileSize();
+
+    files[fd].getCreateDateTime(&date, &time);
+    mapTime(date, time, ps2_fileio_stat->ctime);
+    files[fd].getAccessDateTime(&date, &time);
+    mapTime(date, time, ps2_fileio_stat->atime);
+    files[fd].getModifyDateTime(&date, &time);
+    mapTime(date, time, ps2_fileio_stat->mtime);
+
+    ps2_fileio_stat->hisize = 0x0; //TODO
+
+    return 0;
+}
+
+extern "C" int sd_fd_is_open(int fd) {
+    CHECK_FD(fd);
+    return 0;
 }

@@ -6,3 +6,5 @@ void ps2_memory_card_enter_flash(void);
 void ps2_memory_card_exit(void);
 
 void ps2_memory_card_set_cmd_callback(void (*cb)(void));
+
+void ps2_queue_tx_byte_on_reset(uint8_t byte);

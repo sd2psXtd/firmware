@@ -34,8 +34,17 @@ typedef struct {
 pio_t cmd_reader, dat_writer, clock_probe;
 uint8_t term = 0xFF;
 
+static volatile uint8_t reset_tx_byte;
+static volatile uint8_t reset_place_tx_byte;
+
 static volatile int mc_exit_request, mc_exit_response, mc_enter_request, mc_enter_response;
 static void (*mc_callback)(void);
+
+void __time_critical_func(ps2_queue_tx_byte_on_reset)(uint8_t byte)
+{
+    reset_place_tx_byte = 1;
+    reset_tx_byte = byte;
+}
 
 void __time_critical_func(read_mc)(uint32_t addr, void *buf, size_t sz) {
     if (flash_mode) {
@@ -75,10 +84,20 @@ static void __time_critical_func(reset_pio)(void) {
 
     pio_enable_sm_mask_in_sync(pio0, (1 << cmd_reader.sm) | (1 << dat_writer.sm) | (1 << clock_probe.sm));
 
+    if (reset_place_tx_byte != 0) {
+        mc_respond(reset_tx_byte);  //Preemptively place byte on tx for proper alignment with mmce fs read packets
+        reset_place_tx_byte = 0;
+        reset_tx_byte = 0;
+    }
+
     reset = 1;
 }
 
 static void __time_critical_func(init_pio)(void) {
+
+    reset_place_tx_byte = 0x0;
+    reset_tx_byte = 0x0;
+
     /* Set all pins as floating inputs */
     gpio_set_dir(PIN_PSX_ACK, 0);
     gpio_set_dir(PIN_PSX_SEL, 0);
@@ -268,14 +287,18 @@ static void __time_critical_func(mc_main_loop)(void) {
                 case SD2PSXMAN_GET_GAMEID: ps2_sd2psxman_cmds_get_gameid(); break;
                 case SD2PSXMAN_SET_GAMEID: ps2_sd2psxman_cmds_set_gameid(); break;
                 case SD2PSXMAN_UNMOUNT_BOOTCARD: ps2_sd2psxman_cmds_unmount_bootcard(); break;
-                case SD2PSXMAN_SET_PATH: ps2_sd2psxman_cmds_set_path(); break;
-                case SD2PSXMAN_OPEN_FILE: ps2_sd2psxman_cmds_open_file(); break;
-                case SD2PSXMAN_CLOSE_FILE: ps2_sd2psxman_cmds_close_file(); break;
-                case SD2PSXMAN_SEEK_FILE: ps2_sd2psxman_cmds_seek_file(); break;
-                case SD2PSXMAN_SETUP_TRANSACTION: ps2_sd2psxman_cmds_setup_transaction(); break;
-                case SD2PSXMAN_READ_FILE: ps2_sd2psxman_cmds_read_file(); break;
-                case SD2PSXMAN_READ_DIR_ENTRY: ps2_sd2psxman_cmds_read_dir_entry(); break;
-                case SD2PSXMAN_READ_STAT: ps2_sd2psxman_cmds_read_stat(); break;
+
+                case MMCEMAN_CMD_FS_OPEN: ps2_mmceman_cmd_fs_open(); break;
+                case MMCEMAN_CMD_FS_CLOSE: ps2_mmceman_cmd_fs_close(); break;
+                case MMCEMAN_CMD_FS_READ: ps2_mmceman_cmd_fs_read(); break;
+                case MMCEMAN_CMD_FS_WRITE: ps2_mmceman_cmd_fs_write(); break;
+                case MMCEMAN_CMD_FS_LSEEK: ps2_mmceman_cmd_fs_lseek(); break;
+                case MMCEMAN_CMD_FS_REMOVE: ps2_mmceman_cmd_fs_remove(); break;
+                case MMCEMAN_CMD_FS_MKDIR: ps2_mmceman_cmd_fs_mkdir(); break;
+                case MMCEMAN_CMD_FS_RMDIR: ps2_mmceman_cmd_fs_rmdir(); break;
+                case MMCEMAN_CMD_FS_DOPEN: ps2_mmceman_cmd_fs_dopen(); break;
+                case MMCEMAN_CMD_FS_DCLOSE: ps2_mmceman_cmd_fs_dclose(); break;
+                case MMCEMAN_CMD_FS_DREAD: ps2_mmceman_cmd_fs_dread(); break;
                 default: debug_printf("Unknown Subcommand: %02x\n", cmd); break;
             }
         } else {
