@@ -512,6 +512,8 @@ inline __attribute__((always_inline)) void __time_critical_func(ps2_mmceman_cmd_
             mc_respond(bytes8[0x1]); receiveOrNextCmd(&cmd);
             mc_respond(bytes8[0x0]); receiveOrNextCmd(&cmd);
 
+            ps2_mmce_fs_signal_operation(MMCE_FS_READ_AHEAD); //Try to read an additional 256B chunk
+
             ps2_memory_card_set_cmd_callback(NULL);
         
             transfer_stage = 0;
