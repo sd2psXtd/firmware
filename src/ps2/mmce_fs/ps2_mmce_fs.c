@@ -43,7 +43,7 @@ void ps2_mmce_fs_init(void)
     m_data.read_ahead.fd = -1;
     m_data.read_ahead.valid = 0;
 
-    memset(m_data.chunk_state, 0, sizeof(m_data.chunk_state));
+    memset((void*)m_data.chunk_state, 0, sizeof(m_data.chunk_state));
 
     critical_section_init(&mmce_fs_crit);
 
@@ -58,7 +58,7 @@ void ps2_mmce_fs_run(void)
 
     switch (mmce_fs_operation) {
         case MMCE_FS_OPEN:
-            m_data.fd = sd_open(m_data.buffer[0], m_data.flags);
+            m_data.fd = sd_open((const char*)m_data.buffer[0], m_data.flags);
 
             if (m_data.fd < 0) {
                 DPRINTF("Open failed fd: %i\n", m_data.fd);
@@ -109,7 +109,7 @@ void ps2_mmce_fs_run(void)
                     }
 
                     //Read
-                    rv = sd_read(m_data.fd, m_data.buffer[m_data.head_idx], bytes_in_chunk);
+                    rv = sd_read(m_data.fd, (void*)m_data.buffer[m_data.head_idx], bytes_in_chunk);
 
                     //Failed to get requested amount
                     if (rv != bytes_in_chunk) {
@@ -154,7 +154,7 @@ void ps2_mmce_fs_run(void)
             DPRINTF("Entering read ahead\n");
             //Check if reading beyond file size
             if (sd_tell(m_data.fd) + CHUNK_SIZE <= m_data.filesize) {
-                rv = sd_read(m_data.fd, m_data.read_ahead.buffer, CHUNK_SIZE);
+                rv = sd_read(m_data.fd, (void*)m_data.read_ahead.buffer, CHUNK_SIZE);
 
                 if (rv == CHUNK_SIZE) {
                     DPRINTF("C1: Read ahead: %i\n", rv);
@@ -176,7 +176,7 @@ void ps2_mmce_fs_run(void)
                 write_size = 4096;
 
             DPRINTF("C1: Writing: %i\n", write_size);
-            m_data.rv = sd_write(m_data.fd, m_data.buffer[0], write_size);
+            m_data.rv = sd_write(m_data.fd, (void*)m_data.buffer[0], write_size);
             sd_flush(m_data.fd); //flush data
             DPRINTF("C1: Wrote: %i\n", m_data.rv);
 
@@ -205,22 +205,22 @@ void ps2_mmce_fs_run(void)
         break;
         
         case MMCE_FS_REMOVE:
-            m_data.rv = sd_remove(m_data.buffer[0]);
+            m_data.rv = sd_remove((const char*)m_data.buffer[0]);
             mmce_fs_operation = MMCE_FS_NONE;
         break;
 
         case MMCE_FS_MKDIR:
-            m_data.rv = sd_mkdir(m_data.buffer[0]);
+            m_data.rv = sd_mkdir((const char*)m_data.buffer[0]);
             mmce_fs_operation = MMCE_FS_NONE;
         break;
 
         case MMCE_FS_RMDIR:
-            m_data.rv = sd_rmdir(m_data.buffer[0]);
+            m_data.rv = sd_rmdir((const char*)m_data.buffer[0]);
             mmce_fs_operation = MMCE_FS_NONE;
         break;
         
         case MMCE_FS_DOPEN:
-            m_data.fd = sd_open(m_data.buffer[0], 0x0);
+            m_data.fd = sd_open((const char*)m_data.buffer[0], 0x0);
             m_data.it_fd = -1; //clear itr stat
             mmce_fs_operation = MMCE_FS_NONE;
         break;
@@ -246,7 +246,7 @@ void ps2_mmce_fs_run(void)
                     m_data.rv = 0; //set return value before performing get_stat
 
                     sd_get_stat(m_data.it_fd, &m_data.fileio_stat);
-                    m_data.length = sd_get_name(m_data.it_fd, &m_data.buffer[0], 128);
+                    m_data.length = sd_get_name(m_data.it_fd, (char*)&m_data.buffer[0], 128);
 
                     m_data.length++;
                     m_data.buffer[0][m_data.length] = '\0'; //add null term
