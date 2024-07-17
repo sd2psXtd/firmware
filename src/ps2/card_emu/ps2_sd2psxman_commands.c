@@ -680,6 +680,7 @@ inline __attribute__((always_inline)) void __time_critical_func(ps2_mmceman_cmd_
             ps2_mmce_fs_wait_ready();
             data = ps2_mmce_fs_get_data();
             offset8 = (uint8_t*)&data->offset;
+            data->offset = 0;
 
             mc_respond(0x0); receiveOrNextCmd(&cmd); //padding
             mc_respond(0x0); receiveOrNextCmd(&data->fd);
