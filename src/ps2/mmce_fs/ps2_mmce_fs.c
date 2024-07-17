@@ -245,7 +245,7 @@ void ps2_mmce_fs_run(void)
                 if (m_data.it_fd != -1) {
                     m_data.rv = 0; //set return value before performing get_stat
 
-                    sd_get_stat(m_data.it_fd, &m_data.fileio_stat);
+                    sd_get_stat(m_data.it_fd, (ps2_fileio_stat_t*)&m_data.fileio_stat);
                     m_data.length = sd_get_name(m_data.it_fd, (char*)&m_data.buffer[0], 128);
 
                     m_data.length++;
@@ -296,5 +296,5 @@ void ps2_mmce_fs_signal_operation(int op)
 
 ps2_mmce_fs_data_t *ps2_mmce_fs_get_data(void)
 {
-    return &m_data;
+    return (ps2_mmce_fs_data_t*)&m_data;
 }
