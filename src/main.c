@@ -1,6 +1,5 @@
 #include <stdio.h>
 #include "history_tracker/ps2_history_tracker.h"
-#include "file_handling/ps2_file_handling.h"
 #include "pico/stdlib.h"
 #include "pico/bootrom.h"
 #include "pico/multicore.h"
@@ -118,7 +117,6 @@ int main() {
         ps2_dirty_init();
         ps2_history_tracker_init();
         gui_init();
-        //ps2_file_handling_init();
         ps2_mmce_fs_init();
 
         multicore_launch_core1(ps2_memory_card_main);
@@ -141,7 +139,6 @@ int main() {
             ps2_history_tracker_run();
             gui_task();
             input_task();
-            //ps2_file_handling_run();
             ps2_mmce_fs_run();
         }
     }
