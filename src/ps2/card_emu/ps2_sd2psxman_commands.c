@@ -235,10 +235,10 @@ inline __attribute__((always_inline)) void __time_critical_func(ps2_mmceman_cmd_
             receiveOrNextCmd(&cmd); //Padding
             mc_respond(data->fd);  receiveOrNextCmd(&cmd);
 
-            /* Hacky optimization: Start reading ahead when a file is opened
-             * The read op will try to read length + CHUNK_SIZE, with a length
-             * of zero, CHUNK_SIZE will be read ahead */
-            //ps2_mmce_fs_signal_operation(MMCE_FS_READ);
+            //If fd is valid, try to read a chunk ahead preemptively
+            if (data->fd > 0) {
+                ps2_mmce_fs_signal_operation(MMCE_FS_READ_AHEAD);
+            }
 
             ps2_memory_card_set_cmd_callback(NULL); //Clear callback
             transfer_stage = 0; //Clear stage
@@ -311,8 +311,13 @@ inline __attribute__((always_inline)) void __time_critical_func(ps2_mmceman_cmd_
         case 0:
             ps2_mmce_fs_wait_ready();           //Wait for file handling to be ready
             data = ps2_mmce_fs_get_data();      //Get pointer to data
+
+            //Clear values used in this transfer
             data->bytes_transferred = 0x0;
-            
+            data->bytes_read = 0;
+            data->tail_idx = 0;
+            data->head_idx = 0;
+
             len8 = (uint8_t*)&data->length;
 
             mc_respond(0x0); receiveOrNextCmd(&cmd);         //Reserved byte
@@ -325,59 +330,67 @@ inline __attribute__((always_inline)) void __time_critical_func(ps2_mmceman_cmd_
 
             DPRINTF("%s: fd: %i, len %i\n", __func__, data->fd, data->length);
 
-            if (sd_fd_is_open(data->fd) == -1) {
+            //Check if fd is valid before continuing
+            ps2_mmce_fs_signal_operation(MMCE_FS_VALIDATE_FD);
+            ps2_mmce_fs_wait_ready();
+
+            if (data->rv == -1) {
                 DPRINTF("%s: bad fd: %i, abort\n", __func__, data->fd);
                 mc_respond(0x1);    //Return 1
                 return;             //Abort
             }
 
-            data->bytes_read = 0;
+            //If a chunk has been read ahead for this fd
+            if (data->fd == data->read_ahead.fd && data->read_ahead.valid) {
+                
+                //Mark as consumed
+                data->read_ahead.valid = 0;
 
-            //If there's data read ahead
-            if (data->bytes_read_ahead >= CHUNK_SIZE) {
-                //Reading from different file
-                if (data->fd != data->last_read_fd) {
-                    //Roll back head_idx and invalidate read ahead chunk state
-                    if (data->head_idx == 0)
-                        data->head_idx = CHUNK_READ_AHEAD_COUNT;
-                    else
-                        data->head_idx--;
+                //Correct over read with lseek
+                if (data->length < CHUNK_SIZE) {
+                    data->whence = 1;
+                    data->offset = (CHUNK_SIZE - data->length) * -1;
 
-                    data->chunk_state[data->head_idx] = CHUNK_STATE_NOT_READY; 
-                //Reading from same file
+                    //Seek back
+                    ps2_mmce_fs_signal_operation(MMCE_FS_LSEEK);
+                    ps2_mmce_fs_wait_ready();
+
+                    //Set bytes_read count to match whats been read ahead
+                    data->bytes_read = data->length;
                 } else {
-                    //Correct over read, ie if we read 256 bytes but only need 192
-                    if (data->length < CHUNK_SIZE) {
-                        seek_offset = (data->bytes_read_ahead - data->length) * -1;
-                        DPRINTF("Seeking back %i\n", seek_offset);
-                        sd_seek_new(data->fd, seek_offset, 1);
-                        data->bytes_read = data->length;
-                    } else {
-                        data->bytes_read = CHUNK_SIZE;
-                    }
+                    data->bytes_read = CHUNK_SIZE;
                 }
+                data->use_read_ahead = 1;
             }
 
-            //Start async continous read on core 1
+            //Start async continuous read on core 1
             ps2_mmce_fs_signal_operation(MMCE_FS_READ);
 
-            //Wait for first chunk to become available before ending this transfer (~2.5ms until timeout)
-            while(data->chunk_state[data->tail_idx] != CHUNK_STATE_READY) {
-                
-                DPRINTF("C0: Waiting on: %i state:%i\n", data->tail_idx, data->chunk_state[data->tail_idx]);
-                
-                //Reading ahead failed to get requested data
-                if (data->chunk_state[data->tail_idx] == CHUNK_STATE_INVALID) {
-                    DPRINTF("Failed to read chunk, got CHUNK_STATE_INVALID, aborting\n");
-                    mc_respond(0x1);    //Return 1
-                    return;             //Abort
+            //If we aren't using the read ahead buffer
+            if (data->use_read_ahead != 1) {
+                //Wait for first chunk to become available before ending this transfer (~2.5ms until timeout)
+                while(data->chunk_state[data->tail_idx] != CHUNK_STATE_READY) {
+
+                    DPRINTF("C0: Waiting on: %i state:%i\n", data->tail_idx, data->chunk_state[data->tail_idx]);
+                    
+                    //Reading ahead failed to get requested data
+                    if (data->chunk_state[data->tail_idx] == CHUNK_STATE_INVALID) {
+                        DPRINTF("Failed to read chunk, got CHUNK_STATE_INVALID, aborting\n");
+                        mc_respond(0x1);    //Return 1
+                        return;             //Abort
+                    }
+
+                    sleep_us(1);
                 }
 
-                sleep_us(1);
-            }
+                //Place the first byte of the chunk in TX FIFO on reset to ensure proper alignment
+                ps2_queue_tx_byte_on_reset(data->buffer[data->tail_idx][0]);
 
-            //Place the first byte of the chunk in TX FIFO on reset to ensure proper alignment
-            ps2_queue_tx_byte_on_reset(data->buffer[data->tail_idx][0]);
+            //We already have data ahead, no need to wait
+            } else {
+                //Place the first byte of the chunk in TX FIFO on reset to ensure proper alignment
+                ps2_queue_tx_byte_on_reset(data->read_ahead.buffer[0]);
+            }
 
             //Jump to this function after /CS triggered reset
             ps2_memory_card_set_cmd_callback(&ps2_mmceman_cmd_fs_read);
@@ -391,6 +404,7 @@ inline __attribute__((always_inline)) void __time_critical_func(ps2_mmceman_cmd_
             break;
         
         //Packet #2 - n: Raw data
+        //TODO: cleanup
         case 1:
             receiveOrNextCmd(&cmd); //Padding
 
@@ -400,16 +414,35 @@ inline __attribute__((always_inline)) void __time_critical_func(ps2_mmceman_cmd_
             if (bytes_left_in_packet >= CHUNK_SIZE)
                 bytes_left_in_packet = CHUNK_SIZE - 1; //Since 1 byte was already sent out
 
-            next_chunk = data->tail_idx + 1;
-            if (next_chunk > CHUNK_READ_AHEAD_COUNT)
-                next_chunk = 0;
+            //If we're using the read ahead buffer instead of the ring buffer, avoid incrementing tail idx for now
+            if (data->use_read_ahead == 1) {
+                next_chunk = data->tail_idx;
+            } else {
+                next_chunk = data->tail_idx + 1;
+                if (next_chunk > CHUNK_COUNT)
+                    next_chunk = 0;
+            }
 
             //If transfer was only 1 byte, skip this
             if (bytes_left_in_packet != 0) {
 
-                //Send up until the last byte
-                for (int i = 1; i < bytes_left_in_packet; i++) {
-                    mc_respond(data->buffer[data->tail_idx][i]);
+                //Using data from read ahead buffer
+                if (data->use_read_ahead == 1) {
+                    //Send up until the last byte
+                    for (int i = 1; i < bytes_left_in_packet; i++) {
+                        mc_respond(data->read_ahead.buffer[i]);
+                    }
+
+                    last_byte = data->read_ahead.buffer[bytes_left_in_packet];
+
+                //Use data from ring buffer
+                } else {
+                    //Send up until the last byte
+                    for (int i = 1; i < bytes_left_in_packet; i++) {
+                        mc_respond(data->buffer[data->tail_idx][i]);
+                    }
+
+                    last_byte = data->buffer[data->tail_idx][bytes_left_in_packet];
                 }
 
                 //Check if there's more packets after this
@@ -433,25 +466,32 @@ inline __attribute__((always_inline)) void __time_critical_func(ps2_mmceman_cmd_
                     //Place the first byte of the chunk in TX FIFO on reset to ensure proper alignment
                     ps2_queue_tx_byte_on_reset(data->buffer[next_chunk][0]);
                 }
-
-                //Grab this before updating idx and finish off the transfer
-                last_byte = data->buffer[data->tail_idx][bytes_left_in_packet];
             }
 
             //Update transferred count
             data->bytes_transferred += bytes_left_in_packet;
 
-            //Enter crit and mark chunk as consumed
-            critical_section_enter_blocking(&mmce_fs_crit);
-            data->chunk_state[data->tail_idx] = CHUNK_STATE_NOT_READY;
-            critical_section_exit(&mmce_fs_crit);
+            //Using read ahead buffer
+            if (data->use_read_ahead) {
+                data->use_read_ahead = 0;
+                data->read_ahead.valid = 0;
 
-            DPRINTF("C0: %i consumed, bytes in this packet: %i\n", data->tail_idx, (bytes_left_in_packet + 1));
+                DPRINTF("C0: read ahead consumed, bytes in this packet: %i\n", (bytes_left_in_packet + 1));
 
-            //Update tail idx
-            data->tail_idx = next_chunk;
+            //Using ring buffer 
+            } else {
+                //Enter crit and mark chunk as consumed
+                critical_section_enter_blocking(&mmce_fs_crit);
+                data->chunk_state[data->tail_idx] = CHUNK_STATE_NOT_READY;
+                critical_section_exit(&mmce_fs_crit);
 
-            //If there's no more packet's left after this, move to final transfer stage
+                DPRINTF("C0: %i consumed, bytes in this packet: %i\n", data->tail_idx, (bytes_left_in_packet + 1));
+                
+                //Update tail idx
+                data->tail_idx = next_chunk;
+            }
+
+            //If there aren't anymore packet's left after this, move to final transfer stage
             if (data->bytes_transferred == data->length)
                 transfer_stage = 2;
 
@@ -473,10 +513,7 @@ inline __attribute__((always_inline)) void __time_critical_func(ps2_mmceman_cmd_
             mc_respond(bytes8[0x0]); receiveOrNextCmd(&cmd);
 
             ps2_memory_card_set_cmd_callback(NULL);
-            
-            data->bytes_read = 0;
-            data->length = 0;
-
+        
             transfer_stage = 0;
 
             mc_respond(term);
@@ -506,7 +543,10 @@ inline __attribute__((always_inline)) void __time_critical_func(ps2_mmceman_cmd_
         case 0:
             ps2_mmce_fs_wait_ready();          //Wait for file handling to be ready
             data = ps2_mmce_fs_get_data();     //Get pointer to data
+            
             data->bytes_transferred = 0x0;
+            data->tail_idx = 0;
+            data->bytes_read = 0;
 
             len8 = (uint8_t*)&data->length;
 
@@ -520,7 +560,11 @@ inline __attribute__((always_inline)) void __time_critical_func(ps2_mmceman_cmd_
 
             DPRINTF("%s: fd: %i, len %i\n", __func__, data->fd, data->length);
 
-            if (sd_fd_is_open(data->fd) == -1) {
+            //Check if fd is valid before continuing
+            ps2_mmce_fs_signal_operation(MMCE_FS_VALIDATE_FD);
+            ps2_mmce_fs_wait_ready();
+
+            if (data->rv == -1) {
                 DPRINTF("%s: bad fd: %i, abort\n", __func__, data->fd);
                 mc_respond(0x1);    //Return 1
                 return;             //Abort
@@ -542,8 +586,6 @@ inline __attribute__((always_inline)) void __time_critical_func(ps2_mmceman_cmd_
                 if (data->bytes_transferred == data->length) {
                     transfer_stage = 3;  //Move to final transfer stage
                 } else {
-                    data->tail_idx = 0;  //Reset head and tail pointers
-                    data->head_idx = 0;
                     transfer_stage = 2;  //More data to write
                 }
             }
@@ -585,14 +627,20 @@ inline __attribute__((always_inline)) void __time_critical_func(ps2_mmceman_cmd_
 
                 //Start write to sdcard
                 ps2_mmce_fs_signal_operation(MMCE_FS_WRITE);
+
+                //Reset tail idx
+                data->tail_idx = 0;
+            
+            //More data needed before performing actual write to sdcard
+            } else {
+                //Update chunk
+                next_chunk = data->tail_idx + 1;
+                if (next_chunk > CHUNK_COUNT)
+                    next_chunk = 0;
+
+                data->tail_idx = next_chunk;
             }
 
-            //Update chunk
-            next_chunk = data->tail_idx + 1;
-            if (next_chunk > CHUNK_READ_AHEAD_COUNT)
-                next_chunk = 0;
-
-            data->tail_idx = next_chunk;
         break;
 
         //Packet n + 2: Bytes written
@@ -601,6 +649,7 @@ inline __attribute__((always_inline)) void __time_critical_func(ps2_mmceman_cmd_
 
             receiveOrNextCmd(&cmd); //Padding
 
+            //TODO: Return sum of rv from sd_write instead of bytes transferred
             mc_respond(bytes8[0x3]); receiveOrNextCmd(&cmd);
             mc_respond(bytes8[0x2]); receiveOrNextCmd(&cmd);
             mc_respond(bytes8[0x1]); receiveOrNextCmd(&cmd);
@@ -641,10 +690,14 @@ inline __attribute__((always_inline)) void __time_critical_func(ps2_mmceman_cmd_
 
             DPRINTF("%s: fd: %i, offset: %i, whence: %i\n", __func__, data->fd, data->offset, data->whence);
 
-            if (sd_fd_is_open(data->fd) != 0) {
+            //Check if fd is valid before continuing
+            ps2_mmce_fs_signal_operation(MMCE_FS_VALIDATE_FD);
+            ps2_mmce_fs_wait_ready();
+
+            if (data->rv == -1) {
                 DPRINTF("%s: bad fd: %i, abort\n", __func__, data->fd);
-                mc_respond(0x1);
-                return; //Abort
+                mc_respond(0x1);    //Return 1
+                return;             //Abort
             }
 
             ps2_mmce_fs_signal_operation(MMCE_FS_LSEEK);
@@ -653,7 +706,7 @@ inline __attribute__((always_inline)) void __time_critical_func(ps2_mmceman_cmd_
 
             mc_respond(0x0);
         break;
-        
+
         //Packet #2 - n: Poll ready
         case 1:
             receiveOrNextCmd(&cmd);
@@ -664,7 +717,7 @@ inline __attribute__((always_inline)) void __time_critical_func(ps2_mmceman_cmd_
             DPRINTF("ready: %i\n", ready);
             mc_respond(ready);
         break;
-        
+
         //Packet #n + 1: Position
         case 2:
             receiveOrNextCmd(&cmd);

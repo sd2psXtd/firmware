@@ -15,7 +15,6 @@
 #define MMCE_FS_OPEN 0x1
 #define MMCE_FS_CLOSE 0x2
 #define MMCE_FS_READ 0x3
-#define MMCE_FS_READ_AHEAD 0x33
 #define MMCE_FS_WRITE 0x4
 #define MMCE_FS_LSEEK 0x5
 #define MMCE_FS_IOCTL 0x6
@@ -25,21 +24,28 @@
 #define MMCE_FS_DOPEN 0xA
 #define MMCE_FS_DCLOSE 0xB
 #define MMCE_FS_DREAD 0xC
-#define MMCE_FS_GETSTAT 0xD
+#define MMCE_FS_VALIDATE_FD 0xD
+#define MMCE_FS_READ_AHEAD 0xE
 
 #define CHUNK_SIZE 256
-#define CHUNK_READ_AHEAD_COUNT 15
+#define CHUNK_COUNT 15
 
 #define CHUNK_STATE_NOT_READY 0x0
 #define CHUNK_STATE_READY 0x1
 #define CHUNK_STATE_INVALID 0x2
+
+//Single chunk read ahead on open, lseek, and after read
+typedef struct ps2_mmce_fs_read_ahead_t {
+    int fd;
+    int valid;
+    uint8_t buffer[CHUNK_SIZE];
+} ps2_mmce_fs_read_ahead_t;
 
 typedef struct ps2_mmce_fs_data_t {
     int rv;
     int fd;
     int flags;          //file flags
     int it_fd;          //iterater dir
-    int last_read_fd;   //last fd read from
 
     uint32_t filesize;
 
@@ -48,15 +54,17 @@ typedef struct ps2_mmce_fs_data_t {
     uint32_t position;
 
     uint32_t length;            //length of transfer, read only
-    uint32_t bytes_read;        //stop reading ahead when == length + CHUNK_SIZE OR if length + CHUNK_SIZE > file size
+    uint32_t bytes_read;        //stop reading when == length 
     uint32_t bytes_transferred; //stop sending when == length
-    int      bytes_read_ahead;  //how many bytes passed length have been read, used to correct over reading
 
-    uint8_t tail_idx;           //read
-    uint8_t head_idx;           //read ahead, head idx
-    
-    uint8_t buffer[CHUNK_READ_AHEAD_COUNT + 1][CHUNK_SIZE];
-    volatile uint8_t chunk_state[CHUNK_READ_AHEAD_COUNT + 1]; //written to by both cores, writes encased in critical section
+    uint8_t tail_idx;           //read ring tail idx
+    uint8_t head_idx;           //read ring head idx
+
+    uint8_t buffer[CHUNK_COUNT + 1][CHUNK_SIZE];
+    volatile uint8_t chunk_state[CHUNK_COUNT + 1]; //written to by both cores, writes encased in critical section
+
+    int use_read_ahead;
+    ps2_mmce_fs_read_ahead_t read_ahead;
 
     ps2_fileio_stat_t fileio_stat;
 } ps2_mmce_fs_data_t;
