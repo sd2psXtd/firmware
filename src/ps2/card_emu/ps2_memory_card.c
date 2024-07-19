@@ -1,6 +1,8 @@
 #include "../ps2_dirty.h"
-#include "../ps2_exploit.h"
-#include "../ps2_psram.h"
+#include "hardware/pio.h"
+#include "history_tracker/ps2_history_tracker.h"
+#include "ps2_cardman.h"
+#include "psram/psram.h"
 #include "debug.h"
 #include "hardware/gpio.h"
 #include "hardware/timer.h"
@@ -12,6 +14,7 @@
 #include "ps2_mc_internal.h"
 #include "ps2_mc_spi.pio.h"
 
+#include <settings.h>
 #include <stdbool.h>
 #include <stdint.h>
 #include <stdio.h>
@@ -23,8 +26,6 @@
 uint64_t us_startup;
 
 volatile int reset;
-
-bool flash_mode = false;
 
 typedef struct {
     uint32_t offset;
@@ -44,23 +45,6 @@ void __time_critical_func(ps2_queue_tx_byte_on_reset)(uint8_t byte)
 {
     reset_place_tx_byte = 1;
     reset_tx_byte = byte;
-}
-
-void __time_critical_func(read_mc)(uint32_t addr, void *buf, size_t sz) {
-    if (flash_mode) {
-        ps2_exploit_read(addr, buf, sz);
-        ps2_dirty_unlock();
-    } else {
-        psram_read_dma(addr, buf, sz);
-    }
-}
-
-inline void __time_critical_func(write_mc)(uint32_t addr, void *buf, size_t sz) {
-    if (!flash_mode) {
-        psram_write(addr, buf, sz);
-    } else {
-        ps2_dirty_unlock();
-    }
 }
 
 static inline void __time_critical_func(RAM_pio_sm_drain_tx_fifo)(PIO pio, uint sm) {
@@ -265,7 +249,7 @@ static void __time_critical_func(mc_main_loop)(void) {
                     break;
                 case PS2_SIO2_CMD_SESSION_KEY_0:
                 case PS2_SIO2_CMD_SESSION_KEY_1: ps2_mc_sessionKeyEncr(); break;
-                default: debug_printf("Unknown Subcommand: %02x\n", cmd); break;
+                default: DPRINTF("Unknown Subcommand: %02x\n", cmd); break;
             }
         } else if (cmd == PS2_SD2PSXMAN_CMD_IDENTIFIER) {
             /* resp to 0x8B */
@@ -274,7 +258,7 @@ static void __time_critical_func(mc_main_loop)(void) {
             /* sub cmd */
             receiveOrNextCmd(&cmd);
 
-            //debug_printf("RCVCMD %d\n", cmd);
+            //DPRINTF("RCVCMD %d\n", cmd);
 
             switch (cmd)
             {
@@ -299,12 +283,15 @@ static void __time_critical_func(mc_main_loop)(void) {
                 case MMCEMAN_CMD_FS_DOPEN: ps2_mmceman_cmd_fs_dopen(); break;
                 case MMCEMAN_CMD_FS_DCLOSE: ps2_mmceman_cmd_fs_dclose(); break;
                 case MMCEMAN_CMD_FS_DREAD: ps2_mmceman_cmd_fs_dread(); break;
-                default: debug_printf("Unknown Subcommand: %02x\n", cmd); break;
+                default: DPRINTF("Unknown Subcommand: %02x\n", cmd); break;
             }
+        } else if (cmd == PS1_SIO2_CMD_IDENTIFIER) {
+            settings_set_mode(MODE_TEMP_PS1);
+            continue;;
         } else {
             // not for us
             continue;
-        }
+        } 
     }
 }
 
@@ -312,6 +299,7 @@ static void __no_inline_not_in_flash_func(mc_main)(void) {
     while (1) {
         while (!mc_enter_request) {}
         mc_enter_response = 1;
+        ps2_history_tracker_card_changed();
         
         reset_pio();
         mc_main_loop();
@@ -371,7 +359,7 @@ void ps2_memory_card_main(void) {
     generateIvSeedNonce();
 
     us_startup = time_us_64();
-    debug_printf("Secondary core!\n");
+    DPRINTF("Secondary core!\n");
 
     my_gpio_set_irq_enabled_with_callback(PIN_PSX_SEL, GPIO_IRQ_EDGE_RISE, 1, card_deselected);
 
@@ -393,26 +381,24 @@ void ps2_memory_card_exit(void) {
 }
 
 void ps2_memory_card_enter(void) {
-    if (flash_mode) {
-        ps2_memory_card_exit();
-    } else if (memcard_running)
+    if (memcard_running)
         return;
 
     mc_enter_request = 1;
     while (!mc_enter_response) {}
     mc_enter_request = mc_enter_response = 0;
     memcard_running = 1;
-    flash_mode = false;
-}
-
-void ps2_memory_card_enter_flash(void) {
-    mc_enter_request = 1;
-    while (!mc_enter_response) {}
-    mc_enter_request = mc_enter_response = 0;
-    memcard_running = 1;
-    flash_mode = true;
 }
 
 void ps2_memory_card_set_cmd_callback(void (*cb)(void)) {
     mc_callback = cb;
+}
+
+void ps2_memory_card_unload(void) {
+    pio_remove_program(pio0, &cmd_reader_program, cmd_reader.offset);
+    pio_sm_unclaim(pio0, cmd_reader.sm);
+    pio_remove_program(pio0, &dat_writer_program, dat_writer.offset);
+    pio_sm_unclaim(pio0, dat_writer.sm);
+    pio_remove_program(pio0, &clock_probe_program, clock_probe.offset);
+    pio_sm_unclaim(pio0, clock_probe.sm);
 }

@@ -16,10 +16,10 @@ add_compile_definitions(PICO_FLASH_SIZE_BYTES=16777216)
 
 add_subdirectory(database)
 add_subdirectory(misc)
-add_subdirectory(ps2boot)
 add_subdirectory(src/version)
 add_subdirectory(src/ps2)
 add_subdirectory(src/ps1)
+add_subdirectory(src/psram)
 add_subdirectory(ext/)
 
 # SD2PSX Main Lib
@@ -27,7 +27,7 @@ add_subdirectory(ext/)
 add_executable(sd2psx
     src/main.c
 
-    src/game_names/game_names.c
+    src/game_db/game_db.c
     src/wear_leveling/wear_leveling.c
     src/wear_leveling/wear_leveling_rp2040_flash.c
 
@@ -52,7 +52,6 @@ target_link_libraries(sd2psx
         hardware_i2c
         hardware_flash
         gamedb
-        ps2boot
         ps2_history_icons
         sd2psx_version
         sd2psx_common
@@ -61,7 +60,7 @@ target_link_libraries(sd2psx
         sd_fat
 )
 
-add_dependencies(sd2psx gamedb ps2boot)
+add_dependencies(sd2psx gamedb)
 set_target_properties(sd2psx PROPERTIES PICO_TARGET_LINKER_SCRIPT ${CMAKE_SOURCE_DIR}/memmap_custom.ld)
 
 # Common Lib
@@ -106,7 +105,14 @@ pico_add_extra_outputs(sd2psx)
 
 option(DEBUG_USB_UART "Activate UART over USB for debugging" OFF)
 
+
 if(DEBUG_USB_UART)
-    target_compile_definitions(sd2psx_common PUBLIC -DDEBUG_USB_UART)
-    pico_enable_stdio_usb(sd2psx ON)
+    set(DEBUG_STARTUP_DELAY 0 CACHE STRING "Startup Delay for Debug Output")
+    if (NOT ${DEBUG_STARTUP_DELAY} MATCHES "[0-9]+")
+        message(FATAL_ERROR "Misconfigured Debug Startup Delay: ${DEBUG_STARTUP_DELAY}")
+    endif()
+    target_compile_definitions(sd2psx_common PUBLIC -DDEBUG_USB_UART -DMMCE_DEBUG -DSTARTUP_DELAY=${DEBUG_STARTUP_DELAY})
+    pico_enable_stdio_usb(sd2psx 1)
+else()
+    pico_enable_stdio_usb(sd2psx 0)
 endif()

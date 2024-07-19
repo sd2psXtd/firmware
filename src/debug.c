@@ -24,7 +24,7 @@ char debug_get(void) {
     return ret;
 }
 
-void __time_critical_func(debug_printf)(const char *format, ...) {
+void __time_critical_func(buffered_printf)(const char *format, ...) {
     char buf[128];
 
     va_list args;

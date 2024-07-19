@@ -4,6 +4,7 @@
 #include <string.h>
 
 #include "debug.h"
+#include "pico/multicore.h"
 #include "wear_leveling/wear_leveling.h"
 
 /* NOTE: for any change to the layout/size of this structure (that gets shipped to users),
@@ -18,21 +19,31 @@ typedef struct {
     // TODO: more ps1 settings: model for freepsxboot
     uint8_t ps2_flags; // TODO: single bit options: autoboot
     uint8_t sys_flags; // TODO: single bit options: whether ps1 or ps2 mode, etc
-    uint8_t unused[3];
-    // TODO: display settings?
+    uint8_t display_timeout; // display - auto off, in seconds, 0 - off
+    uint8_t display_contrast; // display - contrast, 0-255
+    uint8_t display_vcomh; // display - vcomh, valid values are 0x00, 0x20, 0x30 and 0x40
     // TODO: how do we store last used channel for cards that use autodetecting w/ gameid?
 } settings_t;
 
-#define SETTINGS_VERSION_MAGIC (0xABCD0002)
-#define SETTINGS_FLAGS_AUTOBOOT (0b1)
+#define SETTINGS_VERSION_MAGIC (0xAACD0003)
+#define SETTINGS_PS1_FLAGS_AUTOBOOT (0b0000001)
+#define SETTINGS_PS1_FLAGS_GAME_ID  (0b0000010)
+#define SETTINGS_PS2_FLAGS_AUTOBOOT (0b0000001)
+#define SETTINGS_PS2_FLAGS_GAME_ID  (0b0000010)
 
 _Static_assert(sizeof(settings_t) == 16, "unexpected padding in the settings structure");
 
 static settings_t settings;
+static int tempmode;
 
 static void settings_reset(void) {
     memset(&settings, 0, sizeof(settings));
     settings.version_magic = SETTINGS_VERSION_MAGIC;
+    settings.display_timeout = 0; // off
+    settings.display_contrast = 255; // 100%
+    settings.display_vcomh = 0x30; // 0.83 x VCC
+    settings.ps1_flags = SETTINGS_PS1_FLAGS_GAME_ID;
+    settings.ps2_flags = SETTINGS_PS2_FLAGS_GAME_ID;
     if (wear_leveling_write(0, &settings, sizeof(settings)) == WEAR_LEVELING_FAILED)
         fatal("failed to reset settings");
 }
@@ -48,6 +59,7 @@ void settings_init(void) {
     }
 
     wear_leveling_read(0, &settings, sizeof(settings));
+    tempmode = settings.sys_flags & 1;
     if (settings.version_magic != SETTINGS_VERSION_MAGIC) {
         printf("version magic mismatch, reset settings\n");
         settings_reset();
@@ -59,7 +71,9 @@ void settings_update(void) {
 }
 
 void settings_update_part(void *settings_ptr, uint32_t sz) {
+    multicore_lockout_start_blocking();
     wear_leveling_write((uint8_t*)settings_ptr - (uint8_t*)&settings, settings_ptr, sz);
+    multicore_lockout_end_blocking();
 }
 
 #define SETTINGS_UPDATE_FIELD(field) settings_update_part(&settings.field, sizeof(settings.field))
@@ -117,11 +131,18 @@ void settings_set_ps1_channel(int chan) {
 }
 
 int settings_get_mode(void) {
-    return settings.sys_flags & 1;
+    if ((settings.sys_flags & 1) != tempmode)
+        return MODE_PS1;
+    else
+        return settings.sys_flags & 1;
 }
 
 void settings_set_mode(int mode) {
-    if (mode != MODE_PS1 && mode != MODE_PS2)
+    if (mode == MODE_TEMP_PS1) {
+        tempmode = MODE_TEMP_PS1;
+        DPRINTF("Setting PS1 Tempmode\n");
+        return;
+    } else if (mode != MODE_PS1 && mode != MODE_PS2)
         return;
 
     if (mode != settings_get_mode()) {
@@ -132,12 +153,69 @@ void settings_set_mode(int mode) {
     }
 }
 
+bool settings_get_ps1_autoboot(void) {
+    return (settings.ps1_flags & SETTINGS_PS1_FLAGS_AUTOBOOT);
+}
+
+void settings_set_ps1_autoboot(bool autoboot) {
+    if (autoboot != settings_get_ps1_autoboot())
+        settings.ps1_flags ^= SETTINGS_PS1_FLAGS_AUTOBOOT;
+    SETTINGS_UPDATE_FIELD(ps1_flags);
+}
+
+bool settings_get_ps1_game_id(void) {
+    return (settings.ps1_flags & SETTINGS_PS1_FLAGS_GAME_ID);
+}
+
+void settings_set_ps1_game_id(bool enabled) {
+    if (enabled != settings_get_ps1_game_id())
+        settings.ps1_flags ^= SETTINGS_PS1_FLAGS_GAME_ID;
+    SETTINGS_UPDATE_FIELD(ps1_flags);
+}
+
 bool settings_get_ps2_autoboot(void) {
-    return (settings.ps2_flags & SETTINGS_FLAGS_AUTOBOOT);
+    return (settings.ps2_flags & SETTINGS_PS2_FLAGS_AUTOBOOT);
 }
 
 void settings_set_ps2_autoboot(bool autoboot) {
     if (autoboot != settings_get_ps2_autoboot())
-        settings.ps2_flags ^= SETTINGS_FLAGS_AUTOBOOT;
+        settings.ps2_flags ^= SETTINGS_PS2_FLAGS_AUTOBOOT;
     SETTINGS_UPDATE_FIELD(ps2_flags);
+}
+
+bool settings_get_ps2_game_id(void) {
+    return (settings.ps2_flags & SETTINGS_PS2_FLAGS_GAME_ID);
+}
+
+void settings_set_ps2_game_id(bool enabled) {
+    if (enabled != settings_get_ps2_game_id())
+        settings.ps2_flags ^= SETTINGS_PS2_FLAGS_GAME_ID;
+    SETTINGS_UPDATE_FIELD(ps2_flags);
+}
+
+uint8_t settings_get_display_timeout() {
+    return settings.display_timeout;
+}
+
+uint8_t settings_get_display_contrast() {
+    return settings.display_contrast;
+}
+
+uint8_t settings_get_display_vcomh() {
+    return settings.display_vcomh;
+}
+
+void settings_set_display_timeout(uint8_t display_timeout) {
+    settings.display_timeout = display_timeout;
+    SETTINGS_UPDATE_FIELD(display_timeout);
+}
+
+void settings_set_display_contrast(uint8_t display_contrast) {
+    settings.display_contrast = display_contrast;
+    SETTINGS_UPDATE_FIELD(display_contrast);
+}
+
+void settings_set_display_vcomh(uint8_t display_vcomh) {
+    settings.display_vcomh = display_vcomh;
+    SETTINGS_UPDATE_FIELD(display_vcomh);
 }

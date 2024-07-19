@@ -1,6 +1,3 @@
-[submodule "ext/pico-ssd1306"]
-	path = ext/pico-ssd1306
-	url = https://github.com/daschr/pico-ssd1306.git
 [submodule "ext/pico-sdk"]
 	path = ext/pico-sdk
 	url = https://github.com/raspberrypi/pico-sdk.git

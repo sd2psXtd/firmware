@@ -9,14 +9,12 @@ add_library(ps2_card STATIC
                 ${CMAKE_CURRENT_SOURCE_DIR}/mmce_fs/ps2_mmce_fs.c
                 ${CMAKE_CURRENT_SOURCE_DIR}/ps2_dirty.c
                 ${CMAKE_CURRENT_SOURCE_DIR}/ps2_cardman.c
-                ${CMAKE_CURRENT_SOURCE_DIR}/ps2_pio_qspi.c
-                ${CMAKE_CURRENT_SOURCE_DIR}/ps2_psram.c
-                ${CMAKE_CURRENT_SOURCE_DIR}/ps2_exploit.c
             )
 
 target_include_directories(ps2_card
                             PUBLIC
-                                ${CMAKE_CURRENT_SOURCE_DIR})
+                                ${CMAKE_CURRENT_SOURCE_DIR}
+)
 
 target_link_libraries(ps2_card PRIVATE 
             sd2psx_common
@@ -26,8 +24,9 @@ target_link_libraries(ps2_card PRIVATE
             hardware_pio
             hardware_flash
             hardware_dma
-            mcfat)
+            mcfat
+            psram)
 
 
 pico_generate_pio_header(ps2_card ${CMAKE_CURRENT_LIST_DIR}/card_emu/ps2_mc_spi.pio)
-pico_generate_pio_header(ps2_card ${CMAKE_CURRENT_LIST_DIR}/ps2_qspi.pio)
+pico_generate_pio_header(ps2_card ${CMAKE_CURRENT_LIST_DIR}/../psram/qspi.pio)

@@ -1,18 +1,18 @@
 #include "hardware/gpio.h"
+#include "hardware/pio.h"
 #include "hardware/timer.h"
 #include "pico/platform.h"
+#include "pico/multicore.h"
 #include "string.h"
 #include <stdint.h>
 
 #include "config.h"
 #include "ps1_mc_spi.pio.h"
 #include "debug.h"
-#include "bigmem.h"
+#include <psram/psram.h>
 #include "ps1_dirty.h"
 #include "ps1/ps1_memory_card.h"
-#include "game_names/game_names.h"
-
-#define card_image bigmem.ps1.card_image
+#include "game_db/game_db.h"
 
 static uint64_t us_startup;
 
@@ -20,6 +20,7 @@ static size_t byte_count;
 static volatile int reset;
 static int ignore;
 static uint8_t flag;
+static bool dma_in_progress = false;
 
 static size_t game_id_length;
 static char received_game_id[0x10];
@@ -86,6 +87,11 @@ static uint8_t __time_critical_func(recv_cmd)(void) {
     return (uint8_t) (pio_sm_get(pio0, cmd_reader.sm) >> 24);
 }
 
+static void __time_critical_func(psram_dma_rx_done)() {
+    dma_in_progress = false;
+    ps1_dirty_unlock();
+}
+
 static int __time_critical_func(mc_do_state)(uint8_t ch) {
     static uint8_t payload[256];
     if (byte_count >= sizeof(payload))
@@ -116,8 +122,10 @@ static int __time_critical_func(mc_do_state)(uint8_t ch) {
             /* Memory card read */
             #define MSB (payload[4])
             #define LSB (payload[5])
-            #define OFF ((MSB * 256 + LSB) * 128 + byte_count - 10)
+            #define ADDR ((MSB * 256 + LSB) * 128)
+            #define OFF (byte_count - 10)
 
+            static uint8_t buffer[128];
             static uint8_t chk;
 
             switch (byte_count) {
@@ -128,20 +136,32 @@ static int __time_critical_func(mc_do_state)(uint8_t ch) {
                 case 6: return 0x5C;
                 case 7: return 0x5D;
                 case 8: return MSB;
-                case 9: chk = MSB ^ LSB; return LSB;
-                case 10 ... 137: chk ^= card_image[OFF]; return card_image[OFF];
+                case 9:
+                    chk = MSB ^ LSB;
+                    ps1_dirty_lock();
+                    dma_in_progress = true;
+                    psram_read_dma(ADDR, buffer, 128, psram_dma_rx_done);
+                    return LSB;
+                case 10 ... 137: {
+                    while (dma_in_progress && psram_read_dma_remaining() >= (128 - OFF)) {} // wait for requested byte to be DMA'd
+                    chk ^= buffer[OFF];
+                    return buffer[OFF];
+                }
                 case 138: return chk;
                 case 139: return 0x47;
             }
 
             #undef MSB
             #undef LSB
+            #undef ADDR
             #undef OFF
         } else if (cmd == 'W') {
             /* Memory card write */
             #define MSB (payload[4])
             #define LSB (payload[5])
-            #define OFF ((MSB * 256 + LSB) * 128 + byte_count - 7)
+            #define ADDR ((MSB * 256 + LSB) * 128 + byte_count - 7)
+
+            static uint8_t chk;
 
             switch (byte_count) {
                 case 2: flag = 0; return 0x5A;
@@ -149,18 +169,29 @@ static int __time_critical_func(mc_do_state)(uint8_t ch) {
                 case 4: return 0x00;
                 case 5: return MSB;
                 case 6: return LSB;
-                case 7 ... 134: card_image[OFF] = payload[byte_count - 1]; return payload[byte_count - 1];
-                case 135: return 0x5C; // TODO: handle wr checksum
+                case 7: chk = MSB ^ LSB; // fallthrough
+                case 8 ... 134: {
+                    ps1_dirty_lock();
+                    psram_write_dma(ADDR, &payload[byte_count - 1], 1, NULL);
+                    psram_wait_for_dma();
+                    ps1_dirty_unlock();
+                    chk ^= payload[byte_count - 1];
+                    return payload[byte_count - 1];
+                }
+                case 135: return 0x5C;
                 case 136: return 0x5D;
                 case 137: {
-                    ps1_dirty_mark(MSB * 256 + LSB);
-                    return 0x47;
+                    if (chk == payload[byte_count - 3]) {
+                        ps1_dirty_mark(MSB * 256 + LSB);
+                        return 0x47;
+                    } else
+                        return 0x4E;
                 }
-            } 
+            }
 
             #undef MSB
             #undef LSB
-            #undef OFF
+            #undef ADDR
         }
         // Memcard Pro Commands after this line
         // See https://gitlab.com/chriz2600/ps1-game-id-transmission
@@ -174,11 +205,10 @@ static int __time_critical_func(mc_do_state)(uint8_t ch) {
         } else if (cmd == 0x21) { // MCP Game ID
             if (byte_count == game_id_length + 4)
             {
-                game_names_extract_title_id(&payload[4], received_game_id, game_id_length, sizeof(received_game_id));
-                if (game_names_sanity_check_title_id(received_game_id))
-                    mc_pro_command = MCP_GAME_ID;
-                else
+                game_db_extract_title_id(&payload[4], received_game_id, game_id_length, sizeof(received_game_id));
+                if (!game_db_sanity_check_title_id(received_game_id))
                     memset(received_game_id, 0, sizeof(received_game_id));
+                mc_pro_command = MCP_GAME_ID;
             }
             switch (byte_count) {
                 case 2: memset(received_game_id, 0, sizeof(received_game_id)); return 0x00;
@@ -217,7 +247,7 @@ static int __time_critical_func(mc_do_state)(uint8_t ch) {
                 case 5: mc_pro_command = MCP_NXT_CARD; return 0xFF; 
             }
         } else {
-            debug_printf("Received unknown command: %u", ch);
+            DPRINTF("Received unknown command: %u\n", ch);
         }
     }
 
@@ -252,7 +282,7 @@ static void __time_critical_func(mc_main_loop)(void) {
         if (next == -1)
             ignore = 1;
         else {
-            // debug_printf("R %02X -> %02X\n", ch, next);
+            // DPRINTF("R %02X -> %02X\n", ch, next);
             mc_respond(next);
         }
     }
@@ -316,13 +346,18 @@ static void my_gpio_set_irq_enabled_with_callback(uint gpio, uint32_t events, bo
     if (enabled) irq_set_enabled(IO_IRQ_BANK0, true);
 }
 
-void ps1_memory_card_main(void) {
+void ps1_memory_card_main(void) {    
+    multicore_lockout_victim_init();
+
     init_pio();
 
     us_startup = time_us_64();
-    debug_printf("Secondary core!\n");
+    DPRINTF("Secondary core!\n");
 
     my_gpio_set_irq_enabled_with_callback(PIN_PSX_SEL, GPIO_IRQ_EDGE_RISE, 1, card_deselected);
+
+    gpio_set_slew_rate(PIN_PSX_DAT, GPIO_SLEW_RATE_SLOW);
+    gpio_set_drive_strength(PIN_PSX_DAT, GPIO_DRIVE_STRENGTH_4MA);
 
     mc_main();
 }
@@ -362,4 +397,11 @@ uint8_t ps1_memory_card_get_ode_command(void) {
 
 const char* ps1_memory_card_get_game_id(void) {
     return received_game_id;
+}
+
+void ps1_memory_card_unload(void) {
+    pio_remove_program(pio0, &cmd_reader_program, cmd_reader.offset);
+    pio_sm_unclaim(pio0, cmd_reader.sm);
+    pio_remove_program(pio0, &dat_writer_program, dat_writer.offset);
+    pio_sm_unclaim(pio0, dat_writer.sm);
 }

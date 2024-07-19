@@ -13,6 +13,8 @@ target_link_libraries(ps1_card
                             sd2psx_common 
                             pico_platform_headers 
                             pico_stdlib 
-                            hardware_pio)
+                            pico_multicore
+                            hardware_pio
+                            psram)
 
 pico_generate_pio_header(ps1_card ${CMAKE_CURRENT_LIST_DIR}/ps1_mc_spi.pio)

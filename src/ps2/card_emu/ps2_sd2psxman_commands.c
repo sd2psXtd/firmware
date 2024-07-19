@@ -9,7 +9,7 @@
 #include "ps2_sd2psxman.h"
 #include "ps2_sd2psxman_commands.h"
 
-#include "game_names/game_names.h"
+#include "game_db/game_db.h"
 
 #include "debug.h"
 
@@ -18,8 +18,8 @@
 
 #include "mmce_fs/ps2_mmce_fs.h"
 
-#define DPRINTF(fmt, x...) printf(fmt, ##x)
-//#define DPRINTF(x...) 
+//#define DPRINTF(fmt, x...) printf(fmt, ##x)
+#define DPRINTF(x...) 
 
 //TODO: temp global values, find them a home
 static int transfer_stage = 0;
@@ -153,10 +153,9 @@ inline __attribute__((always_inline)) void __time_critical_func(ps2_sd2psxman_cm
 
     mc_respond(term);
 
-    game_names_extract_title_id(received_id, sanitized_game_id, gameid_len, sizeof(sanitized_game_id));
-    if (game_names_sanity_check_title_id(sanitized_game_id)) {
+    game_db_extract_title_id(received_id, sanitized_game_id, gameid_len, sizeof(sanitized_game_id));
+    if (game_db_sanity_check_title_id(sanitized_game_id)) {
         ps2_sd2psxman_set_gameid(sanitized_game_id);
-        sd2psxman_cmd = SD2PSXMAN_SET_GAMEID;
     }
 
 #ifdef DEBUG_SD2PSXMAN_PROTOCOL
@@ -213,7 +212,7 @@ inline __attribute__((always_inline)) void __time_critical_func(ps2_mmceman_cmd_
                 data->buffer[0][idx++] = cmd;
             } while (cmd != 0x0);
 
-            DPRINTF("%s: name: %s flags: 0x%x\n", __func__, data->buffer, data->flags);
+            QPRINTF("%s: name: %s flags: 0x%x\n", __func__, data->buffer, data->flags);
             
             //Signal op in core1 (ps2_mmce_fs_run)
             ps2_mmce_fs_signal_operation(MMCE_FS_OPEN); 
@@ -305,6 +304,8 @@ inline __attribute__((always_inline)) void __time_critical_func(ps2_mmceman_cmd_
     uint32_t bytes_left_in_packet;
 
     int seek_offset;
+
+    QPRINTF("%s called in Stage %d \n", __func__, transfer_stage);
 
     switch(transfer_stage) {
         //Packet #1: File handle, length, and return value

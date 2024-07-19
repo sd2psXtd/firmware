@@ -4,8 +4,8 @@
 #include "ps1_cardman.h"
 #include "ps1_odeman.h"
 #include "debug.h"
+#include "game_db/game_db.h"
 
-#include <game_names/game_names.h>
 #include <gui.h>
 #include <string.h>
 
@@ -24,28 +24,29 @@ void ps1_odeman_task(void) {
             case MCP_GAME_ID: {
                 const char *game_id;
                 game_id = ps1_memory_card_get_game_id();
-                debug_printf("Received Game ID: %s\n", game_id);
-                ps1_cardman_set_ode_idx(game_id);
+                DPRINTF("Received Game ID: %s\n", game_id);
+                game_db_update_game(game_id);
+                ps1_cardman_set_ode_idx();
                 break;
             }
             case MCP_NXT_CARD:
-                debug_printf("Received next card.\n");
+                DPRINTF("Received next card.\n");
                 ps1_cardman_next_idx();
                 break;
             case MCP_PRV_CARD:
-                debug_printf("Received prev card.\n");
+                DPRINTF("Received prev card.\n");
                 ps1_cardman_prev_idx();
                 break;
             case MCP_NXT_CH:
-                debug_printf("Received next chan.\n");
+                DPRINTF("Received next chan.\n");
                 ps1_cardman_next_channel();
                 break;
             case MCP_PRV_CH:
-                debug_printf("Received prev chan.\n");
+                DPRINTF("Received prev chan.\n");
                 ps1_cardman_prev_channel();
                 break;
             default:
-                debug_printf("Invalid ODE Command received.");
+                DPRINTF("Invalid ODE Command received.");
                 break;
         }
 

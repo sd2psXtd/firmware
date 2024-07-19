@@ -93,7 +93,7 @@ inline __attribute__((always_inline)) void __time_critical_func(ps2_mc_auth_prob
 
 inline __attribute__((always_inline)) void __time_critical_func(ps2_mc_auth_getIv)(void) {
     uint8_t _;
-    debug_printf("iv : %02X %02X %02X %02X %02X %02X %02X %02X\n", ARG8(iv));
+    DPRINTF("iv : %02X %02X %02X %02X %02X %02X %02X %02X\n", ARG8(iv));
 
     /* get IV */
     mc_respond(0x2B);
@@ -121,7 +121,7 @@ inline __attribute__((always_inline)) void __time_critical_func(ps2_mc_auth_getI
 
 inline __attribute__((always_inline)) void __time_critical_func(ps2_mc_auth_getSeed)(void) {
     uint8_t _;
-    debug_printf("seed : %02X %02X %02X %02X %02X %02X %02X %02X\n", ARG8(seed));
+    DPRINTF("seed : %02X %02X %02X %02X %02X %02X %02X %02X\n", ARG8(seed));
 
     /* get seed */
     mc_respond(0x2B);
@@ -157,7 +157,7 @@ inline __attribute__((always_inline)) void __time_critical_func(ps2_mc_auth_dumm
 
 inline __attribute__((always_inline)) void __time_critical_func(ps2_mc_auth_getNonce)(void) {
     uint8_t _;
-    debug_printf("nonce : %02X %02X %02X %02X %02X %02X %02X %02X\n", ARG8(nonce));
+    DPRINTF("nonce : %02X %02X %02X %02X %02X %02X %02X %02X\n", ARG8(nonce));
 
     /* get nonce */
     mc_respond(0x2B);
@@ -217,7 +217,7 @@ inline __attribute__((always_inline)) void __time_critical_func(ps2_mc_auth_mech
     receiveOrNextCmd(&_);
     mc_respond(term);
 
-    debug_printf("MechaChallenge3 : %02X %02X %02X %02X %02X %02X %02X %02X\n", ARG8(MechaChallenge3));
+    DPRINTF("MechaChallenge3 : %02X %02X %02X %02X %02X %02X %02X %02X\n", ARG8(MechaChallenge3));
 }
 
 inline __attribute__((always_inline)) void __time_critical_func(ps2_mc_auth_mechaChallenge2)(void) {
@@ -246,7 +246,7 @@ inline __attribute__((always_inline)) void __time_critical_func(ps2_mc_auth_mech
     receiveOrNextCmd(&_);
     mc_respond(term);
 
-    debug_printf("MechaChallenge2 : %02X %02X %02X %02X %02X %02X %02X %02X\n", ARG8(MechaChallenge2));
+    DPRINTF("MechaChallenge2 : %02X %02X %02X %02X %02X %02X %02X %02X\n", ARG8(MechaChallenge2));
 }
 
 inline __attribute__((always_inline)) void __time_critical_func(ps2_mc_auth_dummy8)(void) {
@@ -299,7 +299,7 @@ inline __attribute__((always_inline)) void __time_critical_func(ps2_mc_auth_mech
     receiveOrNextCmd(&_);
     mc_respond(term);
 
-    debug_printf("MechaChallenge1 : %02X %02X %02X %02X %02X %02X %02X %02X\n", ARG8(MechaChallenge1));
+    DPRINTF("MechaChallenge1 : %02X %02X %02X %02X %02X %02X %02X %02X\n", ARG8(MechaChallenge1));
 }
 
 inline __attribute__((always_inline)) void __time_critical_func(ps2_mc_auth_dummyC)(void) {
@@ -322,9 +322,9 @@ inline __attribute__((always_inline)) void __time_critical_func(ps2_mc_auth_dumm
     uint8_t _ = 0;
     /* dummy E */
     generateResponse();
-    debug_printf("CardResponse1 : %02X %02X %02X %02X %02X %02X %02X %02X\n", ARG8(CardResponse1));
-    debug_printf("CardResponse2 : %02X %02X %02X %02X %02X %02X %02X %02X\n", ARG8(CardResponse2));
-    debug_printf("CardResponse3 : %02X %02X %02X %02X %02X %02X %02X %02X\n", ARG8(CardResponse3));
+    DPRINTF("CardResponse1 : %02X %02X %02X %02X %02X %02X %02X %02X\n", ARG8(CardResponse1));
+    DPRINTF("CardResponse2 : %02X %02X %02X %02X %02X %02X %02X %02X\n", ARG8(CardResponse2));
+    DPRINTF("CardResponse3 : %02X %02X %02X %02X %02X %02X %02X %02X\n", ARG8(CardResponse3));
     mc_respond(0x2B);
     receiveOrNextCmd(&_);
     mc_respond(term);
@@ -466,7 +466,7 @@ inline __attribute__((always_inline)) void __time_critical_func(ps2_mc_sessionKe
         }
         mc_respond(term);
     } else {
-        debug_printf("!! unknown subcmd %02X -> %02X\n", 0xF2, subcmd);
+        DPRINTF("!! unknown subcmd %02X -> %02X\n", 0xF2, subcmd);
     }
 }
 
@@ -475,7 +475,7 @@ inline __attribute__((always_inline)) void __time_critical_func(ps2_mc_auth)(voi
     mc_respond(0xFF);
 
     receiveOrNextCmd(&subcmd);
-    //    debug_printf("MC Auth: %02X\n", subcmd);
+    //    DPRINTF("MC Auth: %02X\n", subcmd);
     switch (subcmd) {
         case 0x0: ps2_mc_auth_probe(); break;
         case 0x1: ps2_mc_auth_getIv(); break;
@@ -499,7 +499,7 @@ inline __attribute__((always_inline)) void __time_critical_func(ps2_mc_auth)(voi
         case 0x13: ps2_mc_auth_cardResponse3(); break;
         case 0x14: ps2_mc_auth_dummy14(); break;
         default:
-            // debug_printf("unknown %02X -> %02X\n", ch, subcmd);
+            // DPRINTF("unknown %02X -> %02X\n", ch, subcmd);
             break;
     }
 }

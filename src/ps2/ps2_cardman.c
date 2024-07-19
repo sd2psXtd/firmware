@@ -1,26 +1,32 @@
 #include "ps2_cardman.h"
 
+#include <stddef.h>
 #include <stdint.h>
 #include <stdio.h>
 #include <string.h>
 
 #include "card_emu/ps2_sd2psxman.h"
 #include "debug.h"
-#include "game_names/game_names.h"
+#include "game_db/game_db.h"
 #include "hardware/timer.h"
-#include "ps2_psram.h"
+#include "pico/multicore.h"
+#include "ps2_dirty.h"
+#include "psram/psram.h"
 #include "sd.h"
 #include "settings.h"
 
 #define PS2_DEFAULT_CARD_SIZE PS2_CARD_SIZE_8M
 #define BLOCK_SIZE            (512)
+#define SECTOR_COUNT          (PS2_DEFAULT_CARD_SIZE / BLOCK_SIZE)
 
+uint8_t available_sectors[SECTOR_COUNT / 8]; // bitmap
 static uint8_t flushbuf[BLOCK_SIZE];
 static int fd = -1;
+int current_read_sector = 0, priority_sector = -1;
 
 #define MAX_GAME_NAME_LENGTH (127)
 #define MAX_PREFIX_LENGTH    (4)
-#define MAX_GAME_ID_LENGTH   (16)
+#define MAX_SLICE_LENGTH     ( 10 * 1000 )
 
 static int card_idx;
 static int card_chan;
@@ -29,23 +35,18 @@ static uint32_t card_size;
 static cardman_cb_t cardman_cb;
 static char folder_name[MAX_GAME_ID_LENGTH];
 static uint64_t cardprog_start;
+static int cardman_sectors_done;
 static size_t cardprog_pos;
-static int cardprog_wr;
 
 static ps2_cardman_state_t cardman_state;
 
-void ps2_cardman_init(void) {
-    if (settings_get_ps2_autoboot()) {
-        card_idx = PS2_CARD_IDX_SPECIAL;
-        cardman_state = PS2_CM_STATE_BOOT;
-        card_chan = CHAN_MIN;
-        snprintf(folder_name, sizeof(folder_name), "BOOT");
-    } else {
-        card_idx = settings_get_ps2_card();
-        card_chan = settings_get_ps2_channel();
-        snprintf(folder_name, sizeof(folder_name), "Card%d", card_idx);
-    }
-}
+static enum {
+    CARDMAN_CREATE,
+    CARDMAN_OPEN,
+    CARDMAN_IDLE
+} cardman_operation;
+
+
 
 int ps2_cardman_write_sector(int sector, void *buf512) {
     if (fd < 0)
@@ -58,6 +59,18 @@ int ps2_cardman_write_sector(int sector, void *buf512) {
         return -1;
 
     return 0;
+}
+
+bool ps2_cardman_is_sector_available(int sector) {
+    return available_sectors[sector / 8] & (1 << (sector % 8));
+}
+
+void ps2_cardman_mark_sector_available(int sector) {
+    available_sectors[sector / 8] |= (1 << (sector % 8));
+}
+
+void ps2_cardman_set_priority_sector(int sector) {
+    priority_sector = sector;
 }
 
 void ps2_cardman_flush(void) {
@@ -173,6 +186,91 @@ static void genblock(size_t pos, void *vbuf) {
     }
 }
 
+static int next_sector_to_load() {
+    if (priority_sector != -1) {
+        if (ps2_cardman_is_sector_available(priority_sector))
+            priority_sector = -1;
+        else
+            return priority_sector;
+    }
+
+    while (current_read_sector < SECTOR_COUNT) {
+        if (!ps2_cardman_is_sector_available(current_read_sector))
+            return current_read_sector++;
+        else
+            current_read_sector++;
+    }
+
+    return -1;
+}
+
+static void ps2_cardman_continue(void) {
+    if (cardman_operation == CARDMAN_OPEN) {
+        uint64_t slice_start = time_us_64();
+        while (time_us_64() - slice_start < MAX_SLICE_LENGTH) {
+            ps2_dirty_lock();
+            int sector_idx = next_sector_to_load();
+            if (sector_idx == -1) {
+                ps2_dirty_unlock();
+                cardman_operation = CARDMAN_IDLE;
+                uint64_t end = time_us_64();
+                printf("OK!\n");
+
+                printf("took = %.2f s; SD read speed = %.2f kB/s\n", (end - cardprog_start) / 1e6, 1000000.0 * card_size / (end - cardprog_start) / 1024);
+
+                break;
+            }
+
+            size_t pos = sector_idx * BLOCK_SIZE;
+            if (sd_seek(fd, pos) != 0)
+                fatal("cannot read memcard\nseek");
+
+            if (sd_read(fd, flushbuf, BLOCK_SIZE) != BLOCK_SIZE)
+                fatal("cannot read memcard\nread");
+
+            psram_write_dma(pos, flushbuf, BLOCK_SIZE, NULL);
+            psram_wait_for_dma();
+            ps2_cardman_mark_sector_available(sector_idx);
+            ps2_dirty_unlock();
+
+            cardprog_pos = cardman_sectors_done * BLOCK_SIZE;
+
+            if (cardman_cb)
+                cardman_cb(100 * cardprog_pos / card_size);
+
+            cardman_sectors_done++;
+        }
+    } else if (cardman_operation == CARDMAN_CREATE) {
+        uint64_t slice_start = time_us_64();
+        while (time_us_64() - slice_start < MAX_SLICE_LENGTH) {
+            cardprog_pos = cardman_sectors_done * BLOCK_SIZE;
+            if (cardprog_pos >= PS2_DEFAULT_CARD_SIZE) {
+                cardman_operation = CARDMAN_IDLE;
+                sd_flush(fd);
+                uint64_t end = time_us_64();
+                printf("OK!\n");
+                printf("took = %.2f s; SD write speed = %.2f kB/s\n", (end - cardprog_start) / 1e6, 1000000.0 * PS2_DEFAULT_CARD_SIZE / (end - cardprog_start) / 1024);
+                break;
+            }
+            ps2_dirty_lock();
+            // read back from PSRAM to make sure to retain already rewritten sectors, if any
+            psram_read_dma(cardprog_pos, flushbuf, BLOCK_SIZE, NULL);
+            psram_wait_for_dma();
+
+            if (sd_write(fd, flushbuf, BLOCK_SIZE) != BLOCK_SIZE)
+                fatal("cannot init memcard");
+
+            ps2_dirty_unlock();
+
+            if (cardman_cb)
+                cardman_cb(100 * cardprog_pos / card_size);
+
+            cardman_sectors_done++;
+        }
+        
+    }
+}
+
 void ps2_cardman_open(void) {
     char path[64];
 
@@ -182,8 +280,10 @@ void ps2_cardman_open(void) {
 
     if (PS2_CM_STATE_BOOT == cardman_state)
         snprintf(path, sizeof(path), "MemoryCards/PS2/%s/BootCard.mcd", folder_name);
-    else {
+    else
         snprintf(path, sizeof(path), "MemoryCards/PS2/%s/%s-%d.mcd", folder_name, folder_name, card_chan);
+
+    if (card_idx != PS2_CARD_IDX_SPECIAL) {
         /* this is ok to do on every boot because it wouldn't update if the value is the same as currently stored */
         settings_set_ps2_card(card_idx);
         settings_set_ps2_channel(card_chan);
@@ -192,8 +292,10 @@ void ps2_cardman_open(void) {
     printf("Switching to card path = %s\n", path);
 
     if (!sd_exists(path)) {
-        cardprog_wr = 1;
+        cardman_operation = CARDMAN_CREATE;
         fd = sd_open(path, O_RDWR | O_CREAT | O_TRUNC);
+        cardman_sectors_done = 0;
+        cardprog_pos = 0;
 
         if (fd < 0)
             fatal("cannot open for creating new card");
@@ -201,28 +303,29 @@ void ps2_cardman_open(void) {
         printf("create new image at %s... ", path);
         cardprog_start = time_us_64();
 
+        // quickly generate and write an empty card into PSRAM so that it's immediately available, takes about ~0.6s
         for (size_t pos = 0; pos < PS2_DEFAULT_CARD_SIZE; pos += BLOCK_SIZE) {
             if (PS2_DEFAULT_CARD_SIZE == PS2_CARD_SIZE_8M)
                 genblock(pos, flushbuf);
             else
-                memset(flushbuf, 0xFF, sizeof(flushbuf) / sizeof(flushbuf[0]));
-            if (sd_write(fd, flushbuf, BLOCK_SIZE) != BLOCK_SIZE)
-                fatal("cannot init memcard");
-            psram_write(pos, flushbuf, BLOCK_SIZE);
-            cardprog_pos = pos;
+                memset(flushbuf, 0xFF, BLOCK_SIZE);
+
+            ps2_dirty_lock();
+            psram_write_dma(pos, flushbuf, BLOCK_SIZE, NULL);
+
+            psram_wait_for_dma();
+            ps2_cardman_mark_sector_available(pos / BLOCK_SIZE);
+            ps2_dirty_unlock();
 
             if (cardman_cb)
-                cardman_cb(100 * pos / PS2_DEFAULT_CARD_SIZE);
+                cardman_cb(0);
         }
-        sd_flush(fd);
-
-        uint64_t end = time_us_64();
-        printf("OK!\n");
-
-        printf("took = %.2f s; SD write speed = %.2f kB/s\n", (end - cardprog_start) / 1e6, 1000000.0 * PS2_DEFAULT_CARD_SIZE / (end - cardprog_start) / 1024);
+        
     } else {
-        cardprog_wr = 0;
         fd = sd_open(path, O_RDWR);
+        cardman_operation = CARDMAN_OPEN;
+        cardprog_pos = 0;
+        cardman_sectors_done = 0;
 
         if (fd < 0)
             fatal("cannot open card");
@@ -235,20 +338,11 @@ void ps2_cardman_open(void) {
         /* read 8 megs of card image */
         printf("reading card (%lu KB).... ", (uint32_t)(card_size / 1024));
         cardprog_start = time_us_64();
-        for (size_t pos = 0; pos < card_size; pos += BLOCK_SIZE) {
-            if (sd_read(fd, flushbuf, BLOCK_SIZE) != BLOCK_SIZE)
-                fatal("cannot read memcard");
-            psram_write(pos, flushbuf, BLOCK_SIZE);
-            cardprog_pos = pos;
+        if (cardman_cb)
+            cardman_cb(0);
 
-            if (cardman_cb)
-                cardman_cb(100 * pos / card_size);
+
         }
-        uint64_t end = time_us_64();
-        printf("OK!\n");
-
-        printf("took = %.2f s; SD read speed = %.2f kB/s\n", (end - cardprog_start) / 1e6, 1000000.0 * card_size / (end - cardprog_start) / 1024);
-    }
 }
 
 void ps2_cardman_close(void) {
@@ -257,6 +351,9 @@ void ps2_cardman_close(void) {
     ps2_cardman_flush();
     sd_close(fd);
     fd = -1;
+    current_read_sector = 0;
+    priority_sector = -1;
+    memset(available_sectors, 0, sizeof(available_sectors));
 }
 
 void ps2_cardman_set_channel(uint16_t chan_num) {
@@ -313,8 +410,10 @@ void ps2_cardman_set_idx(uint16_t idx_num) {
 
 static void ps2_cardman_special_idx(int newIndx) {
     char parent_id[MAX_GAME_ID_LENGTH] = { 0x00 };
-    game_names_get_parent(sd2psxman_gameid, parent_id);
-    debug_printf("Parent ID is %s, State is %i, new Index: %i\n", parent_id, cardman_state, newIndx);
+    if (settings_get_ps2_game_id())
+        (void)game_db_get_current_parent(parent_id);
+
+    DPRINTF("Parent ID is %s, State is %i, new Index: %i\n", parent_id, cardman_state, newIndx);
     if (PS2_CM_STATE_NORMAL == cardman_state) {
         if (parent_id[0]) {
             card_idx = PS2_CARD_IDX_SPECIAL;
@@ -392,17 +491,18 @@ int ps2_cardman_get_channel(void) {
 }
 
 void ps2_cardman_set_gameid(const char *const card_game_id) {
+    if (!settings_get_ps2_game_id())
+        return;
+
     char new_folder_name[MAX_GAME_ID_LENGTH];
     if (card_game_id[0]) {
-        char parent_id[MAX_GAME_ID_LENGTH];
-        game_names_get_parent(card_game_id, parent_id);
-        snprintf(new_folder_name, sizeof(new_folder_name), "%s", parent_id);
+        snprintf(new_folder_name, sizeof(new_folder_name), "%s", card_game_id);
         if ((strcmp(new_folder_name, folder_name) != 0) 
             || (PS2_CM_STATE_GAMEID != cardman_state)){
             card_idx = PS2_CARD_IDX_SPECIAL;
             cardman_state = PS2_CM_STATE_GAMEID;
             card_chan = CHAN_MIN;
-            snprintf(folder_name, sizeof(folder_name), "%s", parent_id);
+            snprintf(folder_name, sizeof(folder_name), "%s", card_game_id);
             needs_update = true;
         }
     }
@@ -415,7 +515,10 @@ void ps2_cardman_set_progress_cb(cardman_cb_t func) {
 char *ps2_cardman_get_progress_text(void) {
     static char progress[32];
 
-    snprintf(progress, sizeof(progress), "%s %.2f kB/s", cardprog_wr ? "Wr" : "Rd", 1000000.0 * cardprog_pos / (time_us_64() - cardprog_start) / 1024);
+    if (cardman_operation != CARDMAN_IDLE)
+        snprintf(progress, sizeof(progress), "%s %.2f kB/s", cardman_operation == CARDMAN_CREATE ? "Wr" : "Rd", 1000000.0 * cardprog_pos / (time_us_64() - cardprog_start) / 1024);
+    else
+        snprintf(progress, sizeof(progress), "Switching...");
 
     return progress;
 }
@@ -434,4 +537,27 @@ ps2_cardman_state_t ps2_cardman_get_state(void) {
 
 bool ps2_cardman_needs_update(void) {
     return needs_update;
+}
+
+bool ps2_cardman_is_idle(void) {
+    return cardman_operation == CARDMAN_IDLE;
+}
+
+void ps2_cardman_init(void) {
+    if (settings_get_ps2_autoboot()) {
+        card_idx = PS2_CARD_IDX_SPECIAL;
+        cardman_state = PS2_CM_STATE_BOOT;
+        card_chan = CHAN_MIN;
+        snprintf(folder_name, sizeof(folder_name), "BOOT");
+    } else {
+        card_idx = settings_get_ps2_card();
+        card_chan = settings_get_ps2_channel();
+        cardman_state = PS2_CM_STATE_NORMAL;
+        snprintf(folder_name, sizeof(folder_name), "Card%d", card_idx);
+    }
+    cardman_operation = CARDMAN_IDLE;
+}
+
+void ps2_cardman_task(void) {
+    ps2_cardman_continue();
 }

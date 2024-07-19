@@ -12,8 +12,11 @@
 #include <sys/stat.h>
 #include <sys/unistd.h>
 
-#define DPRINTF(fmt, x...) printf(fmt, ##x)
-//#define DPRINTF(x...) 
+#ifdef MMCE_DEBUG
+    #define MMCEPRINTF(fmt, x...) QPRINTF(fmt, ##x)
+#else
+    #define MMCEPRINTF(fmt, x...)
+#endif
 
 //Global data struct
 static volatile ps2_mmce_fs_data_t m_data;
@@ -61,7 +64,7 @@ void ps2_mmce_fs_run(void)
             m_data.fd = sd_open((const char*)m_data.buffer[0], m_data.flags);
 
             if (m_data.fd < 0) {
-                DPRINTF("Open failed fd: %i\n", m_data.fd);
+                MMCEPRINTF("Open failed fd: %i\n", m_data.fd);
             }
 
             mmce_fs_operation = MMCE_FS_NONE;
@@ -81,7 +84,7 @@ void ps2_mmce_fs_run(void)
 
         //Read async continuous until bytes_read == length
         case MMCE_FS_READ:
-            DPRINTF("C1: Entering read loop, bytes read: %i len: %i\n", m_data.bytes_read, m_data.length);
+            MMCEPRINTF("C1: Entering read loop, bytes read: %i len: %i\n", m_data.bytes_read, m_data.length);
 
             //Get filesize ahead of time
             m_data.filesize = sd_filesize(m_data.fd);
@@ -89,6 +92,7 @@ void ps2_mmce_fs_run(void)
             //Read requested length
             while (m_data.bytes_read < m_data.length)
             {
+                MMCEPRINTF("C1: Reading chunk %i", m_data.head_idx);
                 //Wait for chunk at head to be consumed
                 if (m_data.chunk_state[m_data.head_idx] != CHUNK_STATE_READY) {
 
@@ -101,7 +105,7 @@ void ps2_mmce_fs_run(void)
 
                     //Check if reading beyond file size
                     if (sd_tell(m_data.fd) + bytes_in_chunk > m_data.filesize) {
-                        DPRINTF("C1: Skipping request to read beyond file length\n");                        
+                        MMCEPRINTF("C1: Skipping request to read beyond file length\n");                        
                         critical_section_enter_blocking(&mmce_fs_crit);
                         m_data.chunk_state[m_data.head_idx] = CHUNK_STATE_NOT_READY;
                         critical_section_exit(&mmce_fs_crit);
@@ -113,7 +117,7 @@ void ps2_mmce_fs_run(void)
 
                     //Failed to get requested amount
                     if (rv != bytes_in_chunk) {
-                        DPRINTF("C1: Failed to read %i bytes, got %i\n", bytes_in_chunk, rv);
+                        MMCEPRINTF("C1: Failed to read %i bytes, got %i\n", bytes_in_chunk, rv);
                         critical_section_enter_blocking(&mmce_fs_crit);
                         m_data.chunk_state[m_data.head_idx] = CHUNK_STATE_INVALID; //Notify core0
                         critical_section_exit(&mmce_fs_crit);
@@ -128,7 +132,7 @@ void ps2_mmce_fs_run(void)
                     m_data.chunk_state[m_data.head_idx] = CHUNK_STATE_READY;
                     critical_section_exit(&mmce_fs_crit);
 
-                    DPRINTF("C1: %i ready, bytes in this chunk %i\n", m_data.head_idx, bytes_in_chunk);
+                    MMCEPRINTF("C1: %i ready, bytes in this chunk %i\n", m_data.head_idx, bytes_in_chunk);
 
                     //Increment head pointer
                     m_data.head_idx++;
@@ -151,20 +155,20 @@ void ps2_mmce_fs_run(void)
         case MMCE_FS_READ_AHEAD:
 
             m_data.filesize = sd_filesize(m_data.fd);
-            DPRINTF("Entering read ahead\n");
+            MMCEPRINTF("Entering read ahead\n");
             //Check if reading beyond file size
             if (sd_tell(m_data.fd) + CHUNK_SIZE <= m_data.filesize) {
                 rv = sd_read(m_data.fd, (void*)m_data.read_ahead.buffer, CHUNK_SIZE);
 
                 if (rv == CHUNK_SIZE) {
-                    DPRINTF("C1: Read ahead: %i\n", rv);
+                    MMCEPRINTF("C1: Read ahead: %i\n", rv);
                     m_data.read_ahead.fd = m_data.fd;
                     m_data.read_ahead.valid = 1;
                 } else {
-                    DPRINTF("C1: Failed to read ahead %i bytes, got %i\n", CHUNK_SIZE, rv);
+                    MMCEPRINTF("C1: Failed to read ahead %i bytes, got %i\n", CHUNK_SIZE, rv);
                 }
             } else {
-                DPRINTF("C1: Skipping request to read ahead beyond file length\n");
+                MMCEPRINTF("C1: Skipping request to read ahead beyond file length\n");
             }
 
             mmce_fs_operation = MMCE_FS_NONE;
@@ -175,10 +179,10 @@ void ps2_mmce_fs_run(void)
             if (write_size == 0)
                 write_size = 4096;
 
-            DPRINTF("C1: Writing: %i\n", write_size);
+            MMCEPRINTF("C1: Writing: %i\n", write_size);
             m_data.rv = sd_write(m_data.fd, (void*)m_data.buffer[0], write_size);
             sd_flush(m_data.fd); //flush data
-            DPRINTF("C1: Wrote: %i\n", m_data.rv);
+            MMCEPRINTF("C1: Wrote: %i\n", m_data.rv);
 
             mmce_fs_operation = MMCE_FS_NONE;
         break;
@@ -189,9 +193,9 @@ void ps2_mmce_fs_run(void)
 
                 //SEEK_CUR - adjust offset 
                 if (m_data.whence == 1) {
-                    DPRINTF("C1: Correcting SEEK_CUR offset: %i\n", m_data.offset);
+                    MMCEPRINTF("C1: Correcting SEEK_CUR offset: %i\n", m_data.offset);
                     m_data.offset -= CHUNK_SIZE;
-                    DPRINTF("C1: New offset: %i\n", m_data.offset);
+                    MMCEPRINTF("C1: New offset: %i\n", m_data.offset);
                 }
 
                 //Invalidate data read ahead
