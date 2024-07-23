@@ -276,6 +276,7 @@ void ps2_cardman_open(void) {
 
     needs_update = false;
 
+    sd_init();
     ensuredirs();
 
     if (PS2_CM_STATE_BOOT == cardman_state)

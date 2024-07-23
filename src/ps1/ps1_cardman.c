@@ -112,6 +112,7 @@ static void genblock(size_t pos, void *buf) {
 
 void ps1_cardman_open(void) {
     char path[64];
+    sd_init();
     ensuredirs();
 
     if (PS1_CM_STATE_BOOT == cardman_state)

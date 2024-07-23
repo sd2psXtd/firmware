@@ -12,9 +12,9 @@
 #include "pico/platform.h"
 
 
-#include "../debug.h"
-#include "../sd.h"
-#include "../settings.h"
+#include "debug.h"
+#include "sd.h"
+#include "settings.h"
 
 #define MAX_GAME_NAME_LENGTH (127)
 #define MAX_PREFIX_LENGTH    (5)
@@ -218,6 +218,7 @@ void __time_critical_func(game_db_extract_title_id)(const uint8_t* const in_titl
 
 void game_db_get_folderbased_name(const char* const folder, char* const game_name) {
     strlcpy(game_name, "", MAX_GAME_NAME_LENGTH);    
+    sd_init();
 
     int dir_fd, it_fd = -1;
     char filename[MAX_GAME_NAME_LENGTH] = {};

@@ -16,22 +16,26 @@ extern "C" {
 
 static SdFat sd;
 static File files[NUM_FILES];
+static bool initialized = false;
 
 extern "C" void sd_init() {
-    SPI1.setRX(SD_MISO);
-    SPI1.setTX(SD_MOSI);
-    SPI1.setSCK(SD_SCK);
-    SPI1.setCS(SD_CS);
+    if (!initialized) {
+        SPI1.setRX(SD_MISO);
+        SPI1.setTX(SD_MOSI);
+        SPI1.setSCK(SD_SCK);
+        SPI1.setCS(SD_CS);
 
-    int ret = sd.begin(SdSpiConfig(SD_CS, DEDICATED_SPI, SD_BAUD, &SPI1));
-    if (ret != 1) {
-        if (sd.sdErrorCode()) {
-            fatal("failed to mount the card\nSdError: 0x%02X,0x%02X\ncheck the card", sd.sdErrorCode(), sd.sdErrorData());
-        } else if (!sd.fatType()) {
-            fatal("failed to mount the card\ncheck the card is formatted correctly");
-        } else {
-            fatal("failed to mount the card\nUNKNOWN");
+        int ret = sd.begin(SdSpiConfig(SD_CS, DEDICATED_SPI, SD_BAUD, &SPI1));
+        if (ret != 1) {
+            if (sd.sdErrorCode()) {
+                fatal("failed to mount the card\nSdError: 0x%02X,0x%02X\ncheck the card", sd.sdErrorCode(), sd.sdErrorData());
+            } else if (!sd.fatType()) {
+                fatal("failed to mount the card\ncheck the card is formatted correctly");
+            } else {
+                fatal("failed to mount the card\nUNKNOWN");
+            }
         }
+        initialized = true;
     }
 }
 

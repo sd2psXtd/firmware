@@ -59,6 +59,8 @@ void ps2_mmce_fs_run(void)
     uint16_t bytes_in_chunk = 0;
     uint32_t write_size = 0;
 
+    sd_init();
+
     switch (mmce_fs_operation) {
         case MMCE_FS_OPEN:
             m_data.fd = sd_open((const char*)m_data.buffer[0], m_data.flags);

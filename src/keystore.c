@@ -52,6 +52,8 @@ int keystore_deploy(void) {
     uint8_t civbuf[8] = { 0 };
     uint8_t chkbuf[256] = { 0 };
 
+    sd_init();
+
     if (!sd_exists("civ.bin"))
         return KEYSTORE_DEPLOY_NOFILE;
 

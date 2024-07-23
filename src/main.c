@@ -157,7 +157,6 @@ int main() {
 
     settings_init();
     psram_init();
-    sd_init();
 
     game_db_init();
 
