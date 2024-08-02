@@ -16,6 +16,7 @@ target_link_libraries(ps1_card
                             pico_stdlib 
                             pico_multicore
                             hardware_pio
+                            sd_fat
                             )
 
 if (SD2PSX_WITH_PSRAM)

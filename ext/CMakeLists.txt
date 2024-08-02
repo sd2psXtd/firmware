@@ -35,15 +35,15 @@ add_library(sd_fat STATIC
             ${CMAKE_CURRENT_SOURCE_DIR}/ESP8266SdFat/src/MinimumSerial.cpp
             ${CMAKE_CURRENT_SOURCE_DIR}/ESP8266SdFat/src/SdCard/SdCardInfo.cpp
             ${CMAKE_CURRENT_SOURCE_DIR}/ESP8266SdFat/src/SdCard/SdSpiCard.cpp
-            ${PROJECT_SOURCE_DIR}/src/arduino_wrapper/sd.cpp
-            ${PROJECT_SOURCE_DIR}/src/arduino_wrapper/SPI.cpp
+            ${CMAKE_CURRENT_SOURCE_DIR}/ESP8266SdFatWrapper/src/sd.cpp
+            ${CMAKE_CURRENT_SOURCE_DIR}/ESP8266SdFatWrapper/src/SPI.cpp
 )
 
 target_include_directories(sd_fat 
-                        PRIVATE        
-                            ${PROJECT_SOURCE_DIR}/src/
-                            ${PROJECT_SOURCE_DIR}/src/arduino_wrapper
+                        PRIVATE
+                            ${CMAKE_CURRENT_SOURCE_DIR}/ESP8266SdFatWrapper/src
                         PUBLIC 
+                            ${CMAKE_CURRENT_SOURCE_DIR}/ESP8266SdFatWrapper/include
                             ${CMAKE_CURRENT_SOURCE_DIR}/ESP8266SdFat/src
                             ${CMAKE_CURRENT_SOURCE_DIR}/ESP8266SdFat/extras/attic)
 

@@ -26,6 +26,7 @@ target_link_libraries(ps2_card PRIVATE
             hardware_flash
             hardware_dma
             mcfat
+            sd_fat
             )
 
 if (SD2PSX_WITH_PSRAM)

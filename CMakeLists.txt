@@ -97,6 +97,7 @@ target_include_directories(sd2psx_common
 
 target_link_libraries(sd2psx_common 
                     PRIVATE 
+                        sd_fat
                         pico_platform_headers
                         hardware_flash
                         hardware_gpio
