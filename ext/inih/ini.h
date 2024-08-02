@@ -90,6 +90,9 @@ instead of a file. Useful for parsing INI data from a network socket or
 already in memory. */
 INI_API int ini_parse_string(const char* string, ini_handler handler, void* user);
 
+INI_API int ini_parse_sd_file(int fd, ini_handler handler, void* user);
+
+
 /* Nonzero to allow multi-line value parsing, in the style of Python's
    configparser. If allowed, ini_parse() will call the handler with the same
    name for each subsequent line parsed. */

@@ -68,4 +68,5 @@ target_compile_definitions(mcfat PRIVATE MAX_CACHEENTRY=0x1)
 target_compile_definitions(mcfat PRIVATE MAX_FDHANDLES=0x1)
 
 add_library(inih STATIC ${CMAKE_CURRENT_SOURCE_DIR}/inih/ini.c)
+target_link_libraries(inih PRIVATE sd_fat)
 target_include_directories(inih PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/inih)
