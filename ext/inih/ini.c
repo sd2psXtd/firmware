@@ -21,6 +21,8 @@ https://github.com/benhoyt/inih
 
 #include "ini.h"
 
+#include "sd.h"
+
 #if !INI_USE_STACK
 #if INI_CUSTOM_ALLOCATOR
 #include <stddef.h>
@@ -301,4 +303,31 @@ int ini_parse_string(const char* string, ini_handler handler, void* user) {
     ctx.num_left = strlen(string);
     return ini_parse_stream((ini_reader)ini_reader_string, &ctx, handler,
                             user);
+}
+
+
+static char* ini_reader_sd(char* str, int num, void* fd)
+{
+    char* strp = str;
+    char c;
+
+    if (num < 2)
+        return NULL;
+
+    while (num > 1) {
+        if (sd_read((int)fd, &c, 1) != 1)
+            return NULL;
+        *strp++ = c;
+        if (c == '\n')
+            break;
+        num--;
+    }
+
+    *strp = '\0';
+    return str;
+}
+
+int ini_parse_sd_file(int fd, ini_handler handler, void* user)
+{
+    return ini_parse_stream((ini_reader)ini_reader_sd, (void*)fd, handler, user);
 }
