@@ -13,7 +13,7 @@
 
 
 #include "../debug.h"
-#include "../sd.h"
+#include "sd.h"
 #include "../settings.h"
 
 #define MAX_GAME_NAME_LENGTH (127)

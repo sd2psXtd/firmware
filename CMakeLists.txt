@@ -89,6 +89,7 @@ target_link_libraries(sd2psx_common
                         pico_platform_headers
                         ssd1306
                         hardware_flash
+                        sd_fat
                         pico_multicore)
 
 target_compile_options(sd2psx_common

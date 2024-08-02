@@ -15,6 +15,7 @@ target_link_libraries(ps1_card
                             pico_stdlib 
                             pico_multicore
                             hardware_pio
+                            sd_fat
                             psram)
 
 pico_generate_pio_header(ps1_card ${CMAKE_CURRENT_LIST_DIR}/ps1_mc_spi.pio)
