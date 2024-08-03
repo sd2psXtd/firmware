@@ -165,6 +165,8 @@ static game_lookup find_game_lookup(const char* game_id, int mode) {
             strlcpy(idString, split, 11);
             numeric_id = atoi(idString);
         }
+
+        free(copy);
     }
 
     numeric_prefix = game_db_char_array_to_uint32(prefixString);
@@ -287,6 +289,8 @@ int game_db_update_game(const char* const game_id) {
         if (strlen(split) > 0) {
             strlcpy(idString, split, 11);
         }
+
+        free(copy);
     }
 
     current_game = find_game_lookup(game_id, mode);
