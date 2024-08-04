@@ -15,6 +15,8 @@ typedef struct {
     uint16_t ps2_card;
     uint8_t ps1_channel;
     uint8_t ps2_channel;
+    uint8_t ps1_boot_channel;
+    uint8_t ps2_boot_channel;
     uint8_t ps1_flags; // TODO: single bit options: freepsxboot, pocketstation, freepsxboot slot
     // TODO: more ps1 settings: model for freepsxboot
     uint8_t ps2_flags; // TODO: single bit options: autoboot
@@ -23,15 +25,16 @@ typedef struct {
     uint8_t display_contrast; // display - contrast, 0-255
     uint8_t display_vcomh; // display - vcomh, valid values are 0x00, 0x20, 0x30 and 0x40
     // TODO: how do we store last used channel for cards that use autodetecting w/ gameid?
+    uint8_t padding[2];
 } settings_t;
 
-#define SETTINGS_VERSION_MAGIC (0xAACD0003)
+#define SETTINGS_VERSION_MAGIC (0xAACD0004)
 #define SETTINGS_PS1_FLAGS_AUTOBOOT (0b0000001)
 #define SETTINGS_PS1_FLAGS_GAME_ID  (0b0000010)
 #define SETTINGS_PS2_FLAGS_AUTOBOOT (0b0000001)
 #define SETTINGS_PS2_FLAGS_GAME_ID  (0b0000010)
 
-_Static_assert(sizeof(settings_t) == 16, "unexpected padding in the settings structure");
+_Static_assert(sizeof(settings_t) == 20, "unexpected padding in the settings structure");
 
 static settings_t settings;
 static int tempmode;
@@ -90,6 +93,12 @@ int settings_get_ps2_channel(void) {
     return settings.ps2_channel;
 }
 
+int settings_get_ps2_boot_channel(void) {
+    if (settings.ps2_boot_channel < CHAN_MIN || settings.ps2_boot_channel > CHAN_MAX)
+        return CHAN_MIN;
+    return settings.ps2_boot_channel;
+}
+
 void settings_set_ps2_card(int card) {
     if (card != settings.ps2_card) {
         settings.ps2_card = card;
@@ -101,6 +110,13 @@ void settings_set_ps2_channel(int chan) {
     if (chan != settings.ps2_channel) {
         settings.ps2_channel = chan;
         SETTINGS_UPDATE_FIELD(ps2_channel);
+    }
+}
+
+void settings_set_ps2_boot_channel(int chan) {
+    if (chan != settings.ps2_boot_channel) {
+        settings.ps2_boot_channel = chan;
+        SETTINGS_UPDATE_FIELD(ps2_boot_channel);
     }
 }
 
@@ -116,6 +132,12 @@ int settings_get_ps1_channel(void) {
     return settings.ps1_channel;
 }
 
+int settings_get_ps1_boot_channel(void) {
+    if (settings.ps1_boot_channel < CHAN_MIN || settings.ps1_boot_channel > CHAN_MAX)
+        return CHAN_MIN;
+    return settings.ps1_boot_channel;
+}
+
 void settings_set_ps1_card(int card) {
     if (card != settings.ps1_card) {
         settings.ps1_card = card;
@@ -127,6 +149,13 @@ void settings_set_ps1_channel(int chan) {
     if (chan != settings.ps1_channel) {
         settings.ps1_channel = chan;
         SETTINGS_UPDATE_FIELD(ps1_channel);
+    }
+}
+
+void settings_set_ps1_boot_channel(int chan) {
+    if (chan != settings.ps1_boot_channel) {
+        settings.ps1_boot_channel = chan;
+        SETTINGS_UPDATE_FIELD(ps1_boot_channel);
     }
 }
 

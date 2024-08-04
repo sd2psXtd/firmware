@@ -278,15 +278,34 @@ void ps2_cardman_open(void) {
 
     ensuredirs();
 
-    if (PS2_CM_STATE_BOOT == cardman_state)
-        snprintf(path, sizeof(path), "MemoryCards/PS2/%s/BootCard.mcd", folder_name);
-    else
-        snprintf(path, sizeof(path), "MemoryCards/PS2/%s/%s-%d.mcd", folder_name, folder_name, card_chan);
+    switch (cardman_state) {
+        case PS2_CM_STATE_BOOT:
+            if (card_chan == 1) {
+                snprintf(path, sizeof(path), "MemoryCards/PS2/%s/BootCard-%d.mcd", folder_name, card_chan);
+                if (!sd_exists(path)) {
+                    // before boot card channels, boot card was located at BOOT/BootCard.mcd, for backwards compatibility check if it exists
+                    snprintf(path, sizeof(path), "MemoryCards/PS2/%s/BootCard.mcd", folder_name);
+                    if (!sd_exists(path)) {
+                        // go back to BootCard-1.mcd if it doesn't
+                        snprintf(path, sizeof(path), "MemoryCards/PS2/%s/BootCard-%d.mcd", folder_name, card_chan);
+                    }
+                }
+            } else {
+                snprintf(path, sizeof(path), "MemoryCards/PS2/%s/BootCard-%d.mcd", folder_name, card_chan);
+            }
 
-    if (card_idx != PS2_CARD_IDX_SPECIAL) {
-        /* this is ok to do on every boot because it wouldn't update if the value is the same as currently stored */
-        settings_set_ps2_card(card_idx);
-        settings_set_ps2_channel(card_chan);
+            settings_set_ps2_boot_channel(card_chan);
+            break;
+        case PS2_CM_STATE_GAMEID:
+            snprintf(path, sizeof(path), "MemoryCards/PS2/%s/%s-%d.mcd", folder_name, folder_name, card_chan);
+            break;
+        case PS2_CM_STATE_NORMAL:
+            snprintf(path, sizeof(path), "MemoryCards/PS2/%s/%s-%d.mcd", folder_name, folder_name, card_chan);
+
+            /* this is ok to do on every boot because it wouldn't update if the value is the same as currently stored */
+            settings_set_ps2_card(card_idx);
+            settings_set_ps2_channel(card_chan);
+            break;
     }
 
     printf("Switching to card path = %s\n", path);
@@ -359,42 +378,23 @@ void ps2_cardman_close(void) {
 void ps2_cardman_set_channel(uint16_t chan_num) {
     if (chan_num != card_chan)
         needs_update = true;
-    if ((PS2_CM_STATE_NORMAL == cardman_state) || (PS2_CM_STATE_GAMEID == cardman_state)) {
-        if (chan_num <= CHAN_MAX && chan_num >= CHAN_MIN) {
-            card_chan = chan_num;
-        }
-    } else {
-        card_idx = settings_get_ps2_card();
-        card_chan = settings_get_ps2_channel();
+    if (chan_num <= CHAN_MAX && chan_num >= CHAN_MIN) {
+        card_chan = chan_num;
     }
     snprintf(folder_name, sizeof(folder_name), "Card%d", card_idx);
 }
 
 void ps2_cardman_next_channel(void) {
-    if ((PS2_CM_STATE_NORMAL == cardman_state) || (PS2_CM_STATE_GAMEID == cardman_state)) {
-        card_chan += 1;
-        if (card_chan > CHAN_MAX)
-            card_chan = CHAN_MIN;
-    } else {
-        card_idx = settings_get_ps2_card();
-        card_chan = settings_get_ps2_channel();
-        cardman_state = PS2_CM_STATE_NORMAL;
-        snprintf(folder_name, sizeof(folder_name), "Card%d", card_idx);
-    }
+    card_chan += 1;
+    if (card_chan > CHAN_MAX)
+        card_chan = CHAN_MIN;
     needs_update = true;
 }
 
 void ps2_cardman_prev_channel(void) {
-    if ((PS2_CM_STATE_NORMAL == cardman_state) || (PS2_CM_STATE_GAMEID == cardman_state)) {
-        card_chan -= 1;
-        if (card_chan < CHAN_MIN)
-            card_chan = CHAN_MAX;
-    } else {
-        card_idx = settings_get_ps2_card();
-        card_chan = settings_get_ps2_channel();
-        cardman_state = PS2_CM_STATE_NORMAL;
-        snprintf(folder_name, sizeof(folder_name), "Card%d", card_idx);
-    }
+    card_chan -= 1;
+    if (card_chan < CHAN_MIN)
+        card_chan = CHAN_MAX;
     needs_update = true;
 }
 
@@ -423,7 +423,7 @@ static void ps2_cardman_special_idx(int newIndx) {
         } else if (settings_get_ps2_autoboot()) {
             card_idx = PS2_CARD_IDX_SPECIAL;
             cardman_state = PS2_CM_STATE_BOOT;
-            card_chan = CHAN_MIN;
+            card_chan = settings_get_ps2_boot_channel();
             snprintf(folder_name, sizeof(folder_name), "BOOT");
         } else {
             cardman_state = PS2_CM_STATE_NORMAL;
@@ -447,7 +447,7 @@ static void ps2_cardman_special_idx(int newIndx) {
             // Prev Pressed and Boot available
             card_idx = PS2_CARD_IDX_SPECIAL;
             cardman_state = PS2_CM_STATE_BOOT;
-            card_chan = CHAN_MIN;
+            card_chan = settings_get_ps2_boot_channel();
             snprintf(folder_name, sizeof(folder_name), "BOOT");
         } else {
             card_idx = settings_get_ps2_card();
@@ -547,7 +547,7 @@ void ps2_cardman_init(void) {
     if (settings_get_ps2_autoboot()) {
         card_idx = PS2_CARD_IDX_SPECIAL;
         cardman_state = PS2_CM_STATE_BOOT;
-        card_chan = CHAN_MIN;
+        card_chan = settings_get_ps2_boot_channel();
         snprintf(folder_name, sizeof(folder_name), "BOOT");
     } else {
         card_idx = settings_get_ps2_card();
