@@ -110,25 +110,6 @@ static game_lookup build_game_lookup(const char* const db_start, const size_t db
     return game;
 }
 
-static bool file_has_extension(const char* const file, const char* const extension) {
-    int file_index = strlen(file) - 1;
-    int ext_index = strlen(extension) - 1;
-    while ((file_index >= 0) && (ext_index >= 0))
-        if (file[file_index--] != extension[ext_index--])
-            return false;
-
-    return true;
-}
-
-static void file_remove_extension(char* const file) {
-    int file_index = strlen(file) - 1;
-    while ((file_index >= 0) && (file[file_index] != '.')) {
-        file[file_index--] = 0x00;
-    }
-    if (file_index >= 0)
-        file[file_index] = 0x00;
-}
-
 static game_lookup find_game_lookup(const char* game_id, int mode) {
     char prefixString[MAX_PREFIX_LENGTH] = {};
     char idString[10] = {};
@@ -215,39 +196,6 @@ void __time_critical_func(game_db_extract_title_id)(const uint8_t* const in_titl
         } else {
         }
         idx_in_title++;
-    }
-}
-
-void game_db_get_folderbased_name(const char* const folder, char* const game_name) {
-    strlcpy(game_name, "", MAX_GAME_NAME_LENGTH);    
-    sd_init();
-
-    int dir_fd, it_fd = -1;
-    char filename[MAX_GAME_NAME_LENGTH] = {};
-    char dir[64];
-    if (settings_get_mode() == MODE_PS1) {
-        snprintf(dir, sizeof(dir), "MemoryCards/PS1/%s", folder);
-    } else {
-        snprintf(dir, sizeof(dir), "MemoryCards/PS2/%s", folder);
-    }
-
-    dir_fd = sd_open(dir, O_RDONLY);
-    if (dir_fd >= 0) {
-        it_fd = sd_iterate_dir(dir_fd, it_fd);
-
-        while (it_fd != -1) {
-            sd_get_name(it_fd, filename, MAX_GAME_NAME_LENGTH);
-
-            if (file_has_extension(filename, ".txt")) {
-                file_remove_extension(filename);
-                strlcpy(game_name, filename, MAX_GAME_NAME_LENGTH);
-                break;
-            }
-            it_fd = sd_iterate_dir(dir_fd, it_fd);
-        }
-        if (it_fd != -1)
-            sd_close(it_fd);
-        sd_close(dir_fd);
     }
 }
 

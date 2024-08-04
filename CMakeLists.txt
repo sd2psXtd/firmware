@@ -47,6 +47,7 @@ add_executable(${TARGET_NAME}
     src/ps1.c
 
     src/game_db/game_db.c
+    src/card_config.c
     src/wear_leveling/wear_leveling.c
     src/wear_leveling/wear_leveling_rp2040_flash.c
 
@@ -75,6 +76,7 @@ target_link_libraries(${TARGET_NAME}
         ps1_card
         ps2_card
         sd_fat
+        inih
 )
 
 add_dependencies(${TARGET_NAME} gamedb)
