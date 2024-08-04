@@ -23,6 +23,7 @@
 #include "ui_menu.h"
 #include "ui_theme_mono.h"
 #include "version/version.h"
+#include "card_config.h"
 
 /* Displays the line at the bottom for long pressing buttons */
 static lv_obj_t *g_navbar, *g_progress_bar, *g_progress_text, *g_activity_frame;
@@ -946,18 +947,24 @@ void gui_task(void) {
                     break;
                 case PS1_CM_STATE_GAMEID:
                     lv_label_set_text(scr_main_idx_lbl, folder_name);
-                    game_db_get_current_name(card_name);
                     break;
                 case PS1_CM_STATE_NORMAL:
                 default:
                     snprintf(card_idx_s, sizeof(card_idx_s), "%d", displayed_card_idx);
                     lv_label_set_text(scr_main_idx_lbl, card_idx_s);
-                    game_db_get_folderbased_name(folder_name, card_name);
                     break;
             }
 
             snprintf(card_channel_s, sizeof(card_channel_s), "%d", displayed_card_channel);
             lv_label_set_text(scr_main_channel_lbl, card_channel_s);
+
+            card_config_read_channel_name(
+                folder_name, cardman_state == PS1_CM_STATE_BOOT ? "BootCard" : folder_name,
+                card_channel_s, card_name, sizeof(card_name)
+            );
+            if (!card_name[0] && cardman_state == PS1_CM_STATE_GAMEID) {
+                game_db_get_current_name(card_name);
+            }
 
             if (card_name[0]) {
                 lv_label_set_text(src_main_title_lbl, card_name);
@@ -999,18 +1006,24 @@ void gui_task(void) {
                     break;
                 case PS2_CM_STATE_GAMEID:
                     lv_label_set_text(scr_main_idx_lbl, folder_name);
-                    game_db_get_current_name(card_name);
                     break;
                 case PS2_CM_STATE_NORMAL:
                 default:
                     snprintf(card_idx_s, sizeof(card_idx_s), "%d", displayed_card_idx);
                     lv_label_set_text(scr_main_idx_lbl, card_idx_s);
-                    game_db_get_folderbased_name(folder_name, card_name);
                     break;
             }
 
             snprintf(card_channel_s, sizeof(card_channel_s), "%d", displayed_card_channel);
             lv_label_set_text(scr_main_channel_lbl, card_channel_s);
+
+            card_config_read_channel_name(
+                folder_name, cardman_state == PS2_CM_STATE_BOOT ? "BootCard" : folder_name,
+                card_channel_s, card_name, sizeof(card_name)
+            );
+            if (!card_name[0] && cardman_state == PS2_CM_STATE_GAMEID) {
+                game_db_get_current_name(card_name);
+            }
 
             if (card_name[0]) {
                 lv_label_set_text(src_main_title_lbl, card_name);

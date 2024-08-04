@@ -28,6 +28,7 @@ add_executable(sd2psx
     src/main.c
 
     src/game_db/game_db.c
+    src/card_config.c
     src/wear_leveling/wear_leveling.c
     src/wear_leveling/wear_leveling_rp2040_flash.c
 
@@ -58,6 +59,7 @@ target_link_libraries(sd2psx
         ps1_card
         ps2_card
         sd_fat
+        inih
 )
 
 add_dependencies(sd2psx gamedb)
