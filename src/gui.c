@@ -1062,39 +1062,27 @@ void gui_task(void) {
             switch (cardman_state) {
                 case PS1_CM_STATE_BOOT:
                     lv_label_set_text(scr_main_idx_lbl, "BOOT");
-                    lv_label_set_text(lbl_channel, "");
-                    snprintf(card_channel_s, sizeof(card_channel_s), " ");
                     break;
                 case PS1_CM_STATE_GAMEID:
                     lv_label_set_text(scr_main_idx_lbl, folder_name);
-                    lv_label_set_text(lbl_channel, "Channel");
-                    snprintf(card_channel_s, sizeof(card_channel_s), "%d", displayed_card_channel);
                     game_db_get_current_name(card_name);
                     break;
                 case PS1_CM_STATE_NORMAL:
                 default:
                     snprintf(card_idx_s, sizeof(card_idx_s), "%d", displayed_card_idx);
                     lv_label_set_text(scr_main_idx_lbl, card_idx_s);
-                    lv_label_set_text(lbl_channel, "Channel");
-                    snprintf(card_channel_s, sizeof(card_channel_s), "%d", displayed_card_channel);
                     game_db_get_folderbased_name(folder_name, card_name);
                     break;
             }
 
-            if (displayed_card_idx > 0) {
-                snprintf(card_idx_s, sizeof(card_idx_s), "%d", displayed_card_idx);
-                lv_label_set_text(scr_main_idx_lbl, card_idx_s);
-            } else {
-                lv_label_set_text(scr_main_idx_lbl, folder_name);
-            }
+            snprintf(card_channel_s, sizeof(card_channel_s), "%d", displayed_card_channel);
+            lv_label_set_text(scr_main_channel_lbl, card_channel_s);
 
             if (card_name[0]) {
                 lv_label_set_text(src_main_title_lbl, card_name);
             } else {
                 lv_label_set_text(src_main_title_lbl, "");
             }
-
-            lv_label_set_text(scr_main_channel_lbl, card_channel_s);
         }
 
         if (switching_card && switching_card_timeout < time_us_64() && !input_is_any_down()) {
@@ -1119,26 +1107,22 @@ void gui_task(void) {
 
             switch (cardman_state) {
                 case PS2_CM_STATE_BOOT:
-                    snprintf(card_idx_s, sizeof(card_idx_s), "BOOT");
-                    snprintf(card_channel_s, sizeof(card_channel_s), " ");
-                    lv_label_set_text(lbl_channel, "");
-                    lv_label_set_text(scr_main_idx_lbl, card_idx_s);
+                    lv_label_set_text(scr_main_idx_lbl, "BOOT");
                     break;
                 case PS2_CM_STATE_GAMEID:
-                    snprintf(card_channel_s, sizeof(card_channel_s), "%d", displayed_card_channel);
-                    lv_label_set_text(lbl_channel, "Channel");
                     lv_label_set_text(scr_main_idx_lbl, folder_name);
                     game_db_get_current_name(card_name);
                     break;
                 case PS2_CM_STATE_NORMAL:
                 default:
                     snprintf(card_idx_s, sizeof(card_idx_s), "%d", displayed_card_idx);
-                    snprintf(card_channel_s, sizeof(card_channel_s), "%d", displayed_card_channel);
-                    lv_label_set_text(lbl_channel, "Channel");
                     lv_label_set_text(scr_main_idx_lbl, card_idx_s);
                     game_db_get_folderbased_name(folder_name, card_name);
                     break;
             }
+
+            snprintf(card_channel_s, sizeof(card_channel_s), "%d", displayed_card_channel);
+            lv_label_set_text(scr_main_channel_lbl, card_channel_s);
 
             if (card_name[0]) {
                 lv_label_set_text(src_main_title_lbl, card_name);
@@ -1154,8 +1138,6 @@ void gui_task(void) {
             } else {
                 lv_label_set_text(src_main_title_lbl, "");
             }
-
-            lv_label_set_text(scr_main_channel_lbl, card_channel_s);
 
             refresh_gui = false;
         }

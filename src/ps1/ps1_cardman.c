@@ -36,7 +36,7 @@ static ps1_cardman_state_t cardman_state;
 
 static void set_boot_card() {
     card_idx = PS1_CARD_IDX_SPECIAL;
-    card_chan = CHAN_MIN;
+    card_chan = settings_get_ps1_boot_channel();
     cardman_state = PS1_CM_STATE_BOOT;
     snprintf(folder_name, sizeof(folder_name), "BOOT");
 }
@@ -131,15 +131,34 @@ void ps1_cardman_open(void) {
     sd_init();
     ensuredirs();
 
-    if (PS1_CM_STATE_BOOT == cardman_state)
-        snprintf(path, sizeof(path), "MemoryCards/PS1/%s/BootCard.mcd", folder_name);
-    else
-        snprintf(path, sizeof(path), "MemoryCards/PS1/%s/%s-%d.mcd", folder_name, folder_name, card_chan);
+    switch (cardman_state) {
+        case PS1_CM_STATE_BOOT:
+            if (card_chan == 1) {
+                snprintf(path, sizeof(path), "MemoryCards/PS1/%s/BootCard-%d.mcd", folder_name, card_chan);
+                if (!sd_exists(path)) {
+                    // before boot card channels, boot card was located at BOOT/BootCard.mcd, for backwards compatibility check if it exists
+                    snprintf(path, sizeof(path), "MemoryCards/PS1/%s/BootCard.mcd", folder_name);
+                    if (!sd_exists(path)) {
+                        // go back to BootCard-1.mcd if it doesn't
+                        snprintf(path, sizeof(path), "MemoryCards/PS1/%s/BootCard-%d.mcd", folder_name, card_chan);
+                    }
+                }
+            } else {
+                snprintf(path, sizeof(path), "MemoryCards/PS1/%s/BootCard-%d.mcd", folder_name, card_chan);
+            }
 
-    if (card_idx != PS1_CARD_IDX_SPECIAL) {
-        /* this is ok to do on every boot because it wouldn't update if the value is the same as currently stored */
-        settings_set_ps1_card(card_idx);
-        settings_set_ps1_channel(card_chan);
+            settings_set_ps1_boot_channel(card_chan);
+            break;
+        case PS1_CM_STATE_GAMEID:
+            snprintf(path, sizeof(path), "MemoryCards/PS1/%s/%s-%d.mcd", folder_name, folder_name, card_chan);
+            break;
+        case PS1_CM_STATE_NORMAL:
+            snprintf(path, sizeof(path), "MemoryCards/PS1/%s/%s-%d.mcd", folder_name, folder_name, card_chan);
+
+            /* this is ok to do on every boot because it wouldn't update if the value is the same as currently stored */
+            settings_set_ps1_card(card_idx);
+            settings_set_ps1_channel(card_chan);
+            break;
     }
 
     printf("Switching to card path = %s\n", path);
@@ -219,8 +238,6 @@ void ps1_cardman_close(void) {
 void ps1_cardman_next_channel(void) {
     switch (cardman_state) {
         case PS1_CM_STATE_BOOT:
-            set_default_card();
-            break;
         case PS1_CM_STATE_GAMEID:
         case PS1_CM_STATE_NORMAL:
             card_chan += 1;
@@ -233,8 +250,6 @@ void ps1_cardman_next_channel(void) {
 void ps1_cardman_prev_channel(void) {
     switch (cardman_state) {
         case PS1_CM_STATE_BOOT:
-            set_default_card();
-            break;
         case PS1_CM_STATE_GAMEID:
         case PS1_CM_STATE_NORMAL:
             card_chan -= 1;
