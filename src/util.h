@@ -1,5 +1,7 @@
 #pragma once
 
+#include "hardware/timer.h"
+
 static inline uint64_t __time_critical_func(RAM_time_us_64)() {
     // Need to make sure that the upper 32 bits of the timer
     // don't change, so read that first
