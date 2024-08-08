@@ -255,6 +255,15 @@ int game_db_update_game(const char* const game_id) {
     return current_game.mode;
 }
 
+void game_db_get_game_name(const char* game_id, char* game_name) {
+    if (!game_db_sanity_check_title_id(game_id))
+        return;
+
+    game_lookup lookup = find_game_lookup(game_id, settings_get_mode());
+    if (lookup.name && lookup.name[0])
+        strlcpy(game_name, lookup.name, MAX_GAME_NAME_LENGTH);
+}
+
 void game_db_init(void) {
     current_game.game_id = 0U;
     current_game.parent_id = 0U;
