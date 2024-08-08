@@ -34,11 +34,15 @@ static int card_chan;
 static char folder_name[MAX_GAME_ID_LENGTH];
 static ps1_cardman_state_t cardman_state;
 
-static void set_boot_card() {
+static bool try_set_boot_card() {
+    if (!settings_get_ps1_autoboot())
+        return false;
+
     card_idx = PS1_CARD_IDX_SPECIAL;
     card_chan = settings_get_ps1_boot_channel();
     cardman_state = PS1_CM_STATE_BOOT;
     snprintf(folder_name, sizeof(folder_name), "BOOT");
+    return true;
 }
 
 static void set_default_card() {
@@ -68,11 +72,9 @@ static bool try_set_game_id_card() {
 }
 
 void ps1_cardman_init(void) {
-    if (settings_get_ps1_autoboot()) {
-        set_boot_card();
-    } else if (!try_set_game_id_card()){
-        set_default_card();
-    }
+    if (!try_set_boot_card())
+        if (!try_set_game_id_card())
+            set_default_card();
 }
 
 int ps1_cardman_read_sector(int sector, void *buf128) {
@@ -284,22 +286,16 @@ void ps1_cardman_prev_idx(void) {
             set_default_card();
             break;
         case PS1_CM_STATE_GAMEID:
-            if (settings_get_ps1_autoboot())
-                set_boot_card();
-            else
+            if (!try_set_boot_card())
                 set_default_card();
             break;
         case PS1_CM_STATE_NORMAL:
             card_idx -= 1;
             card_chan = CHAN_MIN;
             if (card_idx <= PS1_CARD_IDX_SPECIAL) {
-                if (!try_set_game_id_card()) {
-                    if (settings_get_ps1_autoboot()) {
-                        set_boot_card();
-                    } else {
+                if (!try_set_game_id_card())
+                    if (!try_set_boot_card())
                         set_default_card();
-                    }
-                }
             } else {
                 snprintf(folder_name, sizeof(folder_name), "Card%d", card_idx);
             }
