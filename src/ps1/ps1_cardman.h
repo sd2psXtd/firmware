@@ -5,6 +5,7 @@
 #define PS1_CARD_IDX_SPECIAL 0
 
 typedef enum {
+    PS1_CM_STATE_NAMED,
     PS1_CM_STATE_BOOT,
     PS1_CM_STATE_GAMEID,
     PS1_CM_STATE_NORMAL

@@ -20,6 +20,7 @@
 #endif
 #include "sd.h"
 #include "settings.h"
+#include "util.h"
 
 #if LOG_LEVEL_PS2_CM == 0
 #define log(x...)
@@ -107,6 +108,39 @@ int ps2_cardman_read_sector(int sector, void *buf512) {
         return -1;
 
     return 0;
+}
+
+static bool try_set_next_named_card() {
+    bool ret = false;
+    if (cardman_state != PS2_CM_STATE_NAMED) {
+        ret = try_set_named_card_folder("MemoryCards/PS2", 0, folder_name, sizeof(folder_name));
+        if (ret)
+            card_idx = 1;
+    } else {
+        ret = try_set_named_card_folder("MemoryCards/PS2", card_idx, folder_name, sizeof(folder_name));
+        if (ret)
+            card_idx++;
+    }
+
+    if (ret) {
+        card_chan = CHAN_MIN;
+        cardman_state = PS2_CM_STATE_NAMED;
+    }
+
+    return ret;
+}
+
+static bool try_set_prev_named_card() {
+    bool ret = false;
+    if (card_idx > 1) {
+        ret = try_set_named_card_folder("MemoryCards/PS2", card_idx - 2, folder_name, sizeof(folder_name));
+        if (ret) {
+            card_idx--;
+            card_chan = CHAN_MIN;
+            cardman_state = PS2_CM_STATE_NAMED;
+        }
+    }
+    return ret;
 }
 
 int ps2_cardman_write_sector(int sector, void *buf512) {
@@ -450,6 +484,7 @@ void ps2_cardman_open(void) {
 
             settings_set_ps2_boot_channel(card_chan);
             break;
+        case PS2_CM_STATE_NAMED:
         case PS2_CM_STATE_GAMEID:
             snprintf(path, sizeof(path), "MemoryCards/PS2/%s/%s-%d.mcd", folder_name, folder_name, card_chan);
             break;
@@ -589,6 +624,12 @@ void ps2_cardman_set_idx(uint16_t idx_num) {
 
 void ps2_cardman_next_idx(void) {
     switch (cardman_state) {
+        case PS2_CM_STATE_NAMED:
+            if (!try_set_prev_named_card())
+                if (!try_set_boot_card())
+                    if (!try_set_game_id_card())
+                        set_default_card();
+            break;
         case PS2_CM_STATE_BOOT:
             if (!try_set_game_id_card())
                 set_default_card();
@@ -610,12 +651,15 @@ void ps2_cardman_next_idx(void) {
 
 void ps2_cardman_prev_idx(void) {
     switch (cardman_state) {
+        case PS2_CM_STATE_NAMED:
         case PS2_CM_STATE_BOOT:
-            set_default_card();
+            if (!try_set_next_named_card())
+                set_default_card();
             break;
         case PS2_CM_STATE_GAMEID:
             if (!try_set_boot_card())
-                set_default_card();
+                if (!try_set_next_named_card())
+                    set_default_card();
             break;
         case PS2_CM_STATE_NORMAL:
             card_idx -= 1;
@@ -623,7 +667,8 @@ void ps2_cardman_prev_idx(void) {
             if (card_idx <= PS2_CARD_IDX_SPECIAL) {
                 if (!try_set_game_id_card())
                     if (!try_set_boot_card())
-                        set_default_card();
+                        if (!try_set_next_named_card())
+                            set_default_card();
             } else {
                 snprintf(folder_name, sizeof(folder_name), "Card%d", card_idx);
             }

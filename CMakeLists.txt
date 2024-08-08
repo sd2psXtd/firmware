@@ -85,6 +85,7 @@ set_target_properties(${TARGET_NAME} PROPERTIES PICO_TARGET_LINKER_SCRIPT ${CMAK
 # Common Lib
 
 add_library(sd2psx_common STATIC     
+                ${CMAKE_CURRENT_SOURCE_DIR}/src/util.c
                 ${CMAKE_CURRENT_SOURCE_DIR}/src/debug.c
                 ${CMAKE_CURRENT_SOURCE_DIR}/src/input.c
                 ${CMAKE_CURRENT_SOURCE_DIR}/src/des.c

@@ -14,6 +14,7 @@
 #include <psram/psram.h>
 #endif
 #include "ps1_empty_card.h"
+#include "util.h"
 
 #include "game_db/game_db.h"
 
@@ -69,6 +70,39 @@ static bool try_set_game_id_card() {
     snprintf(folder_name, sizeof(folder_name), "%s", parent_id);
 
     return true;
+}
+
+static bool try_set_next_named_card() {
+    bool ret = false;
+    if (cardman_state != PS1_CM_STATE_NAMED) {
+        ret = try_set_named_card_folder("MemoryCards/PS1", 0, folder_name, sizeof(folder_name));
+        if (ret)
+            card_idx = 1;
+    } else {
+        ret = try_set_named_card_folder("MemoryCards/PS1", card_idx, folder_name, sizeof(folder_name));
+        if (ret)
+            card_idx++;
+    }
+
+    if (ret) {
+        card_chan = CHAN_MIN;
+        cardman_state = PS1_CM_STATE_NAMED;
+    }
+
+    return ret;
+}
+
+static bool try_set_prev_named_card() {
+    bool ret = false;
+    if (card_idx > 1) {
+        ret = try_set_named_card_folder("MemoryCards/PS1", card_idx - 2, folder_name, sizeof(folder_name));
+        if (ret) {
+            card_idx--;
+            card_chan = CHAN_MIN;
+            cardman_state = PS1_CM_STATE_NAMED;
+        }
+    }
+    return ret;
 }
 
 void ps1_cardman_init(void) {
@@ -151,6 +185,7 @@ void ps1_cardman_open(void) {
 
             settings_set_ps1_boot_channel(card_chan);
             break;
+        case PS1_CM_STATE_NAMED:
         case PS1_CM_STATE_GAMEID:
             snprintf(path, sizeof(path), "MemoryCards/PS1/%s/%s-%d.mcd", folder_name, folder_name, card_chan);
             break;
@@ -239,6 +274,7 @@ void ps1_cardman_close(void) {
 
 void ps1_cardman_next_channel(void) {
     switch (cardman_state) {
+        case PS1_CM_STATE_NAMED:
         case PS1_CM_STATE_BOOT:
         case PS1_CM_STATE_GAMEID:
         case PS1_CM_STATE_NORMAL:
@@ -251,6 +287,7 @@ void ps1_cardman_next_channel(void) {
 
 void ps1_cardman_prev_channel(void) {
     switch (cardman_state) {
+        case PS1_CM_STATE_NAMED:
         case PS1_CM_STATE_BOOT:
         case PS1_CM_STATE_GAMEID:
         case PS1_CM_STATE_NORMAL:
@@ -263,6 +300,12 @@ void ps1_cardman_prev_channel(void) {
 
 void ps1_cardman_next_idx(void) {
     switch (cardman_state) {
+        case PS1_CM_STATE_NAMED:
+            if (!try_set_prev_named_card())
+                if (!try_set_boot_card())
+                    if (!try_set_game_id_card())
+                        set_default_card();
+            break;
         case PS1_CM_STATE_BOOT:
             if (!try_set_game_id_card())
                 set_default_card();
@@ -282,12 +325,15 @@ void ps1_cardman_next_idx(void) {
 
 void ps1_cardman_prev_idx(void) {
     switch (cardman_state) {
+        case PS1_CM_STATE_NAMED:
         case PS1_CM_STATE_BOOT:
-            set_default_card();
+            if (!try_set_next_named_card())
+                set_default_card();
             break;
         case PS1_CM_STATE_GAMEID:
             if (!try_set_boot_card())
-                set_default_card();
+                if (!try_set_next_named_card())
+                    set_default_card();
             break;
         case PS1_CM_STATE_NORMAL:
             card_idx -= 1;
@@ -295,7 +341,8 @@ void ps1_cardman_prev_idx(void) {
             if (card_idx <= PS1_CARD_IDX_SPECIAL) {
                 if (!try_set_game_id_card())
                     if (!try_set_boot_card())
-                        set_default_card();
+                        if (!try_set_next_named_card())
+                            set_default_card();
             } else {
                 snprintf(folder_name, sizeof(folder_name), "Card%d", card_idx);
             }
