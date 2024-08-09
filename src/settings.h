@@ -12,8 +12,10 @@ void settings_set_ps1_channel(int x);
 
 int settings_get_ps2_card(void);
 int settings_get_ps2_channel(void);
+uint8_t settings_get_ps2_cardsize(void);
 void settings_set_ps2_card(int x);
 void settings_set_ps2_channel(int x);
+void settings_set_ps2_cardsize(uint8_t size);
 
 enum {
     MODE_PS1 = 0,
@@ -40,6 +42,8 @@ void settings_set_ps2_game_id(bool enabled);
 uint8_t settings_get_display_timeout();
 uint8_t settings_get_display_contrast();
 uint8_t settings_get_display_vcomh();
+bool settings_get_sd_mode();
 void settings_set_display_timeout(uint8_t display_timeout);
 void settings_set_display_contrast(uint8_t display_contrast);
 void settings_set_display_vcomh(uint8_t display_vcomh);
+void settings_set_sd_mode(bool mode);

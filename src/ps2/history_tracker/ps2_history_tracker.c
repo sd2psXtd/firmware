@@ -7,6 +7,7 @@
 #include <string.h>
 #include <stdbool.h>
 
+#include "card_emu/ps2_mc_data_interface.h"
 #include "card_emu/ps2_sd2psxman.h"
 #include "card_emu/ps2_sd2psxman_commands.h"
 #include "hardware/timer.h"
@@ -16,12 +17,13 @@
 #include "pico/time.h"
 #include "pico/types.h"
 #include "ps2_cardman.h"
-#include "ps2_dirty.h"
+#if WITH_PSRAM
 #include "psram/psram.h"
+#endif
 
 //#define USE_INJECT_LOGIC
 
-#define DEBUG(fmt , x...) // printf(fmt, ##x)
+#define DEBUG(fmt , x...)  printf(fmt, ##x)
 
 #define HISTORY_FILE_SIZE           462
 #define HISTORY_ENTRY_COUNT         21
@@ -93,15 +95,16 @@ int page_write(mcfat_cardspecs_t* info, uint32_t page, void* buff) {
 }
 
 int __time_critical_func(page_read)(mcfat_cardspecs_t* info, uint32_t page, uint32_t count, void* buff) {
-    if (!ps2_cardman_is_sector_available(page)) {
-        ps2_cardman_set_priority_sector(page);
-        while (!ps2_cardman_is_sector_available(page)) {sleep_us(1);} // wait for core 0 to load the sector into PSRAM
-    }
-    ps2_dirty_lockout_renew();
-    ps2_dirty_lock();
-    psram_read_dma(page * info->pagesize, buff, count, NULL);
-    psram_wait_for_dma();
-    ps2_dirty_unlock();
+    DEBUG("%s Reading page %u : %u\n", __func__, page , count);
+    
+    ps2_mc_data_interface_setup_read_page(page , false);
+    ps2_mcdi_page_t* read_page = ps2_mc_data_interface_get_page( page );
+    while (read_page->page_sate != PAGE_DATA_AVAILABLE) { };
+    memcpy(buff, read_page->data, count);
+    ps2_mc_data_interface_invalidate(page );
+    DEBUG("End Read\n");
+
+
     return sceMcResSucceed;
 }
 
@@ -186,7 +189,7 @@ static void readSlots(uint8_t historyFile[HISTORY_FILE_SIZE], uint8_t slots[HIST
     }
 }
 
-void ps2_history_tracker_registerPageWrite(uint32_t page) {
+void __time_critical_func(ps2_history_tracker_registerPageWrite)(uint32_t page) {
     uint32_t cluster = page / 2;
     for (int i = 0; i < HISTORY_NUMBER_OF_REGIONS; i++) {
         if ((cluster == fileCluster[i]) || (fileCluster[i] == 0)) {
@@ -196,11 +199,15 @@ void ps2_history_tracker_registerPageWrite(uint32_t page) {
 }
 
 void ps2_history_tracker_card_changed() {
+    DEBUG("%s\n", __func__);
+
     mcfat_setCardChanged(true);
     mcio_init();
     uint8_t buff[HISTORY_FILE_SIZE] = {0x00};
     char filename[23] = {0x00};
     char dirname[15] = {0x00};
+    memset(fileCluster, 0x00, sizeof(fileCluster));
+    DEBUG("%spost init \n", __func__);
     for (int i = 0; i < HISTORY_NUMBER_OF_REGIONS; i++) {
         // Read current history file for each region
         snprintf(dirname, 15, SYSTEMDATA_DIRNAME, regionList[i]);
@@ -212,6 +219,7 @@ void ps2_history_tracker_card_changed() {
             DEBUG("Dir Creating Status is %d\n", dirsts);
         }
         #endif
+        DEBUG("%s Start reading\n", __func__);
         if (fileExists(filename)) {
             int fh = mcio_mcOpen(filename, sceMcFileAttrReadable);
             DEBUG("Initially reading filename %s, fd %d\n", filename, fh);
@@ -219,7 +227,7 @@ void ps2_history_tracker_card_changed() {
                 mcio_mcRead(fh, buff, HISTORY_FILE_SIZE);
                 readSlots(buff, slotCount[i]);
                 fileCluster[i] = mcio_mcGetCluster(fh);
-                DEBUG("Registering Cluster %d\n", fileCluster[i]);
+                DEBUG("Registering Cluster %lu\n", fileCluster[i]);
                 mcio_mcClose(fh);
             }
         } else {
@@ -241,12 +249,13 @@ void ps2_history_tracker_card_changed() {
 
         #endif
             memset(slotCount[i], 0x00, HISTORY_ENTRY_COUNT);
-            fileCluster[i] = 0;
+//            fileCluster[i] = 0;
         }
         #ifdef USE_INJECT_LOGIC
         checkInjectHistoryIcon(regionList[i]);
         #endif
     }
+    DEBUG("%sCard changed finished\n", __func__);
 }
 
 void ps2_history_tracker_init() {
@@ -265,7 +274,10 @@ void ps2_history_tracker_init() {
 void ps2_history_tracker_task() {
     static bool prevDirty = false;
     uint64_t micros = time_us_64();
-    if (ps2_dirty_activity) {
+    if (!ps2_cardman_is_accessible()) {
+        return;
+    }
+    if (ps2_mc_data_interface_write_occured()) {
         prevDirty = true;
         lastAccess = micros;
     } else if (prevDirty && ((micros - lastAccess)  > HISTORY_WRITE_HYST_US)) {
@@ -273,6 +285,7 @@ void ps2_history_tracker_task() {
         uint8_t buff[HISTORY_FILE_SIZE] = {0x00};
         char filename[23] = {0x00};
         char dirname[15] = {0x00};        
+        DEBUG("%s refreshing history...\n", __func__);
 
         mcio_init(); // Call init to invalidate caches...
 
@@ -282,6 +295,7 @@ void ps2_history_tracker_task() {
             memset((void*)buff, 0x00, HISTORY_FILE_SIZE);
             snprintf(dirname, 15, SYSTEMDATA_DIRNAME, regionList[i]);
             snprintf(filename, 23, HISTORY_FILENAME_FORMAT, regionList[i]);
+            DEBUG("Checking %s and %s\n", filename, dirname);
             if (refreshRequired[i] && dirExists(dirname) && fileExists(filename)) {
                 int fh = mcio_mcOpen(filename, sceMcFileAttrReadable);
                 if (fileCluster[i] == 0x0)

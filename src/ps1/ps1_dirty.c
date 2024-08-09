@@ -1,6 +1,9 @@
 #include "ps1_dirty.h"
 #include "ps1_cardman.h"
+#include "ps1_mc_data_interface.h"
+#ifdef WITH_PSRAM
 #include <psram/psram.h>
+#endif
 
 #include "bigmem.h"
 #define dirty_heap bigmem.ps1.dirty_heap
@@ -94,8 +97,13 @@ void ps1_dirty_task(void) {
             ps1_dirty_unlock();
             break;
         }
+#if WITH_PSRAM
         psram_read_dma(sector * 128, flushbuf, 128, NULL);
         psram_wait_for_dma();
+#else
+        uint8_t* page = ps1_mc_data_interface_get_page(sector);
+        memcpy(flushbuf, page, PS1_PAGE_SIZE);
+#endif
         ps1_dirty_unlock();
 
         ++hit;

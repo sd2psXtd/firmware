@@ -22,16 +22,17 @@ typedef struct {
     uint8_t display_timeout; // display - auto off, in seconds, 0 - off
     uint8_t display_contrast; // display - contrast, 0-255
     uint8_t display_vcomh; // display - vcomh, valid values are 0x00, 0x20, 0x30 and 0x40
+    uint8_t ps2_cardsize;
     // TODO: how do we store last used channel for cards that use autodetecting w/ gameid?
 } settings_t;
 
-#define SETTINGS_VERSION_MAGIC (0xAACD0003)
+#define SETTINGS_VERSION_MAGIC (0xAACD0004)
 #define SETTINGS_PS1_FLAGS_AUTOBOOT (0b0000001)
 #define SETTINGS_PS1_FLAGS_GAME_ID  (0b0000010)
 #define SETTINGS_PS2_FLAGS_AUTOBOOT (0b0000001)
 #define SETTINGS_PS2_FLAGS_GAME_ID  (0b0000010)
 
-_Static_assert(sizeof(settings_t) == 16, "unexpected padding in the settings structure");
+_Static_assert(sizeof(settings_t) == 20, "unexpected padding in the settings structure");
 
 static settings_t settings;
 static int tempmode;
@@ -44,6 +45,7 @@ static void settings_reset(void) {
     settings.display_vcomh = 0x30; // 0.83 x VCC
     settings.ps1_flags = SETTINGS_PS1_FLAGS_GAME_ID;
     settings.ps2_flags = SETTINGS_PS2_FLAGS_GAME_ID;
+    settings.ps2_cardsize = 8;
     if (wear_leveling_write(0, &settings, sizeof(settings)) == WEAR_LEVELING_FAILED)
         fatal("failed to reset settings");
 }
@@ -90,6 +92,12 @@ int settings_get_ps2_channel(void) {
     return settings.ps2_channel;
 }
 
+uint8_t settings_get_ps2_cardsize(void) {
+    if (settings.ps2_cardsize < 1 || settings.ps2_channel > 32)
+        return 1;
+    return settings.ps2_cardsize;
+}
+
 void settings_set_ps2_card(int card) {
     if (card != settings.ps2_card) {
         settings.ps2_card = card;
@@ -101,6 +109,13 @@ void settings_set_ps2_channel(int chan) {
     if (chan != settings.ps2_channel) {
         settings.ps2_channel = chan;
         SETTINGS_UPDATE_FIELD(ps2_channel);
+    }
+}
+
+void settings_set_ps2_cardsize(uint8_t size) {
+    if (size != settings.ps2_cardsize) {
+        settings.ps2_cardsize = size;
+        SETTINGS_UPDATE_FIELD(ps2_cardsize);
     }
 }
 
@@ -131,6 +146,7 @@ void settings_set_ps1_channel(int chan) {
 }
 
 int settings_get_mode(void) {
+    return MODE_PS2;
     if ((settings.sys_flags & 1) != tempmode)
         return MODE_PS1;
     else
@@ -174,7 +190,8 @@ void settings_set_ps1_game_id(bool enabled) {
 }
 
 bool settings_get_ps2_autoboot(void) {
-    return (settings.ps2_flags & SETTINGS_PS2_FLAGS_AUTOBOOT);
+    return true;
+//    return (settings.ps2_flags & SETTINGS_PS2_FLAGS_AUTOBOOT);
 }
 
 void settings_set_ps2_autoboot(bool autoboot) {
@@ -205,6 +222,14 @@ uint8_t settings_get_display_vcomh() {
     return settings.display_vcomh;
 }
 
+bool settings_get_sd_mode() {
+#if WITH_PSRAM
+    return false;
+#else
+    return true;
+#endif
+}
+
 void settings_set_display_timeout(uint8_t display_timeout) {
     settings.display_timeout = display_timeout;
     SETTINGS_UPDATE_FIELD(display_timeout);
@@ -218,4 +243,8 @@ void settings_set_display_contrast(uint8_t display_contrast) {
 void settings_set_display_vcomh(uint8_t display_vcomh) {
     settings.display_vcomh = display_vcomh;
     SETTINGS_UPDATE_FIELD(display_vcomh);
+}
+
+void settings_set_sd_mode(bool mode) {
+    (void)mode;
 }

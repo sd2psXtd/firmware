@@ -4,7 +4,9 @@
 #include <stdio.h>
 #include <stdarg.h>
 
+#if WITH_GUI
 #include "oled.h"
+#endif
 #include "pico/platform.h"
 
 static char debug_queue[1024];
@@ -45,7 +47,7 @@ void fatal(const char *format, ...) {
     va_end(args);
 
     printf("%s\n", buf);
-
+#if WITH_GUI
     static int fatal_reentry;
     if (!fatal_reentry) {
         fatal_reentry = 1;
@@ -55,6 +57,7 @@ void fatal(const char *format, ...) {
         oled_draw_text(buf);
         oled_show();
     }
+#endif
 
     while (1) {
     }

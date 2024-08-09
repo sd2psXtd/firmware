@@ -6,10 +6,13 @@
 #include <string.h>
 #include <stdlib.h>
 
+#include "ps1_mc_data_interface.h"
 #include "sd.h"
 #include "debug.h"
 #include "settings.h"
+#if WITH_PSRAM
 #include <psram/psram.h>
+#endif
 #include "ps1_empty_card.h"
 
 #include "game_db/game_db.h"
@@ -70,6 +73,19 @@ void ps1_cardman_init(void) {
     } else if (!try_set_game_id_card()){
         set_default_card();
     }
+}
+
+int ps1_cardman_read_sector(int sector, void *buf128) {
+    if (fd < 0)
+        return -1;
+
+    if (sd_seek(fd, sector * BLOCK_SIZE) != 0)
+        return -2;
+
+    if (sd_read(fd, buf128, BLOCK_SIZE) != BLOCK_SIZE)
+        return -3;
+
+    return 0;
 }
 
 int ps1_cardman_write_sector(int sector, void *buf512) {
@@ -139,15 +155,26 @@ void ps1_cardman_open(void) {
 
         for (size_t pos = 0; pos < CARD_SIZE; pos += BLOCK_SIZE) {
             genblock(pos, flushbuf);
-            psram_write_dma(pos, flushbuf, BLOCK_SIZE, NULL);
+#if WITH_PSRAM
+            if (!settings_get_sd_mode()) {
+                psram_write_dma(pos, flushbuf, BLOCK_SIZE, NULL);
+            }
+#endif
             if (sd_write(fd, flushbuf, BLOCK_SIZE) != BLOCK_SIZE)
                 fatal("cannot init memcard");
-            psram_wait_for_dma();
+#if WITH_PSRAM
+            if (!settings_get_sd_mode()) {
+                psram_wait_for_dma();
+            }
+#endif
         }
         sd_flush(fd);
 
+        ps1_mc_data_interface_card_changed();
+
         uint64_t end = time_us_64();
         printf("OK!\n");
+
 
         printf("took = %.2f s; SD write speed = %.2f kB/s\n", (end - cardprog_start) / 1e6,
             1000000.0 * CARD_SIZE / (end - cardprog_start) / 1024);
@@ -160,12 +187,19 @@ void ps1_cardman_open(void) {
         /* read 8 megs of card image */
         printf("reading card.... ");
         uint64_t cardprog_start = time_us_64();
-        for (size_t pos = 0; pos < CARD_SIZE; pos += BLOCK_SIZE) {
-            if (sd_read(fd, flushbuf, BLOCK_SIZE) != BLOCK_SIZE)
-                fatal("cannot read memcard");
-            psram_write_dma(pos, flushbuf, BLOCK_SIZE, NULL);
-            psram_wait_for_dma();
+#if WITH_PSRAM
+        if (!settings_get_sd_mode()) {
+
+            for (size_t pos = 0; pos < CARD_SIZE; pos += BLOCK_SIZE) {
+                if (sd_read(fd, flushbuf, BLOCK_SIZE) != BLOCK_SIZE)
+                    fatal("cannot read memcard");
+                
+                psram_write_dma(pos, flushbuf, BLOCK_SIZE, NULL);
+                psram_wait_for_dma();
+            }
         }
+#endif
+        ps1_mc_data_interface_card_changed();
         uint64_t end = time_us_64();
         printf("OK!\n");
 

@@ -1,8 +1,6 @@
-#include "../ps2_dirty.h"
 #include "hardware/pio.h"
 #include "history_tracker/ps2_history_tracker.h"
 #include "ps2_cardman.h"
-#include "psram/psram.h"
 #include "debug.h"
 #include "hardware/gpio.h"
 #include "hardware/timer.h"
@@ -32,7 +30,7 @@ typedef struct {
     uint32_t sm;
 } pio_t;
 
-pio_t cmd_reader, dat_writer, clock_probe;
+pio_t cmd_reader, dat_writer; //, clock_probe;
 uint8_t term = 0xFF;
 
 static volatile uint8_t reset_tx_byte;
@@ -55,18 +53,18 @@ static inline void __time_critical_func(RAM_pio_sm_drain_tx_fifo)(PIO pio, uint 
 }
 
 static void __time_critical_func(reset_pio)(void) {
-    pio_set_sm_mask_enabled(pio0, (1 << cmd_reader.sm) | (1 << dat_writer.sm) | (1 << clock_probe.sm), false);
-    pio_restart_sm_mask(pio0, (1 << cmd_reader.sm) | (1 << dat_writer.sm) | (1 << clock_probe.sm));
+    pio_set_sm_mask_enabled(pio0, (1 << cmd_reader.sm) | (1 << dat_writer.sm), false);// | (1 << clock_probe.sm), false);
+    pio_restart_sm_mask(pio0, (1 << cmd_reader.sm) | (1 << dat_writer.sm));// | (1 << clock_probe.sm));
 
     pio_sm_exec(pio0, cmd_reader.sm, pio_encode_jmp(cmd_reader.offset));
     pio_sm_exec(pio0, dat_writer.sm, pio_encode_jmp(dat_writer.offset));
-    pio_sm_exec(pio0, clock_probe.sm, pio_encode_jmp(clock_probe.offset));
+//    pio_sm_exec(pio0, clock_probe.sm, pio_encode_jmp(clock_probe.offset));
 
     pio_sm_clear_fifos(pio0, cmd_reader.sm);
     RAM_pio_sm_drain_tx_fifo(pio0, dat_writer.sm);
-    pio_sm_clear_fifos(pio0, clock_probe.sm);
+//    pio_sm_clear_fifos(pio0, clock_probe.sm);
 
-    pio_enable_sm_mask_in_sync(pio0, (1 << cmd_reader.sm) | (1 << dat_writer.sm) | (1 << clock_probe.sm));
+    pio_enable_sm_mask_in_sync(pio0, (1 << cmd_reader.sm) | (1 << dat_writer.sm));// | (1 << clock_probe.sm));
 
     if (reset_place_tx_byte != 0) {
         mc_respond(reset_tx_byte);  //Preemptively place byte on tx for proper alignment with mmce fs read packets
@@ -88,13 +86,11 @@ static void __time_critical_func(init_pio)(void) {
     gpio_set_dir(PIN_PSX_CLK, 0);
     gpio_set_dir(PIN_PSX_CMD, 0);
     gpio_set_dir(PIN_PSX_DAT, 0);
-    gpio_set_dir(PIN_PSX_SPD_SEL, true);
     gpio_disable_pulls(PIN_PSX_ACK);
     gpio_disable_pulls(PIN_PSX_SEL);
     gpio_disable_pulls(PIN_PSX_CLK);
     gpio_disable_pulls(PIN_PSX_CMD);
     gpio_disable_pulls(PIN_PSX_DAT);
-    gpio_disable_pulls(PIN_PSX_SPD_SEL);
 
     cmd_reader.offset = pio_add_program(pio0, &cmd_reader_program);
     cmd_reader.sm = pio_claim_unused_sm(pio0, true);
@@ -102,12 +98,12 @@ static void __time_critical_func(init_pio)(void) {
     dat_writer.offset = pio_add_program(pio0, &dat_writer_program);
     dat_writer.sm = pio_claim_unused_sm(pio0, true);
 
-    clock_probe.offset = pio_add_program(pio0, &clock_probe_program);
-    clock_probe.sm = pio_claim_unused_sm(pio0, true);
+//    clock_probe.offset = pio_add_program(pio0, &clock_probe_program);
+//    clock_probe.sm = pio_claim_unused_sm(pio0, true);
 
     cmd_reader_program_init(pio0, cmd_reader.sm, cmd_reader.offset);
     dat_writer_program_init(pio0, dat_writer.sm, dat_writer.offset);
-    clock_probe_program_init(pio0, clock_probe.sm, clock_probe.offset);
+//    clock_probe_program_init(pio0, clock_probe.sm, clock_probe.offset);
 }
 
 static void __time_critical_func(card_deselected)(uint gpio, uint32_t event_mask) {
@@ -195,6 +191,7 @@ void calcECC(uint8_t *ecc, const uint8_t *data) {
 }
 
 static void __time_critical_func(mc_main_loop)(void) {
+    QPRINTF("Enter---------- \n");
     while (1) {
         uint8_t cmd = 0;
 
@@ -217,7 +214,7 @@ static void __time_critical_func(mc_main_loop)(void) {
         }
         if (received == RECEIVE_RESET)
             continue;
-        
+
 
         if (cmd == PS2_SIO2_CMD_IDENTIFIER) {
             /* resp to 0x81 */
@@ -299,10 +296,12 @@ static void __no_inline_not_in_flash_func(mc_main)(void) {
     while (1) {
         while (!mc_enter_request) {}
         mc_enter_response = 1;
+        while (!ps2_cardman_is_accessible()) {}
         ps2_history_tracker_card_changed();
         
         reset_pio();
         mc_main_loop();
+        QPRINTF("%s exit\n", __func__);
     }
 }
 
@@ -359,25 +358,28 @@ void ps2_memory_card_main(void) {
     generateIvSeedNonce();
 
     us_startup = time_us_64();
-    DPRINTF("Secondary core!\n");
+    QPRINTF("Secondary core!\n");
 
     my_gpio_set_irq_enabled_with_callback(PIN_PSX_SEL, GPIO_IRQ_EDGE_RISE, 1, card_deselected);
-
+    
     gpio_set_slew_rate(PIN_PSX_DAT, GPIO_SLEW_RATE_FAST);
     gpio_set_drive_strength(PIN_PSX_DAT, GPIO_DRIVE_STRENGTH_12MA);
+
     mc_main();
 }
 
 static int memcard_running;
 
 void ps2_memory_card_exit(void) {
+    QPRINTF("MEMCARD EXIT!\n");
     if (!memcard_running)
         return;
 
     mc_exit_request = 1;
-    while (!mc_exit_response) {}
+    while (!mc_exit_response) { };
     mc_exit_request = mc_exit_response = 0;
     memcard_running = 0;
+    QPRINTF("MEMCARD EXIT END!\n");
 }
 
 void ps2_memory_card_enter(void) {
@@ -399,6 +401,10 @@ void ps2_memory_card_unload(void) {
     pio_sm_unclaim(pio0, cmd_reader.sm);
     pio_remove_program(pio0, &dat_writer_program, dat_writer.offset);
     pio_sm_unclaim(pio0, dat_writer.sm);
-    pio_remove_program(pio0, &clock_probe_program, clock_probe.offset);
-    pio_sm_unclaim(pio0, clock_probe.sm);
+//    pio_remove_program(pio0, &clock_probe_program, clock_probe.offset);
+//    pio_sm_unclaim(pio0, clock_probe.sm);
+}
+
+bool ps2_memory_card_running(void) {
+    return (memcard_running != 0);
 }

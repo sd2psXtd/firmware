@@ -20,12 +20,12 @@ static bool initialized = false;
 
 extern "C" void sd_init() {
     if (!initialized) {
-        SPI1.setRX(SD_MISO);
-        SPI1.setTX(SD_MOSI);
-        SPI1.setSCK(SD_SCK);
-        SPI1.setCS(SD_CS);
+        SD_PERIPH.setRX(SD_MISO);
+        SD_PERIPH.setTX(SD_MOSI);
+        SD_PERIPH.setSCK(SD_SCK);
+        SD_PERIPH.setCS(SD_CS);
 
-        int ret = sd.begin(SdSpiConfig(SD_CS, DEDICATED_SPI, SD_BAUD, &SPI1));
+        int ret = sd.begin(SdSpiConfig(SD_CS, DEDICATED_SPI, SD_BAUD, &SD_PERIPH));
         if (ret != 1) {
             if (sd.sdErrorCode()) {
                 fatal("failed to mount the card\nSdError: 0x%02X,0x%02X\ncheck the card", sd.sdErrorCode(), sd.sdErrorData());

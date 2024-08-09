@@ -3,14 +3,13 @@
 #include "hardware/timer.h"
 #include "pico/platform.h"
 #include "pico/multicore.h"
+#include "ps1_mc_data_interface.h"
 #include "string.h"
 #include <stdint.h>
 
 #include "config.h"
 #include "ps1_mc_spi.pio.h"
 #include "debug.h"
-#include <psram/psram.h>
-#include "ps1_dirty.h"
 #include "ps1/ps1_memory_card.h"
 #include "game_db/game_db.h"
 
@@ -20,7 +19,7 @@ static size_t byte_count;
 static volatile int reset;
 static int ignore;
 static uint8_t flag;
-static bool dma_in_progress = false;
+static uint8_t* curr_page = NULL;
 
 static size_t game_id_length;
 static char received_game_id[0x10];
@@ -87,11 +86,6 @@ static uint8_t __time_critical_func(recv_cmd)(void) {
     return (uint8_t) (pio_sm_get(pio0, cmd_reader.sm) >> 24);
 }
 
-static void __time_critical_func(psram_dma_rx_done)() {
-    dma_in_progress = false;
-    ps1_dirty_unlock();
-}
-
 static int __time_critical_func(mc_do_state)(uint8_t ch) {
     static uint8_t payload[256];
     if (byte_count >= sizeof(payload))
@@ -122,12 +116,12 @@ static int __time_critical_func(mc_do_state)(uint8_t ch) {
             /* Memory card read */
             #define MSB (payload[4])
             #define LSB (payload[5])
-            #define ADDR ((MSB * 256 + LSB) * 128)
+            #define PAGE (MSB * 256 + LSB)
+            #define ADDR (PAGE * 128)
             #define OFF (byte_count - 10)
 
-            static uint8_t buffer[128];
             static uint8_t chk;
-
+            
             switch (byte_count) {
                 case 2: return 0x5A;
                 case 3: return 0x5D;
@@ -138,28 +132,33 @@ static int __time_critical_func(mc_do_state)(uint8_t ch) {
                 case 8: return MSB;
                 case 9:
                     chk = MSB ^ LSB;
-                    ps1_dirty_lock();
-                    dma_in_progress = true;
-                    psram_read_dma(ADDR, buffer, 128, psram_dma_rx_done);
+                    ps1_mc_data_interface_setup_read_page(PAGE, false);
                     return LSB;
                 case 10 ... 137: {
-                    while (dma_in_progress && psram_read_dma_remaining() >= (128 - OFF)) {} // wait for requested byte to be DMA'd
-                    chk ^= buffer[OFF];
-                    return buffer[OFF];
+                    ps1_mc_data_interface_wait_for_byte(OFF);
+                    curr_page = ps1_mc_data_interface_get_page(PAGE);
+                    chk ^= curr_page[OFF];
+                    return curr_page[OFF];
                 }
                 case 138: return chk;
-                case 139: return 0x47;
+                case 139: {
+                    curr_page = NULL;
+                    QPRINTF("Done Reading sector %u\n", PAGE);
+                    return 0x47;
+                }
             }
 
             #undef MSB
             #undef LSB
             #undef ADDR
             #undef OFF
+            #undef PAGE
         } else if (cmd == 'W') {
             /* Memory card write */
             #define MSB (payload[4])
             #define LSB (payload[5])
-            #define ADDR ((MSB * 256 + LSB) * 128 + byte_count - 7)
+            #define PAGE (MSB * 256 + LSB)
+            #define ADDR (PAGE * 128 + byte_count - 7)
 
             static uint8_t chk;
 
@@ -171,10 +170,7 @@ static int __time_critical_func(mc_do_state)(uint8_t ch) {
                 case 6: return LSB;
                 case 7: chk = MSB ^ LSB; // fallthrough
                 case 8 ... 134: {
-                    ps1_dirty_lock();
-                    psram_write_dma(ADDR, &payload[byte_count - 1], 1, NULL);
-                    psram_wait_for_dma();
-                    ps1_dirty_unlock();
+                    ps1_mc_data_interface_write_byte(ADDR, payload[byte_count - 1]);
                     chk ^= payload[byte_count - 1];
                     return payload[byte_count - 1];
                 }
@@ -182,7 +178,7 @@ static int __time_critical_func(mc_do_state)(uint8_t ch) {
                 case 136: return 0x5D;
                 case 137: {
                     if (chk == payload[byte_count - 3]) {
-                        ps1_dirty_mark(MSB * 256 + LSB);
+                        ps1_mc_data_interface_write_mc(PAGE);
                         return 0x47;
                     } else
                         return 0x4E;

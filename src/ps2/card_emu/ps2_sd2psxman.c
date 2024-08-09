@@ -4,8 +4,11 @@
 #include <stdio.h>
 #include <string.h>
 
+#include "card_emu/ps2_mc_data_interface.h"
 #include "debug.h"
+#if WITH_GUI
 #include "gui.h"
+#endif
 #include "ps2/card_emu/ps2_memory_card.h"
 #include "ps2/card_emu/ps2_sd2psxman_commands.h"
 #include "ps2/ps2_cardman.h"
@@ -13,7 +16,6 @@
 #include "game_db/game_db.h"
 
 #include "pico/platform.h"
-#include "ps2_dirty.h"
 
 volatile uint8_t sd2psxman_cmd;
 volatile uint8_t sd2psxman_mode;
@@ -21,7 +23,7 @@ volatile uint16_t sd2psxman_cnum;
 char sd2psxman_gameid[251] = {0x00};
 
 void ps2_sd2psxman_task(void) {
-    if ((sd2psxman_cmd != 0) && (!ps2_dirty_activity)) {
+    if ((sd2psxman_cmd != 0) && (!ps2_mc_data_interface_write_occured())) {
 
         switch (sd2psxman_cmd) {
             case SD2PSXMAN_SET_CARD:
@@ -74,8 +76,13 @@ void ps2_sd2psxman_task(void) {
             ps2_cardman_close();
 
             // open new card
+#if WITH_GUI
             gui_do_ps2_card_switch();
             gui_request_refresh();
+#else
+            ps2_cardman_open();
+            ps2_memory_card_enter();
+#endif
         }
 
         sd2psxman_cmd = 0;

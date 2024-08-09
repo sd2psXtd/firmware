@@ -6,7 +6,9 @@
 #include "debug.h"
 #include "game_db/game_db.h"
 
+#if WITH_GUI
 #include <gui.h>
+#endif
 #include <string.h>
 
 #define CARD_SWITCH_DELAY_MS    (250)
@@ -54,6 +56,8 @@ void ps1_odeman_task(void) {
 
         ps1_cardman_open();
         ps1_memory_card_enter();
+#ifdef WITH_GUI
         gui_request_refresh();
+#endif
     }
 }

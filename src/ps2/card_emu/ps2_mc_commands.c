@@ -6,36 +6,23 @@
 
 #include "hardware/dma.h"
 #include "history_tracker/ps2_history_tracker.h"
+#include "pico/time.h"
 #include "ps2_cardman.h"
-#include "ps2_dirty.h"
 #include "ps2_mc_internal.h"
-#include "psram/psram.h"
+#include "ps2_mc_data_interface.h"
 #include "debug.h"
 
 //#define DEBUG_MC_PROTOCOL
+#define QPRINTF(x, y...)
 
 uint32_t read_sector, write_sector, erase_sector;
-uint8_t readtmp[528];
+uint8_t readecc[16];
 uint8_t writetmp[528];
 int is_write;
-bool dma_in_progress = false;
 uint32_t readptr, writeptr;
 uint8_t *eccptr;
 
-static void __time_critical_func(psram_dma_rx_done)() {
-    dma_in_progress = false;
-    ps2_dirty_unlock();
-}
 
-static void __time_critical_func(start_read_dma)() {
-    if (read_sector * 512 + 512 <= ps2_cardman_get_card_size()) {
-        ps2_dirty_lockout_renew();
-        /* the spinlock will be unlocked by the DMA irq once all data is tx'd */
-        ps2_dirty_lock();
-        dma_in_progress = true;
-        psram_read_dma(read_sector * 512, &readtmp, 512, psram_dma_rx_done);
-    }
-}
 
 inline __attribute__((always_inline)) void __time_critical_func(ps2_mc_cmd_0x11)(void) {
     uint8_t _ = 0U;
@@ -124,15 +111,17 @@ inline __attribute__((always_inline)) void __time_critical_func(ps2_mc_cmd_setRe
     mc_respond(0x2B);
     receiveOrNextCmd(&_);
     (void)ck;  // TODO: validate checksum
-    read_sector = raw.addr;
-    if (!ps2_cardman_is_sector_available(read_sector)) {
-        ps2_cardman_set_priority_sector(read_sector);
-    } else {
-        start_read_dma();
+    if (raw.addr != read_sector) {
+        ps2_mc_data_interface_invalidate(read_sector);
+        ps2_mc_data_interface_invalidate_readahead();
     }
+        
+    read_sector = raw.addr;
+    ps2_mc_data_interface_setup_read_page(read_sector, true);
+
     readptr = 0;
 
-    eccptr = &readtmp[512];
+    eccptr = readecc;
     memset(eccptr, 0, 16);
 
     mc_respond(term);
@@ -226,10 +215,13 @@ inline __attribute__((always_inline)) void __time_critical_func(ps2_mc_cmd_write
     mc_respond(term);
 }
 
-inline __attribute__((always_inline)) void __time_critical_func(ps2_mc_cmd_readData)(void) {
+inline __attribute__((always_inline)) void __time_critical_func(ps2_mc_cmd_readData)(void) {    
+
     uint8_t _ = 0U;
     /* read data */
     uint8_t sz;
+    ps2_mcdi_page_t* page;
+    QPRINTF("-------START %s\n", __func__);
     mc_respond(0xFF);
     receiveOrNextCmd(&sz);
     mc_respond(0x2B);
@@ -242,38 +234,24 @@ inline __attribute__((always_inline)) void __time_critical_func(ps2_mc_cmd_readD
     uint8_t ck = 0;
     uint8_t b = 0xFF;
 
-    // check if sector is still unavailable, wait on it if we have to and start the DMA
-    if (!ps2_cardman_is_sector_available(read_sector)) {
-        ps2_cardman_set_priority_sector(read_sector);
-        while (!ps2_cardman_is_sector_available(read_sector)) {} // wait for core 0 to load the sector into PSRAM
-        start_read_dma();
-    }
-    // otherwise set read address should have already kicked off the DMA
+    page = ps2_mc_data_interface_get_page(read_sector);
+
+    if (!page)
+        fatal("%s Page not found %u!\n", read_sector);
 
     for (int i = 0; i < sz; ++i) {
-        if (readptr == sizeof(readtmp)) {
-            /* a game may read more than one 528-byte sector in a sequence of read ops, e.g. re4 */
-            ++read_sector;
-            if (!ps2_cardman_is_sector_available(read_sector)) {
-                ps2_cardman_set_priority_sector(read_sector);
-                while (!ps2_cardman_is_sector_available(read_sector)) {}
-            }
-
-            start_read_dma();
-            readptr = 0;
-
-            eccptr = &readtmp[512];
-            memset(eccptr, 0, 16);
-        }
-
-        if (readptr < sizeof(readtmp)) {
+        if (readptr < PS2_PAGE_SIZE + 16) {
             // ensure the requested byte is available
-            if (readptr < 512)
-                while (dma_in_progress && psram_read_dma_remaining() >= (512 - readptr)) {};
-            b = readtmp[readptr];
+            ps2_mc_data_interface_wait_for_byte(readptr);
+            
+            if (readptr < PS2_PAGE_SIZE)
+                b = page->data[readptr];
+            else
+                b = readecc[readptr - PS2_PAGE_SIZE];
+
             mc_respond(b);
 
-            if (readptr <= 512) {
+            if (readptr <= PS2_PAGE_SIZE) {
                 uint8_t c = EccTable[b];
                 eccptr[0] ^= c;
                 if (c & 0x80) {
@@ -303,30 +281,42 @@ inline __attribute__((always_inline)) void __time_critical_func(ps2_mc_cmd_readD
         ck ^= b;
         receiveOrNextCmd(&_);
     }
+    if (readptr == PS2_PAGE_SIZE + 16) {
+        /* a game may read more than one 528-byte sector in a sequence of read ops, e.g. re4 */
+        ps2_mc_data_interface_invalidate(read_sector);
+        ++read_sector;
+        
+        ps2_mc_data_interface_setup_read_page(read_sector, true);
+
+        readptr = 0;
+
+        eccptr = readecc;
+        memset(readecc, 0, 16);
+    }
 
     mc_respond(ck);
     receiveOrNextCmd(&_);
     mc_respond(term);
+
+    QPRINTF("-------END %s\n", __func__);
+
 }
 
 inline __attribute__((always_inline)) void __time_critical_func(ps2_mc_cmd_commitData)(void) {
     uint8_t _ = 0;
+    QPRINTF("-------START %s\n", __func__);
     /* commit for read/write? */
     if (is_write) {
+
         is_write = 0;
-        if (write_sector * 512 + 512 <= ps2_cardman_get_card_size()) {
-            ps2_dirty_lockout_renew();
-            ps2_dirty_lock();
-            psram_write_dma(write_sector * 512, writetmp, 512, NULL);
-            psram_wait_for_dma();
-            ps2_cardman_mark_sector_available(write_sector); // in case sector is yet to be loaded from sd card
-            ps2_dirty_mark(write_sector);
-            ps2_dirty_unlock();
+        QPRINTF("%sWrite Sector %u\n", __func__, write_sector);
+            
+        ps2_mc_data_interface_write_mc(write_sector, writetmp);
 #ifdef DEBUG_MC_PROTOCOL
             debug_printf("WR 0x%08X : %02X %02X .. %08X %08X %08X\n", write_sector * 512, writetmp[0], writetmp[1], *(uint32_t *)&writetmp[512],
                          *(uint32_t *)&writetmp[516], *(uint32_t *)&writetmp[520]);
 #endif
-        }
+        
     } else {
 #ifdef DEBUG_MC_PROTOCOL
         debug_printf("RD 0x%08X : %02X %02X .. %08X %08X %08X\n", read_sector * 512, readtmp[0], readtmp[1], *(uint32_t *)&readtmp[512],
@@ -337,29 +327,23 @@ inline __attribute__((always_inline)) void __time_critical_func(ps2_mc_cmd_commi
     mc_respond(0x2B);
     receiveOrNextCmd(&_);
     mc_respond(term);
+    QPRINTF("-------END %s\n", __func__);
 }
 
 inline __attribute__((always_inline)) void __time_critical_func(ps2_mc_cmd_erase(void)) {
     uint8_t _ = 0U;
+    QPRINTF("START %s\n", __func__);
+
     /* do erase */
-    if (erase_sector * 512 + 512 * ERASE_SECTORS <= ps2_cardman_get_card_size()) {
-        memset(readtmp, 0xFF, 512);
-        ps2_dirty_lockout_renew();
-        ps2_dirty_lock();
-        for (int i = 0; i < ERASE_SECTORS; ++i) {
-            psram_write_dma((erase_sector + i) * 512, readtmp, 512, NULL);
-            psram_wait_for_dma();
-            ps2_cardman_mark_sector_available(erase_sector + i);
-            ps2_dirty_mark(erase_sector + i);
-        }
-        ps2_dirty_unlock();
+    ps2_mc_data_interface_erase(erase_sector);
 #ifdef DEBUG_MC_PROTOCOL
         debug_printf("ER 0x%08X\n", erase_sector * 512);
 #endif
-    }
+    
     mc_respond(0x2B);
     receiveOrNextCmd(&_);
     mc_respond(term);
+    QPRINTF("END %s\n", __func__);
 }
 
 inline __attribute__((always_inline)) void __time_critical_func(ps2_mc_cmd_0xBF)(void) {
