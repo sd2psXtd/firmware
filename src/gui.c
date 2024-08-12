@@ -508,6 +508,8 @@ static void evt_switch_to_ps1(lv_event_t *event) {
 
     settings_set_mode(MODE_PS1);
     lv_label_set_text(lbl_mode, "PS1");
+    gui_request_refresh();
+
     /* start at the main screen */
     UI_GOTO_SCREEN(scr_main);
 }
@@ -517,6 +519,7 @@ static void evt_switch_to_ps2(lv_event_t *event) {
 
     settings_set_mode(MODE_PS2);
     lv_label_set_text(lbl_mode, "PS2");
+    gui_request_refresh();
 
 
     if (!ps2_magicgate)
