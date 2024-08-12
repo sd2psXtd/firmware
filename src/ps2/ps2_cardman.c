@@ -59,6 +59,42 @@ static enum {
     CARDMAN_IDLE
 } cardman_operation;
 
+static bool try_set_boot_card() {
+    if (!settings_get_ps2_autoboot())
+        return false;
+
+    card_idx = PS2_CARD_IDX_SPECIAL;
+    card_chan = settings_get_ps2_boot_channel();
+    cardman_state = PS2_CM_STATE_BOOT;
+    snprintf(folder_name, sizeof(folder_name), "BOOT");
+    return true;
+}
+
+static void set_default_card() {
+    card_idx = settings_get_ps2_card();
+    card_chan = settings_get_ps2_channel();
+    cardman_state = PS2_CM_STATE_NORMAL;
+    snprintf(folder_name, sizeof(folder_name), "Card%d", card_idx);
+}
+
+static bool try_set_game_id_card() {
+    if (!settings_get_ps2_game_id())
+        return false;
+
+    char parent_id[MAX_GAME_ID_LENGTH] = {};
+
+    (void)game_db_get_current_parent(parent_id);
+
+    if (!parent_id[0])
+        return false;
+
+    card_idx = PS2_CARD_IDX_SPECIAL;
+    card_chan = CHAN_MIN;
+    cardman_state = PS2_CM_STATE_GAMEID;
+    snprintf(folder_name, sizeof(folder_name), "%s", parent_id);
+
+    return true;
+}
 
 int ps2_cardman_read_sector(int sector, void *buf512) {
     if (fd < 0)
@@ -551,77 +587,49 @@ void ps2_cardman_set_idx(uint16_t idx_num) {
     snprintf(folder_name, sizeof(folder_name), "Card%d", card_idx);
 }
 
-static void ps2_cardman_special_idx(int newIndx) {
-    char parent_id[MAX_GAME_ID_LENGTH] = { 0x00 };
-    if (settings_get_ps2_game_id())
-        (void)game_db_get_current_parent(parent_id);
-
-    log(LOG_INFO, "Parent ID is %s, State is %i, new Index: %i\n", parent_id, cardman_state, newIndx);
-    if (PS2_CM_STATE_NORMAL == cardman_state) {
-        if (parent_id[0]) {
-            card_idx = PS2_CARD_IDX_SPECIAL;
-            cardman_state = PS2_CM_STATE_GAMEID;
-            card_chan = CHAN_MIN;
-            snprintf(folder_name, sizeof(folder_name), "%s", parent_id);
-        } else if (settings_get_ps2_autoboot()) {
-            card_idx = PS2_CARD_IDX_SPECIAL;
-            cardman_state = PS2_CM_STATE_BOOT;
-            card_chan = settings_get_ps2_boot_channel();
-            snprintf(folder_name, sizeof(folder_name), "BOOT");
-        } else {
-            cardman_state = PS2_CM_STATE_NORMAL;
-            card_idx = IDX_MIN;
-            snprintf(folder_name, sizeof(folder_name), "Card%d", card_idx);
-        }
-    } else if (PS2_CM_STATE_BOOT == cardman_state) {
-        if ((newIndx > PS2_CARD_IDX_SPECIAL) && (parent_id[0])) {
-            card_idx = PS2_CARD_IDX_SPECIAL;
-            cardman_state = PS2_CM_STATE_GAMEID;
-            card_chan = CHAN_MIN;
-            snprintf(folder_name, sizeof(folder_name), "%s", parent_id);
-        } else {
-            card_idx = settings_get_ps2_card();
-            card_chan = settings_get_ps2_channel();
-            cardman_state = PS2_CM_STATE_NORMAL;
-            snprintf(folder_name, sizeof(folder_name), "Card%d", card_idx);
-        }
-    } else if (PS2_CM_STATE_GAMEID == cardman_state) {
-        if ((newIndx < PS2_CARD_IDX_SPECIAL) && (settings_get_ps2_autoboot())) {
-            // Prev Pressed and Boot available
-            card_idx = PS2_CARD_IDX_SPECIAL;
-            cardman_state = PS2_CM_STATE_BOOT;
-            card_chan = settings_get_ps2_boot_channel();
-            snprintf(folder_name, sizeof(folder_name), "BOOT");
-        } else {
-            card_idx = settings_get_ps2_card();
-            card_chan = settings_get_ps2_channel();
-            cardman_state = PS2_CM_STATE_NORMAL;
-            snprintf(folder_name, sizeof(folder_name), "Card%d", card_idx);
-        }
-    }
-}
-
 void ps2_cardman_next_idx(void) {
-    int newIdx = card_idx + 1;
-    if (PS2_CM_STATE_NORMAL != cardman_state) {
-        ps2_cardman_special_idx(newIdx);
-    } else {
-        card_idx = (newIdx > (int)UINT16_MAX) ? UINT16_MAX : newIdx;
-        card_chan = CHAN_MIN;
-        snprintf(folder_name, sizeof(folder_name), "Card%d", card_idx);
+    switch (cardman_state) {
+        case PS2_CM_STATE_BOOT:
+            if (!try_set_game_id_card())
+                set_default_card();
+            break;
+        case PS2_CM_STATE_GAMEID:
+            set_default_card();
+            break;
+        case PS2_CM_STATE_NORMAL:
+            card_idx += 1;
+            card_chan = CHAN_MIN;
+            if (card_idx > UINT16_MAX)
+                card_idx = UINT16_MAX;
+            snprintf(folder_name, sizeof(folder_name), "Card%d", card_idx);
+            break;
     }
+
     needs_update = true;
 }
 
 void ps2_cardman_prev_idx(void) {
-    int newIdx = card_idx - 1;
-    if ((PS2_CM_STATE_NORMAL != cardman_state) || (PS2_CARD_IDX_SPECIAL == newIdx)) {
-        ps2_cardman_special_idx(newIdx);
-    } else {
-        card_idx = newIdx;
-        card_chan = CHAN_MIN;
-        snprintf(folder_name, sizeof(folder_name), "Card%d", card_idx);
+    switch (cardman_state) {
+        case PS2_CM_STATE_BOOT:
+            set_default_card();
+            break;
+        case PS2_CM_STATE_GAMEID:
+            if (!try_set_boot_card())
+                set_default_card();
+            break;
+        case PS2_CM_STATE_NORMAL:
+            card_idx -= 1;
+            card_chan = CHAN_MIN;
+            if (card_idx <= PS2_CARD_IDX_SPECIAL) {
+                if (!try_set_game_id_card())
+                    if (!try_set_boot_card())
+                        set_default_card();
+            } else {
+                snprintf(folder_name, sizeof(folder_name), "Card%d", card_idx);
+            }
+            break;
     }
+
     needs_update = true;
 }
 
@@ -700,17 +708,9 @@ bool ps2_cardman_is_idle(void) {
 }
 
 void ps2_cardman_init(void) {
-    if (settings_get_ps2_autoboot()) {
-        card_idx = PS2_CARD_IDX_SPECIAL;
-        cardman_state = PS2_CM_STATE_BOOT;
-        card_chan = settings_get_ps2_boot_channel();
-        snprintf(folder_name, sizeof(folder_name), "BOOT");
-    } else {
-        card_idx = settings_get_ps2_card();
-        card_chan = settings_get_ps2_channel();
-        cardman_state = PS2_CM_STATE_NORMAL;
-        snprintf(folder_name, sizeof(folder_name), "Card%d", card_idx);
-    }
+    if (!try_set_boot_card())
+        set_default_card();
+
     cardman_operation = CARDMAN_IDLE;
 }
 
