@@ -18,8 +18,8 @@
 
 #include "mmce_fs/ps2_mmce_fs.h"
 
-#define DPRINTF(fmt, x...) printf(fmt, ##x)
-//#define DPRINTF(x...) 
+//#define DPRINTF(fmt, x...) printf(fmt, ##x)
+#define DPRINTF(x...) 
 
 //TODO: temp global values, find them a home
 static int transfer_stage = 0;
@@ -214,7 +214,7 @@ inline __attribute__((always_inline)) void __time_critical_func(ps2_mmceman_cmd_
             } while (cmd != 0x0);
 
             DPRINTF("%s: name: %s flags: 0x%x\n", __func__, data->buffer, data->flags);
-            
+
             //Signal op in core1 (ps2_mmce_fs_run)
             ps2_mmce_fs_signal_operation(MMCE_FS_OPEN); 
         break;
@@ -235,14 +235,13 @@ inline __attribute__((always_inline)) void __time_critical_func(ps2_mmceman_cmd_
             receiveOrNextCmd(&cmd); //Padding
             mc_respond(data->fd);  receiveOrNextCmd(&cmd);
 
-            //If fd is valid, try to read a chunk ahead preemptively
-            if (data->fd > 0) {
-                ps2_mmce_fs_signal_operation(MMCE_FS_READ_AHEAD);
+            //If fd is valid and O_RDONLY, try to read a chunk ahead preemptively
+            if (data->fd > 0 && (data->flags & 2) == 0) {
+                //ps2_mmce_fs_signal_operation(MMCE_FS_READ_AHEAD);
             }
 
             ps2_memory_card_set_cmd_callback(NULL); //Clear callback
             transfer_stage = 0; //Clear stage
-
             mc_respond(term);   //End transfer
         break;
     }    
@@ -350,6 +349,8 @@ inline __attribute__((always_inline)) void __time_critical_func(ps2_mmceman_cmd_
                 if (data->length < CHUNK_SIZE) {
                     data->whence = 1;
                     data->offset = (CHUNK_SIZE - data->length) * -1;
+                    
+                    DPRINTF("%s: corrective lseek: %i\n", __func__, data->offset);
 
                     //Seek back
                     ps2_mmce_fs_signal_operation(MMCE_FS_LSEEK);
@@ -371,7 +372,7 @@ inline __attribute__((always_inline)) void __time_critical_func(ps2_mmceman_cmd_
                 //Wait for first chunk to become available before ending this transfer (~2.5ms until timeout)
                 while(data->chunk_state[data->tail_idx] != CHUNK_STATE_READY) {
 
-                    DPRINTF("C0: Waiting on: %i state:%i\n", data->tail_idx, data->chunk_state[data->tail_idx]);
+                    DPRINTF("C0: w: %i s:%i\n", data->tail_idx, data->chunk_state[data->tail_idx]);
                     
                     //Reading ahead failed to get requested data
                     if (data->chunk_state[data->tail_idx] == CHUNK_STATE_INVALID) {
@@ -451,7 +452,7 @@ inline __attribute__((always_inline)) void __time_critical_func(ps2_mmceman_cmd_
                     //Wait for next chunk to be available before ending this transfer (~2.5ms until timeout)
                     while(data->chunk_state[next_chunk] != CHUNK_STATE_READY) {
                         
-                        DPRINTF("C0: Waiting on: %i state:%i\n", next_chunk, data->chunk_state[next_chunk]);
+                        DPRINTF("C0: w: %i s:%i\n", next_chunk, data->chunk_state[next_chunk]);
 
                         //TODO: error handling
                         if (data->chunk_state[next_chunk] == CHUNK_STATE_INVALID) {
@@ -476,7 +477,7 @@ inline __attribute__((always_inline)) void __time_critical_func(ps2_mmceman_cmd_
                 data->use_read_ahead = 0;
                 data->read_ahead.valid = 0;
 
-                DPRINTF("C0: read ahead consumed, bytes in this packet: %i\n", (bytes_left_in_packet + 1));
+                DPRINTF("C0: ra c, bip: %i\n", (bytes_left_in_packet + 1));
 
             //Using ring buffer 
             } else {
@@ -485,7 +486,7 @@ inline __attribute__((always_inline)) void __time_critical_func(ps2_mmceman_cmd_
                 data->chunk_state[data->tail_idx] = CHUNK_STATE_NOT_READY;
                 critical_section_exit(&mmce_fs_crit);
 
-                DPRINTF("C0: %i consumed, bytes in this packet: %i\n", data->tail_idx, (bytes_left_in_packet + 1));
+                DPRINTF("C0: %i c, bip: %i\n", data->tail_idx, (bytes_left_in_packet + 1));
                 
                 //Update tail idx
                 data->tail_idx = next_chunk;
@@ -512,12 +513,11 @@ inline __attribute__((always_inline)) void __time_critical_func(ps2_mmceman_cmd_
             mc_respond(bytes8[0x1]); receiveOrNextCmd(&cmd);
             mc_respond(bytes8[0x0]); receiveOrNextCmd(&cmd);
 
-            ps2_mmce_fs_signal_operation(MMCE_FS_READ_AHEAD); //Try to read an additional 256B chunk
+            //ps2_mmce_fs_signal_operation(MMCE_FS_READ_AHEAD); //Try to read an additional 256B chunk
 
             ps2_memory_card_set_cmd_callback(NULL);
         
             transfer_stage = 0;
-
             mc_respond(term);
             break;
     }
@@ -681,6 +681,7 @@ inline __attribute__((always_inline)) void __time_critical_func(ps2_mmceman_cmd_
             data = ps2_mmce_fs_get_data();
             offset8 = (uint8_t*)&data->offset;
             data->offset = 0;
+            data->whence = 0;
 
             mc_respond(0x0); receiveOrNextCmd(&cmd); //padding
             mc_respond(0x0); receiveOrNextCmd(&data->fd);
@@ -1036,7 +1037,7 @@ inline __attribute__((always_inline)) void __time_critical_func(ps2_mmceman_cmd_
                 return;
             }
 
-            //Hack: Poll data->rv and have it set to -1 if iterate_dir returns -1
+            //Hack: Poll data->rv and have it set to -1 if it_fd returns -1
             data->rv = -2;
             ps2_mmce_fs_signal_operation(MMCE_FS_DREAD);            
 
@@ -1118,12 +1119,300 @@ inline __attribute__((always_inline)) void __time_critical_func(ps2_mmceman_cmd_
         //Packet #n + 3: Term
         case 4:
             receiveOrNextCmd(&cmd); //Padding
-            mc_respond(0x0);        //Reserved
+            mc_respond(data->it_fd); //iterator fd
             
             ps2_memory_card_set_cmd_callback(NULL);
             transfer_stage = 0;
 
             mc_respond(0xff);       //Term
+        break;
+    }
+}
+
+inline __attribute__((always_inline)) void __time_critical_func(ps2_mmceman_cmd_fs_lseek64)(void)
+{
+    uint8_t cmd;
+    uint8_t *offset8 = NULL;
+    uint8_t *position8 = NULL;
+    int ready;
+
+    switch(transfer_stage) {
+        //Packet #1: File descriptor, offset, and whence
+        case 0:
+            ps2_mmce_fs_wait_ready();
+            data = ps2_mmce_fs_get_data();
+
+            offset8 = (uint8_t*)&data->offset64;
+            data->offset64 = 0;
+            data->whence64 = 0;
+
+            mc_respond(0x0); receiveOrNextCmd(&cmd); //padding
+            mc_respond(0x0); receiveOrNextCmd(&data->fd);
+
+            mc_respond(0x0); receiveOrNextCmd(&offset8[0x7]);
+            mc_respond(0x0); receiveOrNextCmd(&offset8[0x6]);
+            mc_respond(0x0); receiveOrNextCmd(&offset8[0x5]);
+            mc_respond(0x0); receiveOrNextCmd(&offset8[0x4]);
+            mc_respond(0x0); receiveOrNextCmd(&offset8[0x3]);      
+            mc_respond(0x0); receiveOrNextCmd(&offset8[0x2]);
+            mc_respond(0x0); receiveOrNextCmd(&offset8[0x1]);
+            mc_respond(0x0); receiveOrNextCmd(&offset8);
+
+            mc_respond(0x0); receiveOrNextCmd(&data->whence64);
+
+            DPRINTF("%s: fd: %i, whence: %i, offset: %lli\n", __func__, data->fd, data->whence64, data->offset64);
+
+            //Check if fd is valid before continuing
+            ps2_mmce_fs_signal_operation(MMCE_FS_VALIDATE_FD);
+            ps2_mmce_fs_wait_ready();
+
+            if (data->rv == -1) {
+                DPRINTF("%s: bad fd: %i, abort\n", __func__, data->fd);
+                mc_respond(0x1);    //Return 1
+                return;             //Abort
+            }
+
+            ps2_mmce_fs_signal_operation(MMCE_FS_LSEEK64);
+            ps2_memory_card_set_cmd_callback(&ps2_mmceman_cmd_fs_lseek64);
+            transfer_stage = 1;
+
+            mc_respond(0x0);
+        break;
+
+        //Packet #2 - n: Poll ready
+        case 1:
+            receiveOrNextCmd(&cmd);
+            ready = ps2_mmce_fs_is_ready();
+            if (ready == 1)
+                transfer_stage = 2;
+
+            DPRINTF("ready: %i\n", ready);
+            mc_respond(ready);
+        break;
+
+        //Packet #n + 1: Position
+        case 2:
+            receiveOrNextCmd(&cmd);
+            
+            position8 = (uint8_t*)&data->position64; //Not sure casting to 64 bit is good here....
+
+            mc_respond(position8[0x7]); receiveOrNextCmd(&cmd);
+            mc_respond(position8[0x6]); receiveOrNextCmd(&cmd);
+            mc_respond(position8[0x5]); receiveOrNextCmd(&cmd);
+            mc_respond(position8[0x4]); receiveOrNextCmd(&cmd);
+            mc_respond(position8[0x3]); receiveOrNextCmd(&cmd);
+            mc_respond(position8[0x2]); receiveOrNextCmd(&cmd);
+            mc_respond(position8[0x1]); receiveOrNextCmd(&cmd);
+            mc_respond(position8[0x0]); receiveOrNextCmd(&cmd);
+
+            ps2_memory_card_set_cmd_callback(NULL);
+
+            DPRINTF("position: %lli\n", data->position64);
+            transfer_stage = 0;
+            mc_respond(term);
+        break;
+    }
+}
+
+
+inline __attribute__((always_inline)) void __time_critical_func(ps2_mmceman_cmd_fs_read_sector)(void)
+{
+    uint8_t cmd;
+    uint32_t sector;
+    uint32_t count;
+
+    uint8_t *sector8 = NULL;
+    uint8_t *count8 = NULL;
+
+    uint8_t last_byte;
+    uint8_t next_chunk;
+    uint32_t bytes_left_in_packet;
+    uint64_t seek_pos = 0;
+
+    switch(transfer_stage) {
+        case 0:
+            ps2_mmce_fs_wait_ready();
+            data = ps2_mmce_fs_get_data();
+            
+            //Clear values used in this transfer
+            data->bytes_transferred = 0x0;
+            data->bytes_read = 0;
+            data->tail_idx = 0;
+            data->head_idx = 0;
+
+            sector = 0;
+            count  = 0;
+
+            sector8 = (uint8_t*)&sector;
+            count8  = (uint8_t*)&count;
+
+            mc_respond(0x0); receiveOrNextCmd(&cmd);         //Reserved byte
+            mc_respond(0x0); receiveOrNextCmd(&data->fd);    //File descriptor
+            mc_respond(0x0); receiveOrNextCmd(&sector8[0x2]);
+            mc_respond(0x0); receiveOrNextCmd(&sector8[0x1]);
+            mc_respond(0x0); receiveOrNextCmd(&sector8[0x0]);
+
+            //TODO: Fragmentation was resutling in long seek times and sometimes failed seeks
+            //while a reformat seems to have solved the issue, it may be a good idea
+            //to rework this command to account for it
+            seek_pos = (uint64_t)(sector * 2048);
+            data->whence = 0;
+
+            DPRINTF("%s: fd: %i, seeking to offset %li\n", __func__, data->fd, seek_pos);
+            
+            //ps2_mmce_fs_signal_operation(MMCE_FS_LSEEK64);
+            //ps2_mmce_fs_wait_ready();
+            sd_seek(data->fd, seek_pos);
+
+            DPRINTF("pos: %i\n", sd_tell(data->fd));
+
+            mc_respond(0x0); receiveOrNextCmd(&count8[0x2]);
+            mc_respond(0x0); receiveOrNextCmd(&count8[0x1]);
+            mc_respond(0x0); receiveOrNextCmd(&count8[0x0]);
+
+            data->length = count * 2048;
+
+            ps2_mmce_fs_signal_operation(MMCE_FS_READ);
+            
+            DPRINTF("%s: sector: %i, count: %i, length: %i\n", __func__, sector, count, data->length);
+                
+            while(data->chunk_state[data->tail_idx] != CHUNK_STATE_READY) {
+
+                DPRINTF("C0: w: %i s:%i\n", data->tail_idx, data->chunk_state[data->tail_idx]);
+                
+                //Reading ahead failed to get requested data
+                if (data->chunk_state[data->tail_idx] == CHUNK_STATE_INVALID) {
+                    DPRINTF("Failed to read chunk, got CHUNK_STATE_INVALID, aborting\n");
+                    mc_respond(0x1);    //Return 1
+                    return;             //Abort
+                }
+
+                sleep_us(1);
+            }
+
+            //Place the first byte of the chunk in TX FIFO on reset to ensure proper alignment
+            ps2_queue_tx_byte_on_reset(data->buffer[data->tail_idx][0]);
+            
+            ps2_memory_card_set_cmd_callback(&ps2_mmceman_cmd_fs_read_sector);
+            
+            transfer_stage = 1;
+            
+            mc_respond(0x0);
+        break;
+
+        case 1:
+            receiveOrNextCmd(&cmd); //Padding
+
+            data->bytes_transferred += 1; //Byte that went out on the tx fifo at the start
+
+            bytes_left_in_packet = data->length - data->bytes_transferred;
+            if (bytes_left_in_packet >= CHUNK_SIZE)
+                bytes_left_in_packet = CHUNK_SIZE - 1; //Since 1 byte was already sent out
+
+            //If we're using the read ahead buffer instead of the ring buffer, avoid incrementing tail idx for now
+            if (data->use_read_ahead == 1) {
+                next_chunk = data->tail_idx;
+            } else {
+                next_chunk = data->tail_idx + 1;
+                if (next_chunk > CHUNK_COUNT)
+                    next_chunk = 0;
+            }
+
+            //Using data from read ahead buffer
+            if (data->use_read_ahead == 1) {
+                //Send up until the last byte
+                for (int i = 1; i < bytes_left_in_packet; i++) {
+                    mc_respond(data->read_ahead.buffer[i]);
+                }
+
+                last_byte = data->read_ahead.buffer[bytes_left_in_packet];
+
+            //Use data from ring buffer
+            } else {
+                //Send up until the last byte
+                for (int i = 1; i < bytes_left_in_packet; i++) {
+                    mc_respond(data->buffer[data->tail_idx][i]);
+                }
+
+                last_byte = data->buffer[data->tail_idx][bytes_left_in_packet];
+            }
+
+            //Check if there's more packets after this
+            if ((bytes_left_in_packet + data->bytes_transferred) < data->length) {
+
+                //Wait for next chunk to be available before ending this transfer (~2.5ms until timeout)
+                while(data->chunk_state[next_chunk] != CHUNK_STATE_READY) {
+                    
+                    DPRINTF("C0: w: %i s:%i\n", next_chunk, data->chunk_state[next_chunk]);
+
+                    //TODO: error handling
+                    if (data->chunk_state[next_chunk] == CHUNK_STATE_INVALID) {
+                        DPRINTF("Failed to read chunk, got CHUNK_STATE_INVALID, aborting\n");
+                        transfer_stage = 0;
+                        ps2_memory_card_set_cmd_callback(NULL);
+                        return;
+                    }
+                    sleep_us(1);
+                }
+
+                //Place the first byte of the chunk in TX FIFO on reset to ensure proper alignment
+                ps2_queue_tx_byte_on_reset(data->buffer[next_chunk][0]);
+            }
+
+            //Update transferred count
+            data->bytes_transferred += bytes_left_in_packet;
+
+            //Using read ahead buffer
+            if (data->use_read_ahead) {
+                data->use_read_ahead = 0;
+                data->read_ahead.valid = 0;
+
+                DPRINTF("C0: ra c, bip: %i\n", (bytes_left_in_packet + 1));
+
+            //Using ring buffer 
+            } else {
+                //Enter crit and mark chunk as consumed
+                critical_section_enter_blocking(&mmce_fs_crit);
+                data->chunk_state[data->tail_idx] = CHUNK_STATE_NOT_READY;
+                critical_section_exit(&mmce_fs_crit);
+
+                DPRINTF("C0: %i c, bip: %i\n", data->tail_idx, (bytes_left_in_packet + 1));
+                
+                //Update tail idx
+                data->tail_idx = next_chunk;
+            }
+
+            //If there aren't anymore packet's left after this, move to final transfer stage
+            if (data->bytes_transferred == data->length)
+                transfer_stage = 2;
+
+            //Send last byte of packet and end current transfer
+            mc_respond(last_byte);
+
+        break;
+
+        case 2:
+            receiveOrNextCmd(&cmd); //Padding
+
+            //Get sectors read count
+            data->bytes_transferred = data->bytes_transferred / 2048;
+            
+            DPRINTF("read %i\n", data->bytes_transferred);
+
+            count8 = (uint8_t*)&data->bytes_transferred;
+
+            //Sectors read
+            mc_respond(count8[0x2]); receiveOrNextCmd(&cmd);
+            mc_respond(count8[0x1]); receiveOrNextCmd(&cmd);
+            mc_respond(count8[0x0]); receiveOrNextCmd(&cmd);
+
+            //TODO: Enable read ahead on sector reads and test
+            //ps2_mmce_fs_signal_operation(MMCE_FS_READ_AHEAD);
+
+            ps2_memory_card_set_cmd_callback(NULL);
+        
+            transfer_stage = 0;
+            mc_respond(term);
         break;
     }
 }

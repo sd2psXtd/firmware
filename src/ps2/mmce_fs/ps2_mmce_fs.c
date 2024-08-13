@@ -12,8 +12,8 @@
 #include <sys/stat.h>
 #include <sys/unistd.h>
 
-#define DPRINTF(fmt, x...) printf(fmt, ##x)
-//#define DPRINTF(x...) 
+//#define DPRINTF(fmt, x...) printf(fmt, ##x)
+#define DPRINTF(x...) 
 
 //Global data struct
 static volatile ps2_mmce_fs_data_t m_data;
@@ -85,7 +85,7 @@ void ps2_mmce_fs_run(void)
 
             //Get filesize ahead of time
             m_data.filesize = sd_filesize(m_data.fd);
-
+            DPRINTF("size: %i\n", m_data.filesize);
             //Read requested length
             while (m_data.bytes_read < m_data.length)
             {
@@ -128,7 +128,7 @@ void ps2_mmce_fs_run(void)
                     m_data.chunk_state[m_data.head_idx] = CHUNK_STATE_READY;
                     critical_section_exit(&mmce_fs_crit);
 
-                    DPRINTF("C1: %i ready, bytes in this chunk %i\n", m_data.head_idx, bytes_in_chunk);
+                    DPRINTF("C1: %i r, bip %i\n", m_data.head_idx, bytes_in_chunk);
 
                     //Increment head pointer
                     m_data.head_idx++;
@@ -142,7 +142,7 @@ void ps2_mmce_fs_run(void)
             }
 
             m_data.filesize = 0;
-
+            DPRINTF("exit read ahead\n");
             mmce_fs_operation = MMCE_FS_NONE;
         break;
     
@@ -183,6 +183,7 @@ void ps2_mmce_fs_run(void)
             mmce_fs_operation = MMCE_FS_NONE;
         break;
         
+        //TODO: combine lseek and lseek64, check casting
         case MMCE_FS_LSEEK:
             //If we're seeking on a file that has data read ahead
             if ((m_data.fd == m_data.read_ahead.fd) && (m_data.read_ahead.valid == 1)) {
@@ -204,6 +205,27 @@ void ps2_mmce_fs_run(void)
             mmce_fs_operation = MMCE_FS_NONE;
         break;
         
+        case MMCE_FS_LSEEK64:
+            //If we're seeking on a file that has data read ahead
+            if ((m_data.fd == m_data.read_ahead.fd) && (m_data.read_ahead.valid == 1)) {
+
+                //SEEK_CUR - adjust offset 
+                if (m_data.whence64 == 1) {
+                    DPRINTF("C1: Correcting SEEK_CUR offset: %lli\n", m_data.offset64);
+                    m_data.offset64 -= CHUNK_SIZE;
+                    DPRINTF("C1: New offset: %lli\n", m_data.offset64);
+                }
+
+                //Invalidate data read ahead
+                m_data.read_ahead.valid = 0;
+            }
+
+            sd_seek_new(m_data.fd, m_data.offset64, m_data.whence64);
+            m_data.position64 = sd_tell(m_data.fd);
+
+            mmce_fs_operation = MMCE_FS_NONE;
+        break;
+
         case MMCE_FS_REMOVE:
             m_data.rv = sd_remove((const char*)m_data.buffer[0]);
             mmce_fs_operation = MMCE_FS_NONE;

@@ -131,7 +131,7 @@ extern "C" int sd_remove(const char* path) {
 extern "C" int sd_seek_new(int fd, int64_t offset, int whence) {
     CHECK_FD(fd);
     if (whence == 0) {
-        return files[fd].seekSet(offset) != true;
+        return files[fd].seekSet((uint64_t)offset) != true;
     } else if (whence == 1) {
         return files[fd].seekCur(offset) != true;
     } else if (whence == 2) {
@@ -139,6 +139,7 @@ extern "C" int sd_seek_new(int fd, int64_t offset, int whence) {
     }
     return -1;
 }
+
 
 extern "C" int sd_iterate_dir(int dir, int it) {
     if (it == -1) {
@@ -192,7 +193,23 @@ extern "C" int sd_get_stat(int fd, ps2_fileio_stat_t* const ps2_fileio_stat) {
 
     uint16_t date, time;
 
-    ps2_fileio_stat->mode = 0x0; //TODO
+    //FIO_SO_IFREG
+    if (files[fd].isFile())
+        ps2_fileio_stat->mode = 0x10;
+    //FIO_SO_IFDIR
+    else if (files[fd].isDir())
+        ps2_fileio_stat->mode = 0x20;
+
+    //FIO_SO_IROTH
+    if (files[fd].isReadable())
+        ps2_fileio_stat->mode |= 0x4;
+    
+    //FIO_SO_IWOTH
+    if (files[fd].isWritable())
+        ps2_fileio_stat->mode |= 0x2;
+    
+    //FIO_SO_IXOTH - TODO
+
     ps2_fileio_stat->attr = 0x0; //TODO
     ps2_fileio_stat->size = files[fd].fileSize();
 

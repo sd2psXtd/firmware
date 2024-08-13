@@ -27,6 +27,8 @@
 #define MMCE_FS_VALIDATE_FD 0xD
 #define MMCE_FS_READ_AHEAD 0xE
 
+#define MMCE_FS_LSEEK64 0xee
+
 #define CHUNK_SIZE 256
 #define CHUNK_COUNT 15
 
@@ -45,13 +47,17 @@ typedef struct ps2_mmce_fs_data_t {
     int rv;
     int fd;
     int flags;          //file flags
-    int it_fd;          //iterater dir
+    int it_fd;          //iterator dir
 
     uint32_t filesize;
 
     int      offset;
+    int      position;
     uint8_t  whence;
-    uint32_t position;
+
+    int64_t  offset64;
+    int64_t  position64;
+    uint8_t  whence64;
 
     uint32_t length;            //length of transfer, read only
     uint32_t bytes_read;        //stop reading when == length 

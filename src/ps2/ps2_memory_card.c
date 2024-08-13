@@ -22,7 +22,7 @@
 #include <string.h>
 
 
-// #define DEBUG_MC_PROTOCOL
+#define DEBUG_MC_PROTOCOL
 
 uint64_t us_startup;
 

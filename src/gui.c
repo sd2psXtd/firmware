@@ -808,9 +808,11 @@ void gui_task(void) {
             gui_do_ps2_card_switch();
         }
 
+        //TODO: Causes a 31ms delay that causes issues with mmce fs
         if (ps2_dirty_activity) {
-            input_flush();
-            lv_obj_clear_flag(g_activity_frame, LV_OBJ_FLAG_HIDDEN);
+            //printf("ps2_dirty_activity\n");
+            //input_flush();
+            //lv_obj_clear_flag(g_activity_frame, LV_OBJ_FLAG_HIDDEN);
         } else {
             lv_obj_add_flag(g_activity_frame, LV_OBJ_FLAG_HIDDEN);
         }
