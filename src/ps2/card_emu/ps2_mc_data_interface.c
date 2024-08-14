@@ -21,7 +21,7 @@
 #define QPRINTF(fmt, x...) //printf(fmt, ##x)
 
 #define PAGE_CACHE_SIZE 35
-#define MAX_READ_AHEAD 3
+#define MAX_READ_AHEAD 2
 
 static bool dma_in_progress = false;
 
@@ -36,6 +36,8 @@ static bool                 sdmode;
 static uint8_t erase_count = 0;
 
 static inline void __time_critical_func(push_op)(ps2_mcdi_page_t* op) {
+    if (((ops_head + 1) % PAGE_CACHE_SIZE) == ops_tail)
+        fatal("Ops queue is full!");
     ops[ops_head] = op;
     ops_head = ( ops_head + 1 ) % PAGE_CACHE_SIZE;
 }
@@ -81,6 +83,8 @@ static inline ps2_mcdi_page_t* __time_critical_func(ps2_mc_data_interface_find_s
             page = &pages[i];
         }
         i++;
+        if (i == PAGE_CACHE_SIZE)
+            fatal("Page Cache full\n");
         i = i % PAGE_CACHE_SIZE;
     }
     return page;
@@ -129,7 +133,9 @@ void __time_critical_func(ps2_mc_data_interface_setup_read_page)(uint32_t page, 
                 page_p = ps2_mc_data_interface_find_slot();
                 page_p->page = page;
                 page_p->page_sate = PAGE_READ_REQ;
-                push_op(page_p);
+                if (get_core_num() == 1) {
+                    push_op(page_p);
+                }
                 
                 QPRINTF("%s setting up read %u\n", __func__, page);
             } else if (page_p->page_sate == PAGE_READ_AHEAD_AVAILABLE) {
@@ -139,15 +145,18 @@ void __time_critical_func(ps2_mc_data_interface_setup_read_page)(uint32_t page, 
                 QPRINTF("%s found %u for %u \n", page_p->page_sate, page_p->page);
             }
 
-            for (int i = 1; (i < MAX_READ_AHEAD) && ((page + i) * PS2_PAGE_SIZE + PS2_PAGE_SIZE <= ps2_cardman_get_card_size()) && readahead; i++) {
-                ps2_mcdi_page_t* next_p = ps2_mc_data_interface_find_page(page + i, true);
-                if (!next_p) {
-                    ps2_mcdi_page_t* next_p = ps2_mc_data_interface_find_slot();
-                    
-                    next_p->page = page + i;
-                    next_p->page_sate = PAGE_READ_AHEAD_REQ;
-                    push_op(next_p);
+            if (readahead) {
+                for (int i = 1; (i < MAX_READ_AHEAD) && ((page + i) * PS2_PAGE_SIZE + PS2_PAGE_SIZE <= ps2_cardman_get_card_size()); i++) {
+                    ps2_mcdi_page_t* next_p = ps2_mc_data_interface_find_page(page + i, true);
+                    if (!next_p) {
+                        ps2_mcdi_page_t* next_p = ps2_mc_data_interface_find_slot();
+                        
+                        next_p->page = page + i;
+                        next_p->page_sate = PAGE_READ_AHEAD_REQ;
+                        push_op(next_p);
+                    }
                 }
+
             }
             QPRINTF("%s Waiting page %u - State: %u\n", __func__, page, page_p->page_sate);
 
@@ -227,12 +236,16 @@ void __time_critical_func(ps2_mc_data_interface_write_mc)(uint32_t page, void *b
 
         if (sdmode) {
 
-            ps2_mcdi_page_t* slot = ps2_mc_data_interface_find_slot();
-            
-            memcpy(slot->data, buf, PS2_PAGE_SIZE);
-            slot->page = page;
-            slot->page_sate = PAGE_WRITE_REQ;
-            push_op(slot);
+            if (get_core_num() == 0) {
+                ps2_cardman_write_sector(page, buf);
+            } else {
+                ps2_mcdi_page_t* slot = ps2_mc_data_interface_find_slot();
+                
+                memcpy(slot->data, buf, PS2_PAGE_SIZE);
+                slot->page = page;
+                slot->page_sate = PAGE_WRITE_REQ;
+                push_op(slot);
+            }
 
             QPRINTF("%s Done\n", __func__);
         } else {
