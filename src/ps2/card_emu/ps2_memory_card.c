@@ -35,9 +35,12 @@ uint8_t term = 0xFF;
 
 static volatile uint8_t reset_tx_byte;
 static volatile uint8_t reset_place_tx_byte;
+static int memcard_running;
 
 static volatile int mc_exit_request, mc_exit_response, mc_enter_request, mc_enter_response;
+
 static void (*mc_callback)(void);
+
 
 void __time_critical_func(ps2_queue_tx_byte_on_reset)(uint8_t byte)
 {
@@ -116,8 +119,10 @@ uint8_t __time_critical_func(receive)(uint8_t *cmd) {
     do {
         while (pio_sm_is_rx_fifo_empty(pio0, cmd_reader.sm) && pio_sm_is_rx_fifo_empty(pio0, cmd_reader.sm) && pio_sm_is_rx_fifo_empty(pio0, cmd_reader.sm) &&
             pio_sm_is_rx_fifo_empty(pio0, cmd_reader.sm) && pio_sm_is_rx_fifo_empty(pio0, cmd_reader.sm) && 1) {
-            if (reset)
+            if (reset) {
+                QPRINTF("Reset!!!!!\n");
                 return RECEIVE_RESET;
+            }
         }
         (*cmd) = (pio_sm_get(pio0, cmd_reader.sm) >> 24);
         return RECEIVE_OK;
@@ -298,6 +303,7 @@ static void __no_inline_not_in_flash_func(mc_main)(void) {
         mc_enter_response = 1;
         while (!ps2_cardman_is_accessible()) {}
         ps2_history_tracker_card_changed();
+        memcard_running = 1;
         
         reset_pio();
         mc_main_loop();
@@ -368,7 +374,6 @@ void ps2_memory_card_main(void) {
     mc_main();
 }
 
-static int memcard_running;
 
 void ps2_memory_card_exit(void) {
     QPRINTF("MEMCARD EXIT!\n");
@@ -389,7 +394,6 @@ void ps2_memory_card_enter(void) {
     mc_enter_request = 1;
     while (!mc_enter_response) {}
     mc_enter_request = mc_enter_response = 0;
-    memcard_running = 1;
 }
 
 void ps2_memory_card_set_cmd_callback(void (*cb)(void)) {

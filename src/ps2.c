@@ -67,11 +67,13 @@ bool ps2_task(void) {
     input_task();
     oled_task();
 #endif
-    ps2_history_tracker_task();
     ps2_mmce_fs_run();
 
     if (ps2_cardman_is_accessible()) 
         ps2_mc_data_interface_task();
+    else
+        ps2_history_tracker_task();
+
     if ((settings_get_mode() == MODE_PS1) && (ps2_cardman_is_accessible()))
         return false;
 

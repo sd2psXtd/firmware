@@ -116,7 +116,7 @@ static void ensuredirs(void) {
 static const uint8_t block0[384] = {
     0x53, 0x6F, 0x6E, 0x79, 0x20, 0x50, 0x53, 0x32, 0x20, 0x4D, 0x65, 0x6D, 0x6F, 0x72, 0x79, 0x20, 0x43, 0x61, 0x72, 0x64, 0x20, 0x46, 0x6F, 0x72, 0x6D, 0x61,
     0x74, 0x20, 0x31, 0x2E, 0x32, 0x2E, 0x30, 0x2E, 0x30, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0x02, 0x00, 0x10, 0x00, 0x00, 0xFF, 0x00, 0x20, 0x00, 0x00,
-    0x29, 0x00, 0x00, 0x00, 0xC7, 0x1F, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0xFF, 0x03, 0x00, 0x00, 0xFE, 0x03, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+    0x49, 0x00, 0x00, 0x00, 0xC7, 0x1F, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0xFF, 0x03, 0x00, 0x00, 0xFE, 0x03, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
     0x00, 0x00, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
     0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
     0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
@@ -181,25 +181,51 @@ static const uint8_t blockA600[512] = {
     0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
     0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00};
 
+
 static void genblock(size_t pos, void *vbuf) {
     uint8_t *buf = vbuf;
+    
+    #define CARD_SIZE_MB    ( card_size / (1024 * 1024) )
 
     memset(buf, 0xFF, BLOCK_SIZE);
 
     if (pos == 0) {
         // 0x30: Clusters Total (2 Bytes): card_size / 1024
         // 0x34: Alloc start: 0x49
-        // 0x38: Alloc end: ((card_size / 8) / 1024) - 2 * 8
+        // 0x38: Alloc end: ((((card_size / 8) / 1024) - 2) * 8) - 41
         // 0x40: BBlock 1 - ((card_size / 8) / 1024) - 1
         // 0x44: BBlock 2 - ((card_size / 8) / 1024) - 2
         memcpy(buf, block0, sizeof(block0));
-        (*(uint16_t*)&buf[0x30]) = (uint16_t)(card_size / 1024);
-        (*(uint32_t*)&buf[0x38]) = (uint32_t)(((card_size / 8) / 1024) - 2 * 8);
+        (*(uint16_t*)&buf[0x30]) = (uint16_t)(card_size / 1024);                        // Total cluster
+        (*(uint32_t*)&buf[0x34]) = 0x49;   // Alloc Start
+        (*(uint32_t*)&buf[0x38]) = (uint32_t)((((card_size / 8) / 1024) - 2) * 8) - 0x49;   // Alloc End
         (*(uint32_t*)&buf[0x40]) = (uint32_t)(((card_size / 8) / 1024) - 1);
         (*(uint32_t*)&buf[0x44]) = (uint32_t)(((card_size / 8) / 1024) - 2);
     } else if (pos == 0x2000) {
-        memcpy(buf, block2000, sizeof(block2000));
-    } else if (pos >= 0x2400 && pos < 0xA400) {
+        // Indirect FAT
+        uint8_t byte = 0x09;
+        int32_t count = ( CARD_SIZE_MB * 16 ) % PS2_PAGE_SIZE;
+        for (int i = 0; i < count; i++) {
+            if (i % 4 == 0) {
+                buf[i] = byte++;
+            } else {
+                buf[i] = 0;
+            }
+        }
+    } else if ((pos == 0x2200) && (CARD_SIZE_MB > 32)) {
+        // Indirect FAT
+        uint8_t byte = 0x49;
+        int32_t count = (16 * (CARD_SIZE_MB - 32)) % PS2_PAGE_SIZE;
+        for (int i = 0; i < count; i++) {
+            if (i % 4 == 0) {
+                buf[i] = byte++;
+            } else {
+                buf[i] = 0;
+            }
+        }
+       // memcpy(buf, block2000, sizeof(block2000));
+    //} else if (pos >= 0x2400 && pos < 0xA400) {
+    } else if (pos >= 0x2400 && pos < 0x12400) {
         // FAT Table
         for (size_t i = 0; i < BLOCK_SIZE / 4; ++i) {
             uint32_t val = 0x7FFFFFFF;
@@ -209,14 +235,18 @@ static void genblock(size_t pos, void *vbuf) {
 
             buf[0] = buf[1] = buf[2] = buf[3] = 0xFF;
         }
-        if (pos == 0xA200) {
+//        if (pos == 0xA200) {
+        if (pos == 0x12200) {
             // ???
-            memset(buf + 0x11C, 0xFF, BLOCK_SIZE - 0x11C);
+            //memset(buf + 0x11C, 0xFF, BLOCK_SIZE - 0x11C);
+            memset(buf + 0x9C, 0xFF, BLOCK_SIZE - 0x9C);
         }
-    } else if (pos == 0xA400) {
+//    } else if (pos == 0xA400) {
+      } else if (pos == 0x12400) {
         // Allocatable Clusters are here
         memcpy(buf, blockA400, sizeof(blockA400));
-    } else if (pos == 0xA600) {
+//    } else if (pos == 0xA600) {
+    } else if (pos == 0x12600) {
         memcpy(buf, blockA600, sizeof(blockA600));
     }
 }
@@ -291,10 +321,11 @@ static void ps2_cardman_continue(void) {
         while (time_us_64() - slice_start < MAX_SLICE_LENGTH) {
             cardprog_pos = cardman_sectors_done * BLOCK_SIZE;
             if (cardprog_pos >= card_size) {
-                cardman_operation = CARDMAN_IDLE;
                 sd_flush(fd);
-                uint64_t end = time_us_64();
                 printf("OK!\n");
+                ps2_history_tracker_format();
+                cardman_operation = CARDMAN_IDLE;
+                uint64_t end = time_us_64();
                 printf("took = %.2f s; SD write speed = %.2f kB/s\n", (end - cardprog_start) / 1e6, 1000000.0 * card_size / (end - cardprog_start) / 1024);
                 if (cardman_cb) 
                     cardman_cb(100, true);
@@ -302,10 +333,10 @@ static void ps2_cardman_continue(void) {
                 break;
             }
             if (settings_get_sd_mode() || (settings_get_ps2_cardsize() > 8)) {
-                if (settings_get_ps2_cardsize() == 8)
+                //if (settings_get_ps2_cardsize() == 8)
                     genblock(cardprog_pos, flushbuf);
-                else
-                    memset(flushbuf, 0xFF, BLOCK_SIZE);
+                //else
+                //    memset(flushbuf, 0xFF, BLOCK_SIZE);
 //                genblock(cardprog_pos, flushbuf);
                 sd_write(fd, flushbuf, BLOCK_SIZE);
                // QPRINTF("%s writing pos %u\n", __func__, cardprog_pos);
@@ -331,6 +362,8 @@ static void ps2_cardman_continue(void) {
             cardman_sectors_done++;
         }
         
+    } else if (cardman_cb) {
+        cardman_cb(100, true);
     }
 }
 
@@ -634,7 +667,10 @@ bool ps2_cardman_is_accessible(void) {
     // SD: / IDLE   => X
     // SD: / CREATE => X
     // SD: / OPEN   => X
-    return (!settings_get_sd_mode()) || (cardman_operation == CARDMAN_IDLE);
+    if ((card_size > PS2_CARD_SIZE_8M) || (settings_get_sd_mode()) )
+        return (cardman_operation == CARDMAN_IDLE);
+    else
+        return true;
 }
 
 

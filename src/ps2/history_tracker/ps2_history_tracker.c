@@ -10,6 +10,7 @@
 #include "card_emu/ps2_mc_data_interface.h"
 #include "card_emu/ps2_sd2psxman.h"
 #include "card_emu/ps2_sd2psxman_commands.h"
+#include "card_emu/ps2_memory_card.h"
 #include "hardware/timer.h"
 #include "mcfat.h"
 #include "mcio.h"
@@ -61,7 +62,11 @@ static bool refreshRequired[HISTORY_NUMBER_OF_REGIONS];
 
 int page_erase(mcfat_cardspecs_t* info, uint32_t page) {
     (void)info;
-    (void)page;
+    if (!ps2_memory_card_running()) {
+        uint8_t buff[PS2_PAGE_SIZE];
+        memset(buff, 0xFF, PS2_PAGE_SIZE);
+        ps2_mc_data_interface_write_mc(page, buff);
+    }
     #ifdef USE_INJECT_LOGIC
     if (page * info->pagesize + info->pagesize <= ps2_cardman_get_card_size()) {
         uint8_t buff[info->pagesize];
@@ -81,6 +86,9 @@ int page_write(mcfat_cardspecs_t* info, uint32_t page, void* buff) {
     (void)info;
     (void)page;
     (void)buff;
+    if (!ps2_memory_card_running()) {
+        ps2_mc_data_interface_write_mc(page, buff);
+    }
     #ifdef USE_INJECT_LOGIC
     if (page * info->pagesize + info->pagesize <= ps2_cardman_get_card_size()) {
         ps2_dirty_lockout_renew();
@@ -210,6 +218,19 @@ void __time_critical_func(ps2_history_tracker_registerPageWrite)(uint32_t page) 
     }
 }
 
+void ps2_history_tracker_format() {
+    cardspecs.pagesize = 512;
+    cardspecs.blocksize = 16;
+    cardspecs.cardsize = ps2_cardman_get_card_size() ;
+    cardspecs.flags = 0x01 | 0x08 | 0x10;
+
+    mcfat_setConfig(mcOps, cardspecs);
+    mcfat_setCardChanged(true);
+    mcio_init();
+    printf("Calling format %i!\n", mcio_mcFormat());
+    
+}
+
 void ps2_history_tracker_card_changed() {
     DEBUG("%s\n", __func__);
 
@@ -274,11 +295,13 @@ void ps2_history_tracker_init() {
     mcOps.page_erase = &page_erase;
     mcOps.page_read = &page_read;
     mcOps.page_write = &page_write;
+    mcOps.ecc_write = &ecc_write;
+    mcOps.ecc_read = &ecc_read;
     
     cardspecs.pagesize = 512;
     cardspecs.blocksize = 16;
     cardspecs.cardsize = ps2_cardman_get_card_size() ;
-    cardspecs.flags = 0x08 | 0x10;
+    cardspecs.flags = 0x01 | 0x08 | 0x10;
 
     mcfat_setConfig(mcOps, cardspecs);
 }
