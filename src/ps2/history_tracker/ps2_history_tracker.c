@@ -95,17 +95,29 @@ int page_write(mcfat_cardspecs_t* info, uint32_t page, void* buff) {
 }
 
 int __time_critical_func(page_read)(mcfat_cardspecs_t* info, uint32_t page, uint32_t count, void* buff) {
-    DEBUG("%s Reading page %u : %u\n", __func__, page , count);
     
     ps2_mc_data_interface_setup_read_page(page , false);
     ps2_mcdi_page_t* read_page = ps2_mc_data_interface_get_page( page );
     while (read_page->page_sate != PAGE_DATA_AVAILABLE) { };
     memcpy(buff, read_page->data, count);
+    read_page->page_sate = PAGE_EMPTY;
+    read_page->page = 0;
     ps2_mc_data_interface_invalidate(page );
-    DEBUG("End Read\n");
-
 
     return sceMcResSucceed;
+}
+
+int __time_critical_func(ecc_write)(mcfat_cardspecs_t* info, uint32_t page, void* buff) {
+
+}
+
+int __time_critical_func(ecc_read)(mcfat_cardspecs_t* info, uint32_t page, uint32_t count, void* buff) {
+    ps2_mc_data_interface_setup_read_page(page , false);
+    ps2_mcdi_page_t* read_page = ps2_mc_data_interface_get_page( page );
+    while (read_page->page_sate != PAGE_DATA_AVAILABLE) { };
+    read_page->page_sate = PAGE_EMPTY;
+    read_page->page = 0;
+    Card_DataChecksum(read_page->data, buff);
 }
 
 
