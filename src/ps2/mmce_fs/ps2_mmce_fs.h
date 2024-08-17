@@ -24,8 +24,9 @@
 #define MMCE_FS_DOPEN 0xA
 #define MMCE_FS_DCLOSE 0xB
 #define MMCE_FS_DREAD 0xC
-#define MMCE_FS_VALIDATE_FD 0xD
-#define MMCE_FS_READ_AHEAD 0xE
+#define MMCE_FS_GETSTAT 0xD
+#define MMCE_FS_VALIDATE_FD 0xE
+#define MMCE_FS_READ_AHEAD 0xF
 
 #define MMCE_FS_LSEEK64 0xee
 
@@ -69,6 +70,7 @@ typedef struct ps2_mmce_fs_data_t {
     uint8_t buffer[CHUNK_COUNT + 1][CHUNK_SIZE];
     volatile uint8_t chunk_state[CHUNK_COUNT + 1]; //written to by both cores, writes encased in critical section
 
+    uint8_t transfer_failed;
     int use_read_ahead;
     ps2_mmce_fs_read_ahead_t read_ahead;
 

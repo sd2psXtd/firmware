@@ -98,7 +98,20 @@ extern "C" int sd_seek(int fd, uint64_t pos) {
     return files[fd].seekSet(pos) != true;
 }
 
+//seekSet checks fd, no need for macro
+extern "C" int sd_seek_set_new(int fd, uint64_t pos) {
+    /* return 1 on error */
+    return files[fd].seekSet(pos) != true;
+}
+
 extern "C" size_t sd_tell(int fd) {
+    CHECK_FD(fd);
+
+    return files[fd].curPosition();
+}
+
+//curPosition returns a uint64_t
+extern "C" uint64_t sd_tell_new(int fd) {
     CHECK_FD(fd);
 
     return files[fd].curPosition();
@@ -139,7 +152,6 @@ extern "C" int sd_seek_new(int fd, int64_t offset, int whence) {
     }
     return -1;
 }
-
 
 extern "C" int sd_iterate_dir(int dir, int it) {
     if (it == -1) {

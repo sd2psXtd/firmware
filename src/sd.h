@@ -44,6 +44,9 @@ int sd_remove(const char* path);
 int sd_rmdir(const char* path);
 int sd_seek_new(int fd, int64_t offset, int whence);
 
+int sd_seek_set_new(int fd, uint64_t pos);
+uint64_t sd_tell_new(int fd);
+
 int sd_get_stat(int fd, ps2_fileio_stat_t* const ps2_fileio_stat);
 
 int sd_iterate_dir(int dir, int it);

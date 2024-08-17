@@ -12,6 +12,7 @@ add_library(ps2_card STATIC
                 ${CMAKE_CURRENT_SOURCE_DIR}/ps2_pio_qspi.c
                 ${CMAKE_CURRENT_SOURCE_DIR}/ps2_psram.c
                 ${CMAKE_CURRENT_SOURCE_DIR}/ps2_exploit.c
+                ${CMAKE_CURRENT_SOURCE_DIR}/temp_profiling.c
             )
 
 target_include_directories(ps2_card

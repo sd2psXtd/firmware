@@ -57,6 +57,7 @@ extern void ps2_mmceman_cmd_fs_rmdir(void);
 extern void ps2_mmceman_cmd_fs_dclose(void);
 extern void ps2_mmceman_cmd_fs_dopen(void);
 extern void ps2_mmceman_cmd_fs_dread(void);
+extern void ps2_mmceman_cmd_fs_getstat(void);
 extern void ps2_mmceman_cmd_fs_lseek64(void);
 
 extern void ps2_mmceman_cmd_fs_read_sector(void);
