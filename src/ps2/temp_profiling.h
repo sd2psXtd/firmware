@@ -3,7 +3,7 @@
 
 #include <sys/time.h>
 
-#define DEBUG_PROFILING
+//#define DEBUG_PROFILING
 
 //TEMP: profiling stuff
 extern struct timeval tv_start_cmd, tv_end_cmd, tv_signal_mmce_fs, tv_start_mmce_fs, tv_end_mmce_fs;

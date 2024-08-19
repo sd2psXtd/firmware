@@ -14,8 +14,8 @@
 
 #include "temp_profiling.h"
 
-#define DPRINTF(fmt, x...) printf(fmt, ##x)
-//#define DPRINTF(x...) 
+//#define DPRINTF(fmt, x...) printf(fmt, ##x)
+#define DPRINTF(x...) 
 
 //Global data struct
 static volatile ps2_mmce_fs_data_t m_data;
@@ -57,7 +57,7 @@ void ps2_mmce_fs_init(void)
 void ps2_mmce_fs_run(void)
 {
     int rv = 0;
-    uint16_t bytes_in_chunk = 0;
+    uint32_t bytes_in_chunk = 0;
     uint32_t write_size = 0;
 
     DSTART_MMCE_FS_RUN();
@@ -143,11 +143,12 @@ void ps2_mmce_fs_run(void)
         /* Try to read a single chunk ahead into a separate buffer */
         case MMCE_FS_READ_AHEAD:
             m_data.filesize = sd_filesize(m_data.fd);
-            
+
             DPRINTF("Entering read ahead\n");
             
             //Check if reading beyond file size
             if (sd_tell(m_data.fd) + CHUNK_SIZE <= m_data.filesize) {
+                m_data.read_ahead.pos = sd_tell_new(m_data.fd);
                 m_data.rv = sd_read(m_data.fd, (void*)m_data.read_ahead.buffer, CHUNK_SIZE);
 
                 if (m_data.rv == CHUNK_SIZE) {

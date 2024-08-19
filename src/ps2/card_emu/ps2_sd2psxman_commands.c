@@ -20,8 +20,8 @@
 
 #include "temp_profiling.h"
 
-#define DPRINTF(fmt, x...) printf(fmt, ##x)
-//#define DPRINTF(x...) 
+//#define DPRINTF(fmt, x...) printf(fmt, ##x)
+#define DPRINTF(x...) 
 
 //TODO: temp global values, find them a home
 static int transfer_stage = 0;
@@ -235,7 +235,7 @@ inline __attribute__((always_inline)) void __time_critical_func(ps2_mmceman_cmd_
             transfer_stage = 0; //Clear stage
             mc_respond(term);   //End transfer
             DEND_CMD();
-            DSTAT();
+            //DSTAT();
         break;
     }    
 }
@@ -261,7 +261,7 @@ inline __attribute__((always_inline)) void __time_critical_func(ps2_mmceman_cmd_
     mc_respond(term);
     
     DEND_CMD();
-    DSTAT();
+    //DSTAT();
 }
 
 //TODO: reimplement read ahead for normal reads
@@ -332,6 +332,7 @@ inline __attribute__((always_inline)) void __time_critical_func(ps2_mmceman_cmd_
                     //Failed to read ANY data
                     if (data->rv == 0) {
                         DPRINTF("Failed to read chunk, got CHUNK_STATE_INVALID, aborting\n");
+                        data->chunk_state[data->tail_idx] = CHUNK_STATE_NOT_READY;
                         mc_respond(0x1);    //Return 1
                         return;             //Abort
 
@@ -449,7 +450,7 @@ inline __attribute__((always_inline)) void __time_critical_func(ps2_mmceman_cmd_
             transfer_stage = 0;
             mc_respond(term);
             DEND_CMD();
-            DSTAT();
+            //DSTAT();
 
             break;
     }
@@ -649,7 +650,7 @@ inline __attribute__((always_inline)) void __time_critical_func(ps2_mmceman_cmd_
 
     mc_respond(term);
     DEND_CMD();
-    DSTAT();
+    //DSTAT();
 }
 
 
@@ -699,7 +700,7 @@ inline __attribute__((always_inline)) void __time_critical_func(ps2_mmceman_cmd_
             mc_respond(data->rv); receiveOrNextCmd(&cmd); //Return value
             mc_respond(term);
             DEND_CMD();
-            DSTAT();
+            //DSTAT();
         break;
     }
 }
@@ -748,7 +749,7 @@ inline __attribute__((always_inline)) void __time_critical_func(ps2_mmceman_cmd_
             mc_respond(data->rv); receiveOrNextCmd(&cmd); //Return value
             mc_respond(term);
             DEND_CMD();
-            DSTAT();
+            //DSTAT();
         break;
     }
 }
@@ -798,7 +799,7 @@ inline __attribute__((always_inline)) void __time_critical_func(ps2_mmceman_cmd_
             mc_respond(data->rv); receiveOrNextCmd(&cmd); //Return value
             mc_respond(term);
             DEND_CMD();
-            DSTAT();
+            //DSTAT();
         break;
     }
 }
@@ -852,7 +853,7 @@ inline __attribute__((always_inline)) void __time_critical_func(ps2_mmceman_cmd_
 
             mc_respond(term);
             DEND_CMD();
-            DSTAT();
+            //DSTAT();
         break;
     }
 }
@@ -877,7 +878,7 @@ inline __attribute__((always_inline)) void __time_critical_func(ps2_mmceman_cmd_
     mc_respond(data->rv);   //Return value
     mc_respond(term);       //Term
     DEND_CMD();
-    DSTAT();
+    //DSTAT();
 }
 
 inline __attribute__((always_inline)) void __time_critical_func(ps2_mmceman_cmd_fs_dread)(void)
@@ -983,7 +984,7 @@ inline __attribute__((always_inline)) void __time_critical_func(ps2_mmceman_cmd_
 
             mc_respond(term);       //Term
             DEND_CMD();
-            DSTAT();
+            //DSTAT();
         break;
     }
 }
@@ -1067,7 +1068,7 @@ inline __attribute__((always_inline)) void __time_critical_func(ps2_mmceman_cmd_
             mc_respond(data->rv);
 
             DEND_CMD();
-            DSTAT();
+            //DSTAT();
 
             if (data->fd > 0) {
                 ps2_mmce_fs_signal_operation(MMCE_FS_CLOSE);
@@ -1111,7 +1112,7 @@ inline __attribute__((always_inline)) void __time_critical_func(ps2_mmceman_cmd_
 
     mc_respond(0x0); receiveOrNextCmd(&data->whence64);
 
-    DPRINTF("%s: fd: %i, whence: %i, offset: %lli\n", __func__, data->fd, data->whence64, data->offset64);
+    DPRINTF("%s: fd: %i, whence: %i, offset: %llu\n", __func__, data->fd, data->whence64, (uint64_t)data->offset64);
 
     ps2_mmce_fs_signal_operation(MMCE_FS_VALIDATE_FD);
     ps2_mmce_fs_wait_ready();
@@ -1143,11 +1144,11 @@ inline __attribute__((always_inline)) void __time_critical_func(ps2_mmceman_cmd_
     mc_respond(position8[0x1]); receiveOrNextCmd(&cmd);
     mc_respond(position8[0x0]); receiveOrNextCmd(&cmd);
 
-    DPRINTF("position: %lli\n", data->position64);
-    
+    DPRINTF("position: %llu\n", (uint64_t)data->position64);
+
     mc_respond(term);
     DEND_CMD();
-    DSTAT();
+    //DSTAT();
 }
 
 
@@ -1156,16 +1157,14 @@ inline __attribute__((always_inline)) void __time_critical_func(ps2_mmceman_cmd_
     uint8_t cmd;
     uint32_t sector;
     uint32_t count;
-
-    uint64_t temp;
-
-    uint8_t *sector8 = NULL;
-    uint8_t *count8 = NULL;
+    uint8_t *sector8;
+    uint8_t *count8;
 
     uint8_t last_byte;
     uint8_t next_chunk;
     uint32_t bytes_left_in_packet;
-    uint64_t seek_pos = 0;
+    uint64_t offset;
+    uint64_t position;
 
     switch(transfer_stage) {
         case 0:
@@ -1191,21 +1190,32 @@ inline __attribute__((always_inline)) void __time_critical_func(ps2_mmceman_cmd_
             mc_respond(0x0); receiveOrNextCmd(&sector8[0x1]);
             mc_respond(0x0); receiveOrNextCmd(&sector8[0x0]);
 
-            //TODO: Fragmentation was resutling in long seek times and sometimes failed seeks
-            //while a reformat seems to have solved the issue, it may be a good idea
-            //to rework this command to account for it
-            seek_pos = (uint64_t)(sector * 2048);
-            data->whence = 0;
+            offset = (uint64_t)(sector * 2048);
 
-            DPRINTF("%s: fd: %i, seeking to offset %li\n", __func__, data->fd, seek_pos);
-            
-            //ps2_mmce_fs_signal_operation(MMCE_FS_LSEEK64);
-            //ps2_mmce_fs_wait_ready();
-            sd_seek_set_new(data->fd, seek_pos);
+            //Data read ahead, skip seeking
+            if (data->read_ahead.fd == data->fd && data->read_ahead.valid && data->read_ahead.pos == offset) {
+                
+                DPRINTF("%s: got valid read ahead, skipping seek\n", __func__, data->fd);
 
-            temp = sd_tell_new(data->fd);
-            if (temp != seek_pos) {
-                DPRINTF("%s: Seek failed, offset: %llu, got: %llu\n", seek_pos, temp);
+                //Mark as consumed
+                data->read_ahead.valid = 0;
+                data->bytes_read = CHUNK_SIZE;
+                data->use_read_ahead = 1;
+            } else {
+                //TEMP: Retry loop. Heavy fragmentation can result in long seek times and sometimes failed seeks altogether
+                //Retry if seek fails up to 3 times and print warning
+
+                DPRINTF("%s: fd: %i, seeking to offset %llu\n", __func__, data->fd, offset);
+
+                for (int i = 0; i < 3; i++) {
+                    sd_seek_set_new(data->fd, offset);
+                    position = sd_tell_new(data->fd);
+                    if (position != offset) {
+                        printf("[WARN] Sector seek failed, possible fragmentation issues, check card! Got: 0x%llu, Exp: 0x%llu\n", position, offset);
+                    } else {
+                        break;
+                    }
+                }
             }
 
             mc_respond(0x0); receiveOrNextCmd(&count8[0x2]);
@@ -1216,26 +1226,35 @@ inline __attribute__((always_inline)) void __time_critical_func(ps2_mmceman_cmd_
 
             DSIGNAL_MMCE_FS_RUN();
             ps2_mmce_fs_signal_operation(MMCE_FS_READ);
-            
-            DPRINTF("%s: sector: %i, count: %i, length: %i\n", __func__, sector, count, data->length);
-                
-            while(data->chunk_state[data->tail_idx] != CHUNK_STATE_READY) {
 
-                DPRINTF("C0: w: %i s:%i\n", data->tail_idx, data->chunk_state[data->tail_idx]);
-                
-                //Reading ahead failed to get requested data
-                if (data->chunk_state[data->tail_idx] == CHUNK_STATE_INVALID) {
-                    DPRINTF("Failed to read chunk, got CHUNK_STATE_INVALID, aborting\n");
-                    mc_respond(0x1);    //Return 1
-                    return;             //Abort
+            DPRINTF("%s: sector: %i, count: %i, length: %i\n", __func__, sector, count, data->length);
+
+            if (data->use_read_ahead != 1) {
+
+                while(data->chunk_state[data->tail_idx] != CHUNK_STATE_READY) {
+
+                    DPRINTF("C0: w: %i s:%i\n", data->tail_idx, data->chunk_state[data->tail_idx]);
+                    
+                    //Reading ahead failed to get requested data
+                    if (data->chunk_state[data->tail_idx] == CHUNK_STATE_INVALID) {
+                        DPRINTF("Failed to read chunk, got CHUNK_STATE_INVALID, aborting\n");
+                        data->chunk_state[data->tail_idx] = CHUNK_STATE_NOT_READY;
+                        mc_respond(0x1);    //Return 1
+                        return;             //Abort
+                    }
+
+                    sleep_us(1);
                 }
 
-                sleep_us(1);
+                //Place the first byte of the chunk in TX FIFO on reset to ensure proper alignment
+                ps2_queue_tx_byte_on_reset(data->buffer[data->tail_idx][0]);
+            
+            //We already have data ahead, no need to wait
+            } else {
+                //Place the first byte of the chunk in TX FIFO on reset to ensure proper alignment
+                ps2_queue_tx_byte_on_reset(data->read_ahead.buffer[0]);
             }
 
-            //Place the first byte of the chunk in TX FIFO on reset to ensure proper alignment
-            ps2_queue_tx_byte_on_reset(data->buffer[data->tail_idx][0]);
-            
             ps2_memory_card_set_cmd_callback(&ps2_mmceman_cmd_fs_read_sector);
             
             transfer_stage = 1;
@@ -1284,16 +1303,14 @@ inline __attribute__((always_inline)) void __time_critical_func(ps2_mmceman_cmd_
             if ((bytes_left_in_packet + data->bytes_transferred) < data->length) {
 
                 //Wait for next chunk to be available before ending this transfer (~2.5ms until timeout)
-                while(data->chunk_state[next_chunk] != CHUNK_STATE_READY) {
+                while(data->chunk_state[next_chunk] != CHUNK_STATE_READY && data->transfer_failed != 1) {
                     
                     DPRINTF("C0: w: %i s:%i\n", next_chunk, data->chunk_state[next_chunk]);
 
                     //TODO: error handling
                     if (data->chunk_state[next_chunk] == CHUNK_STATE_INVALID) {
                         DPRINTF("Failed to read chunk, got CHUNK_STATE_INVALID, aborting\n");
-                        transfer_stage = 0;
-                        ps2_memory_card_set_cmd_callback(NULL);
-                        return;
+                        data->transfer_failed = 1;
                     }
                     sleep_us(1);
                 }
@@ -1338,11 +1355,11 @@ inline __attribute__((always_inline)) void __time_critical_func(ps2_mmceman_cmd_
             receiveOrNextCmd(&cmd); //Padding
 
             //Get sectors read count
-            data->bytes_transferred = data->bytes_transferred / 2048;
+            data->bytes_read = data->bytes_read / 2048;
             
-            DPRINTF("read %i\n", data->bytes_transferred);
+            DPRINTF("Sectors read %i of %i\n", data->bytes_read, data->length/2048);
 
-            count8 = (uint8_t*)&data->bytes_transferred;
+            count8 = (uint8_t*)&data->bytes_read;
 
             //Sectors read
             mc_respond(count8[0x2]); receiveOrNextCmd(&cmd);
@@ -1350,14 +1367,14 @@ inline __attribute__((always_inline)) void __time_critical_func(ps2_mmceman_cmd_
             mc_respond(count8[0x0]); receiveOrNextCmd(&cmd);
 
             //TODO: Enable read ahead on sector reads and test
-            //ps2_mmce_fs_signal_operation(MMCE_FS_READ_AHEAD);
+            ps2_mmce_fs_signal_operation(MMCE_FS_READ_AHEAD);
 
             ps2_memory_card_set_cmd_callback(NULL);
         
             transfer_stage = 0;
             mc_respond(term);
             DEND_CMD();
-            DSTAT();
+            //DSTAT();
         break;
     }
 }

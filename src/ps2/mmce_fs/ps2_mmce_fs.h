@@ -41,6 +41,7 @@
 typedef struct ps2_mmce_fs_read_ahead_t {
     int fd;
     int valid;
+    uint64_t pos;
     uint8_t buffer[CHUNK_SIZE];
 } ps2_mmce_fs_read_ahead_t;
 
