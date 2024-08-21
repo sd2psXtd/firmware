@@ -238,6 +238,7 @@ void __time_critical_func(ps2_mc_data_interface_write_mc)(uint32_t page, void *b
 
             if (get_core_num() == 0) {
                 ps2_cardman_write_sector(page, buf);
+                ps2_cardman_flush();
             } else {
                 ps2_mcdi_page_t* slot = ps2_mc_data_interface_find_slot();
                 

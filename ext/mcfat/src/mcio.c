@@ -234,7 +234,7 @@ static uint8_t calcEDC(uint8_t *buf, int size)
     return checksum;
 }
 
-static void Card_DataChecksum(uint8_t *pagebuf, uint8_t *ecc)
+void Card_DataChecksum(uint8_t *pagebuf, uint8_t *ecc)
 {
     register uint8_t *p, *p_ecc;
     register int32_t i, a2, a3, v, t0;
@@ -370,7 +370,8 @@ static int Card_EraseBlock(int32_t block, uint8_t **pagebuf, uint8_t *eccbuf)
 
     page = block * blocksize;
 
-    mcfat_bdoperations.page_erase(&mcfat_cardspecs, page);
+    for (int i = 0; i < mcio_devinfo.blocksize; i++)
+        mcfat_bdoperations.page_erase(&mcfat_cardspecs, page+i);
 
     if (pagebuf && eccbuf) { /* This part leave the first ecc byte of each block page in eccbuf */
         memset(eccbuf, 0, 32);

@@ -276,7 +276,8 @@ static void ps2_cardman_continue(void) {
             uint64_t end = time_us_64();
             printf("took = %.2f s; SD read speed = %.2f kB/s\n", (end - cardprog_start) / 1e6, 1000000.0 * card_size / (end - cardprog_start) / 1024);
             ps2_mc_data_interface_card_changed();
-            cardman_cb(100, true);
+            if (cardman_cb)
+                cardman_cb(100, true);
             cardman_operation = CARDMAN_IDLE;
         } else {
 #if WITH_PSRAM
@@ -323,7 +324,7 @@ static void ps2_cardman_continue(void) {
             if (cardprog_pos >= card_size) {
                 sd_flush(fd);
                 printf("OK!\n");
-                ps2_history_tracker_format();
+                //ps2_history_tracker_format();
                 cardman_operation = CARDMAN_IDLE;
                 uint64_t end = time_us_64();
                 printf("took = %.2f s; SD write speed = %.2f kB/s\n", (end - cardprog_start) / 1e6, 1000000.0 * card_size / (end - cardprog_start) / 1024);
