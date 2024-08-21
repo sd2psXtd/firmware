@@ -46,6 +46,7 @@ struct io_dirent {
 	uint32_t unknown;
 } __attribute__((packed));
 
+void Card_DataChecksum(uint8_t *pagebuf, uint8_t *ecc);
 int mcio_init(void);
 int mcio_mcDetect(void);
 int mcio_mcGetInfo(int *pagesize, int *blocksize, int *cardsize, int *cardflags);
