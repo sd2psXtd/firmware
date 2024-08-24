@@ -27,6 +27,10 @@
 #define MMCEMAN_CMD_FS_DREAD 0x4b
 #define MMCEMAN_CMD_FS_GETSTAT 0x4c
 
+#define MMCEMAN_CMD_FS_LSEEK64 0x53
+
+#define MMCEMAN_CMD_FS_READ_SECTOR 0x58
+
 #define SD2PSXMAN_MODE_NUM 0x0
 #define SD2PSXMAN_MODE_NEXT 0x1
 #define SD2PSXMAN_MODE_PREV 0x2
@@ -53,3 +57,7 @@ extern void ps2_mmceman_cmd_fs_rmdir(void);
 extern void ps2_mmceman_cmd_fs_dclose(void);
 extern void ps2_mmceman_cmd_fs_dopen(void);
 extern void ps2_mmceman_cmd_fs_dread(void);
+extern void ps2_mmceman_cmd_fs_getstat(void);
+extern void ps2_mmceman_cmd_fs_lseek64(void);
+
+extern void ps2_mmceman_cmd_fs_read_sector(void);

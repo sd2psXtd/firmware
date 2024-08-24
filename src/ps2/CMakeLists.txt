@@ -9,6 +9,7 @@ add_library(ps2_card STATIC
                 ${CMAKE_CURRENT_SOURCE_DIR}/history_tracker/ps2_history_tracker.c
                 ${CMAKE_CURRENT_SOURCE_DIR}/mmce_fs/ps2_mmce_fs.c
                 ${CMAKE_CURRENT_SOURCE_DIR}/ps2_cardman.c
+                ${CMAKE_CURRENT_SOURCE_DIR}/temp_profiling.c
             )
 
 target_include_directories(ps2_card

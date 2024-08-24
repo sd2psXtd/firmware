@@ -1117,13 +1117,14 @@ void gui_task(void) {
             gui_do_ps2_card_switch();
         }
 
-    }
-
-    if (ps1_dirty_activity || ps2_mc_data_interface_write_occured()) {
-        input_flush();
-        lv_obj_clear_flag(g_activity_frame, LV_OBJ_FLAG_HIDDEN);
-    } else {
-        lv_obj_add_flag(g_activity_frame, LV_OBJ_FLAG_HIDDEN);
+        //TODO: Causes a 31ms delay that causes issues with mmce fs
+        if (ps1_dirty_activity || ps2_mc_data_interface_write_occured()) {
+            //printf("ps2_dirty_activity\n");
+            //input_flush();
+            //lv_obj_clear_flag(g_activity_frame, LV_OBJ_FLAG_HIDDEN);
+        } else {
+            lv_obj_add_flag(g_activity_frame, LV_OBJ_FLAG_HIDDEN);
+        }
     }
 
     gui_tick();

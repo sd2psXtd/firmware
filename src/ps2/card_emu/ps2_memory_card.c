@@ -206,7 +206,8 @@ static void __time_critical_func(mc_main_loop)(void) {
                 return;
             }
         }
-        reset = 0;        
+        
+        reset = 0;
         if (mc_callback != NULL) {
             mc_callback();
             continue;
@@ -285,7 +286,11 @@ static void __time_critical_func(mc_main_loop)(void) {
                 case MMCEMAN_CMD_FS_DOPEN: ps2_mmceman_cmd_fs_dopen(); break;
                 case MMCEMAN_CMD_FS_DCLOSE: ps2_mmceman_cmd_fs_dclose(); break;
                 case MMCEMAN_CMD_FS_DREAD: ps2_mmceman_cmd_fs_dread(); break;
-                default: DPRINTF("Unknown Subcommand: %02x\n", cmd); break;
+                case MMCEMAN_CMD_FS_GETSTAT: ps2_mmceman_cmd_fs_getstat(); break;
+
+                case MMCEMAN_CMD_FS_LSEEK64: ps2_mmceman_cmd_fs_lseek64(); break;
+                case MMCEMAN_CMD_FS_READ_SECTOR: ps2_mmceman_cmd_fs_read_sector(); break;
+                default: printf("Unknown Subcommand: %02x\n", cmd); break;
             }
         } else if (cmd == PS1_SIO2_CMD_IDENTIFIER) {
             settings_set_mode(MODE_TEMP_PS1);

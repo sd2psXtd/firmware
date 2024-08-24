@@ -24,8 +24,11 @@
 #define MMCE_FS_DOPEN 0xA
 #define MMCE_FS_DCLOSE 0xB
 #define MMCE_FS_DREAD 0xC
-#define MMCE_FS_VALIDATE_FD 0xD
-#define MMCE_FS_READ_AHEAD 0xE
+#define MMCE_FS_GETSTAT 0xD
+#define MMCE_FS_VALIDATE_FD 0xE
+#define MMCE_FS_READ_AHEAD 0xF
+
+#define MMCE_FS_LSEEK64 0xee
 
 #define CHUNK_SIZE 256
 #define CHUNK_COUNT 15
@@ -38,6 +41,7 @@
 typedef struct ps2_mmce_fs_read_ahead_t {
     int fd;
     int valid;
+    uint64_t pos;
     uint8_t buffer[CHUNK_SIZE];
 } ps2_mmce_fs_read_ahead_t;
 
@@ -45,13 +49,17 @@ typedef struct ps2_mmce_fs_data_t {
     int rv;
     int fd;
     int flags;          //file flags
-    int it_fd;          //iterater dir
+    int it_fd;          //iterator dir
 
     uint32_t filesize;
 
     int      offset;
+    int      position;
     uint8_t  whence;
-    uint32_t position;
+
+    int64_t  offset64;
+    int64_t  position64;
+    uint8_t  whence64;
 
     uint32_t length;            //length of transfer, read only
     uint32_t bytes_read;        //stop reading when == length 
@@ -63,6 +71,7 @@ typedef struct ps2_mmce_fs_data_t {
     uint8_t buffer[CHUNK_COUNT + 1][CHUNK_SIZE];
     volatile uint8_t chunk_state[CHUNK_COUNT + 1]; //written to by both cores, writes encased in critical section
 
+    uint8_t transfer_failed;
     int use_read_ahead;
     ps2_mmce_fs_read_ahead_t read_ahead;
 
