@@ -80,15 +80,16 @@ int __not_in_flash_func(keystore_deploy)(void) {
         chkbuf[i + 8] = ~chkbuf[i];
 
     if (memcmp(chkbuf, (uint8_t*)XIP_BASE + FLASH_OFF_CIV, sizeof(chkbuf)) != 0) {
+        #if WITH_GUI
+        multicore_lockout_start_blocking();
+        #endif
         uint32_t ints = save_and_disable_interrupts();
-        //multicore_lockout_start_blocking();
-        printf("Erasing...");
         flash_range_erase(FLASH_OFF_CIV, 4096);
-        printf("Writing...");
         flash_range_program(FLASH_OFF_CIV, chkbuf, sizeof(chkbuf));
-        printf("Done!\n");
-        //multicore_lockout_end_blocking();
         restore_interrupts (ints);
+        #if WITH_GUI
+        multicore_lockout_end_blocking();
+        #endif
     } else {
         printf("keystore - skipping CIV flash because data is unchanged\n");
     }

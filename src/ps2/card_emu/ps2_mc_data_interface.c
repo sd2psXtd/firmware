@@ -18,10 +18,12 @@
 #include "debug.h"
 
 
-#define QPRINTF(fmt, x...) //printf(fmt, ##x)
+#define DPRINTF(fmt, x...) //printf(fmt, ##x)
+#define TPRINTF(fmt, x...) printf(fmt, ##x)
+
 
 #define PAGE_CACHE_SIZE 35
-#define MAX_READ_AHEAD 2
+#define MAX_READ_AHEAD 1
 
 static bool dma_in_progress = false;
 
@@ -84,7 +86,7 @@ static inline ps2_mcdi_page_t* __time_critical_func(ps2_mc_data_interface_find_s
         }
         i++;
         if (i == PAGE_CACHE_SIZE)
-            fatal("Page Cache full\n");
+            TPRINTF("%s:Page Cache full\n", __func__);
         i = i % PAGE_CACHE_SIZE;
     }
     return page;
@@ -103,7 +105,7 @@ static void __time_critical_func(ps2_mc_data_interface_rx_done)() {
     dma_in_progress = false;
     
     pages[0].page_sate = PAGE_DATA_AVAILABLE;
-    QPRINTF("%s\n", __func__);
+    DPRINTF("%s\n", __func__);
     ps2_dirty_unlock();
 }
 
@@ -114,7 +116,7 @@ void __time_critical_func(ps2_mc_data_interface_start_dma)(uint32_t page) {
     dma_in_progress = true;
     pages[0].page_sate = PAGE_DATA_AVAILABLE;
     psram_read_dma(page * PS2_PAGE_SIZE, pages[0].data, PS2_PAGE_SIZE, ps2_mc_data_interface_rx_done);
-    QPRINTF("%s start dma %lu\n", __func__, page);
+    DPRINTF("%s start dma %lu\n", __func__, page);
 }
 #endif
 
@@ -126,7 +128,7 @@ void __time_critical_func(ps2_mc_data_interface_setup_read_page)(uint32_t page, 
 
         if (sdmode) {
             
-            QPRINTF("%s got page %u\n", __func__, page);
+            DPRINTF("%s got page %u\n", __func__, page);
             
             ps2_mcdi_page_t* page_p = ps2_mc_data_interface_find_page(page, true);
             if (!page_p) {
@@ -137,12 +139,12 @@ void __time_critical_func(ps2_mc_data_interface_setup_read_page)(uint32_t page, 
                     push_op(page_p);
                 }
                 
-                QPRINTF("%s setting up read %u\n", __func__, page);
+                DPRINTF("%s setting up read %u\n", __func__, page);
             } else if (page_p->page_sate == PAGE_READ_AHEAD_AVAILABLE) {
                 page_p->page_sate = PAGE_DATA_AVAILABLE;
-                QPRINTF("%s Hit ReadAhead\n", __func__);
+                DPRINTF("%s Hit ReadAhead\n", __func__);
             } else {
-                QPRINTF("%s found %u for %u \n", page_p->page_sate, page_p->page);
+                DPRINTF("%s found %u for %u \n", page_p->page_sate, page_p->page);
             }
 
             if (readahead) {
@@ -158,12 +160,12 @@ void __time_critical_func(ps2_mc_data_interface_setup_read_page)(uint32_t page, 
                 }
 
             }
-            QPRINTF("%s Waiting page %u - State: %u\n", __func__, page, page_p->page_sate);
+            DPRINTF("%s Waiting page %u - State: %u\n", __func__, page, page_p->page_sate);
 
             if (get_core_num() == 1) {
                 while ((page_p->page_sate != PAGE_DATA_AVAILABLE) && (page_p->page_sate != PAGE_READ_AHEAD_AVAILABLE)) { sleep_us(1);};
             } else {
-                //QPRINTF("%s page %u reading on C0\n", __func__, page);
+                //DPRINTF("%s page %u reading on C0\n", __func__, page);
 
                 if ((page_p->page_sate == PAGE_READ_AHEAD_REQ) 
                     || (page_p->page_sate == PAGE_READ_REQ)) {
@@ -172,7 +174,7 @@ void __time_critical_func(ps2_mc_data_interface_setup_read_page)(uint32_t page, 
                 }
             }
             prev_read_setup = page_p;
-            //QPRINTF("%s page %u is setup\n", __func__, page);
+            //DPRINTF("%s page %u is setup\n", __func__, page);
             
         } else {
 
@@ -199,15 +201,15 @@ ps2_mcdi_page_t* __time_critical_func(ps2_mc_data_interface_get_page)(uint32_t p
     ps2_mcdi_page_t* ret = NULL;
 
     if (sdmode) {
-        QPRINTF("%s Wait erase...", __func__);
+        DPRINTF("%s Wait erase...", __func__);
         while (erase_count > 0) {};
-        QPRINTF("Done!\n");
+        DPRINTF("Done!\n");
         if (!prev_read_setup || prev_read_setup->page_sate == PAGE_EMPTY)
             ret = ps2_mc_data_interface_find_page(page, true);
         else
             ret = prev_read_setup;
         if (!ret || ret->page_sate == PAGE_EMPTY) {
-            QPRINTF("Miss ???\n");
+            DPRINTF("Miss ???\n");
             ps2_mc_data_interface_setup_read_page(page, false);
             ret = ps2_mc_data_interface_find_page(page, true);
         }
@@ -248,7 +250,7 @@ void __time_critical_func(ps2_mc_data_interface_write_mc)(uint32_t page, void *b
                 push_op(slot);
             }
 
-            QPRINTF("%s Done\n", __func__);
+            DPRINTF("%s Done\n", __func__);
         } else {
 #if WITH_PSRAM
         //if (!flash_mode) {
@@ -318,11 +320,11 @@ void __time_critical_func (ps2_mc_data_interface_invalidate)(uint32_t page) {
                     && ((pages[i].page == page)) )
                       //  || (pages[i].page >= page + MAX_READ_AHEAD))) 
                   {
-        //QPRINTF("%s invalidating %lu\n", __func__, page);
+        //DPRINTF("%s invalidating %lu\n", __func__, page);
 
                     pages[i].page_sate = PAGE_EMPTY;
                     pages[i].page = 0;
-                    QPRINTF("%s Invalidated %u\n", __func__, page);
+                    DPRINTF("%s Invalidated %u\n", __func__, page);
                 }
         }
     }
@@ -335,7 +337,7 @@ void __time_critical_func (ps2_mc_data_interface_invalidate_readahead)(void) {
             if ((pages[i].page_sate == PAGE_READ_AHEAD_AVAILABLE) 
                 || (pages[i].page_sate == PAGE_READ_AHEAD_REQ)  )
             {
-                QPRINTF("%s invalidating %u\n", __func__, pages[i].page);
+                DPRINTF("%s invalidating %u\n", __func__, pages[i].page);
 
                 pages[i].page_sate = PAGE_EMPTY;
                 pages[i].page = 0;
@@ -360,7 +362,7 @@ void ps2_mc_data_interface_read_core0(uint32_t page, void* buff512) {
 
 void ps2_mc_data_interface_card_changed(void) {
     if (sdmode) {
-        QPRINTF("Card changed\n");
+        DPRINTF("Card changed\n");
 
         for(int i = 0; i < PAGE_CACHE_SIZE; i++) {
             if (pages[i].page_sate == PAGE_DATA_AVAILABLE) {
@@ -377,7 +379,7 @@ void ps2_mc_data_interface_card_changed(void) {
         pages[0].page = 0;
         pages[0].data = cache;
     }
-    QPRINTF("Done!\n");
+    DPRINTF("Done!\n");
 }
 
 bool ps2_mc_data_interface_write_occured(void) {
@@ -392,7 +394,7 @@ bool ps2_mc_data_interface_write_occured(void) {
 
 void ps2_mc_data_interface_set_sdmode(bool mode) {
     sdmode = mode;
-    QPRINTF("%s SD Mode: %s\n", __func__, (mode ? "True" : "False"));
+    DPRINTF("%s SD Mode: %s\n", __func__, (mode ? "True" : "False"));
 }
 
 void ps2_mc_data_interface_task(void) {
@@ -402,17 +404,17 @@ void ps2_mc_data_interface_task(void) {
             if (page_p)
                 switch(page_p->page_sate) {
                     case PAGE_READ_REQ:
-                        QPRINTF("%s Reading page %u\n", __func__, page_p->page);
+                        DPRINTF("%s Reading page %u\n", __func__, page_p->page);
                         ps2_cardman_read_sector(page_p->page, page_p->data);
                         ps2_mc_data_interface_set_page(page_p, page_p->page, PAGE_DATA_AVAILABLE);
                         break;
                     case PAGE_READ_AHEAD_REQ:
-                        QPRINTF("%s Reading ahead page %u\n", __func__, page_p->page);
+                        DPRINTF("%s Reading ahead page %u\n", __func__, page_p->page);
                         ps2_cardman_read_sector(page_p->page, page_p->data);
                         ps2_mc_data_interface_set_page(page_p, page_p->page, PAGE_READ_AHEAD_AVAILABLE);
                         break;
                     case PAGE_WRITE_REQ:
-                        QPRINTF("%s Writing page %u\n", __func__, page_p->page);
+                        DPRINTF("%s Writing page %u\n", __func__, page_p->page);
                         ps2_cardman_write_sector(page_p->page, page_p->data);
                         ps2_history_tracker_registerPageWrite(page_p->page);
 
@@ -425,7 +427,7 @@ void ps2_mc_data_interface_task(void) {
                         ps2_mc_data_interface_set_page(page_p, 0, PAGE_EMPTY);
                         break;
                     case PAGE_ERASE_REQ:
-                        QPRINTF("%s Erasing page %u\n", __func__, page_p->page);
+                        DPRINTF("%s Erasing page %u\n", __func__, page_p->page);
                         uint8_t erase_buff[PS2_PAGE_SIZE] = { 0x0 };
                         memset((void*)erase_buff, 0xFF, PS2_PAGE_SIZE);
                         for (int j = 0; j < ERASE_SECTORS; j++) {
