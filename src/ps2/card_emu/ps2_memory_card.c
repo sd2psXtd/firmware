@@ -196,7 +196,6 @@ void calcECC(uint8_t *ecc, const uint8_t *data) {
 }
 
 static void __time_critical_func(mc_main_loop)(void) {
-    QPRINTF("Enter---------- \n");
     while (1) {
         uint8_t cmd = 0;
 
