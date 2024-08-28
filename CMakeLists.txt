@@ -18,6 +18,7 @@ set_property(CACHE VARIANT PROPERTY STRINGS
                     "SD2PSXlite" 
                     "SD2PSXBF" 
                     "Other")
+string(TOLOWER "${VARIANT}" TARGET_NAME)
 message(STATUS "Building for ${VARIANT}")
 if (VARIANT STREQUAL "SD2PSX")
     set(PIN_PSX_ACK 16)
@@ -129,7 +130,7 @@ add_subdirectory(ext/)
 
 # SD2PSX Main Lib
 
-add_executable(sd2psx
+add_executable(${TARGET_NAME}
     src/main.c
     src/ps2.c
     src/ps1.c
@@ -142,15 +143,15 @@ add_executable(sd2psx
 )
 
 target_compile_definitions(
-    sd2psx PUBLIC
+    ${TARGET_NAME} PUBLIC
     PICO_XOSC_STARTUP_DELAY_MULTIPLIER=64
 )
 
-target_include_directories(sd2psx PUBLIC
+target_include_directories(${TARGET_NAME} PUBLIC
     ext/fnv
 )
 
-target_link_libraries(sd2psx
+target_link_libraries(${TARGET_NAME}
     PRIVATE
         pico_stdlib
         pico_multicore
@@ -166,8 +167,8 @@ target_link_libraries(sd2psx
         sd_fat
 )
 
-add_dependencies(sd2psx gamedb)
-set_target_properties(sd2psx PROPERTIES PICO_TARGET_LINKER_SCRIPT ${CMAKE_SOURCE_DIR}/memmap_custom.ld)
+add_dependencies(${TARGET_NAME} gamedb)
+set_target_properties(${TARGET_NAME} PROPERTIES PICO_TARGET_LINKER_SCRIPT ${CMAKE_SOURCE_DIR}/memmap_custom.ld)
 
 # Common Lib
 
@@ -218,7 +219,7 @@ endif()
 
 set_target_properties(sd2psx_common PROPERTIES PICO_TARGET_LINKER_SCRIPT ${CMAKE_SOURCE_DIR}/memmap_custom.ld)
 
-pico_add_extra_outputs(sd2psx)
+pico_add_extra_outputs(${TARGET_NAME})
 
 option(DEBUG_USB_UART "Activate UART over USB for debugging" OFF)
 
@@ -229,7 +230,7 @@ if(DEBUG_USB_UART)
         message(FATAL_ERROR "Misconfigured Debug Startup Delay: ${DEBUG_STARTUP_DELAY}")
     endif()
     target_compile_definitions(sd2psx_common PUBLIC -DDEBUG_USB_UART -DMMCE_DEBUG -DPICO_STDIO_USB_CONNECT_WAIT_TIMEOUT_MS=${DEBUG_STARTUP_DELAY}*1000)
-    pico_enable_stdio_usb(sd2psx 1)
+    pico_enable_stdio_usb(${TARGET_NAME} 1)
 else()
-    pico_enable_stdio_usb(sd2psx 0)
+    pico_enable_stdio_usb(${TARGET_NAME} 0)
 endif()
