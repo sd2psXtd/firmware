@@ -149,7 +149,6 @@ int main() {
 #else
     stdio_uart_init_full(UART_PERIPH, UART_BAUD, UART_TX, UART_RX);
 #endif
-    stdio_uart_init_full(UART_PERIPH, UART_BAUD, UART_TX, UART_RX);
 
     /* set up core1 as high priority bus access */
     bus_ctrl_hw->priority |= BUSCTRL_BUS_PRIORITY_PROC1_BITS;
@@ -157,6 +156,7 @@ int main() {
 
     printf("\n\n\nStarted! Clock %d; bus priority 0x%X\n", (int)clock_get_hz(clk_sys), (unsigned)bus_ctrl_hw->priority);
     printf("SD2PSX Version %s\n", sd2psx_version);
+    printf("SD2PSX HW Variant: %s\n", sd2psx_variant);
 
     settings_init();
 #if WITH_PSRAM
