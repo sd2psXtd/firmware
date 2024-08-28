@@ -55,7 +55,7 @@ int ps2_cardman_read_sector(int sector, void *buf512) {
     if (fd < 0)
         return -1;
 
-    if (sd_seek(fd, sector * BLOCK_SIZE) != 0)
+    if (sd_seek_set_new(fd, sector * BLOCK_SIZE) != 0)
         return -1;
 
     if (sd_read(fd, buf512, BLOCK_SIZE) != BLOCK_SIZE)
@@ -68,7 +68,7 @@ int ps2_cardman_write_sector(int sector, void *buf512) {
     if (fd < 0)
         return -1;
 
-    if (sd_seek(fd, sector * BLOCK_SIZE) != 0)
+    if (sd_seek_set_new(fd, sector * BLOCK_SIZE) != 0)
         return -1;
 
     if (sd_write(fd, buf512, BLOCK_SIZE) != BLOCK_SIZE)
