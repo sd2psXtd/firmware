@@ -29,6 +29,7 @@ static bool dma_in_progress = false;
 
 static ps2_mcdi_page_t      pages[PAGE_CACHE_SIZE];
 static ps2_mcdi_page_t*     ops[PAGE_CACHE_SIZE];
+static bool                 queue_full = false;
 static int                  ops_head = 0;
 static int                  ops_tail = 0;
 static ps2_mcdi_page_t*     prev_read_setup;
@@ -38,15 +39,16 @@ static bool                 sdmode;
 static uint8_t erase_count = 0;
 
 static inline void __time_critical_func(push_op)(ps2_mcdi_page_t* op) {
-    if (((ops_head + 1) % PAGE_CACHE_SIZE) == ops_tail)
-        fatal("Ops queue is full!");
+    while (queue_full) {TPRINTF(".");};
     ops[ops_head] = op;
     ops_head = ( ops_head + 1 ) % PAGE_CACHE_SIZE;
+    queue_full = (ops_head == ops_tail);
 }
 
 static inline ps2_mcdi_page_t* __time_critical_func(pop_op)(void) {
     ps2_mcdi_page_t* ptr = ops[ops_tail];
     ops_tail = (ops_tail + 1) % PAGE_CACHE_SIZE;
+    queue_full = false;
     return ptr;
 }
 
