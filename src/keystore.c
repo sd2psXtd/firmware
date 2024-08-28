@@ -18,7 +18,7 @@ int ps2_magicgate;
 void keystore_init(void) {
     keystore_read();
 #if WITH_GUI==0
-    if (settings_get_sd_mode() && (ps2_magicgate == 0)) {
+    if (ps2_magicgate == 0) {
         printf("Deploying keys...\n");
         keystore_deploy();
     }
