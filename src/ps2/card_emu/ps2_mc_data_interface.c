@@ -275,14 +275,17 @@ void __time_critical_func(ps2_mc_data_interface_erase)(uint32_t page) {
     if ((page + ERASE_SECTORS) * PS2_PAGE_SIZE <= ps2_cardman_get_card_size()) {
 
         if (sdmode) {
-            erase_count++;
+            if (!ps2_mc_data_interface_find_page(page, false)) {
 
-            ps2_mcdi_page_t* slot = ps2_mc_data_interface_find_slot();
+                erase_count++;
+                
+                ps2_mcdi_page_t* slot = ps2_mc_data_interface_find_slot();
 
-            slot->page = page;
-            slot->page_sate = PAGE_ERASE_REQ;
+                slot->page = page;
+                slot->page_sate = PAGE_ERASE_REQ;
 
-            push_op(slot);
+                push_op(slot);
+            }
         } else {
 #if WITH_PSRAM
             uint8_t erasebuff[PS2_PAGE_SIZE] = { 0 };
