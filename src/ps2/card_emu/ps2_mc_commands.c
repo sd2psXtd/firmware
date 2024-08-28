@@ -61,6 +61,7 @@ inline __attribute__((always_inline)) void __time_critical_func(ps2_mc_cmd_setEr
     (void)ck;  // TODO: validate checksum
     erase_sector = raw.addr;
     mc_respond(term);
+    ps2_mc_data_interface_erase(erase_sector);
 }
 
 inline __attribute__((always_inline)) void __time_critical_func(ps2_mc_cmd_setWriteAddress)(void) {
@@ -206,6 +207,9 @@ inline __attribute__((always_inline)) void __time_critical_func(ps2_mc_cmd_write
         ck ^= b;
         mc_respond(0xFF);
     }
+    if (writeptr >= PS2_PAGE_SIZE) {
+        ps2_mc_data_interface_write_mc(write_sector, writetmp);
+    }
     // this should be checksum?
     receiveOrNextCmd(&ck2);
     (void)ck2;  // TODO: validate checksum
@@ -237,7 +241,9 @@ inline __attribute__((always_inline)) void __time_critical_func(ps2_mc_cmd_readD
     page = ps2_mc_data_interface_get_page(read_sector);
 
     if (!page)
-        fatal("%s Page not found %u!\n", read_sector);
+        ps2_mc_data_interface_setup_read_page(read_sector, false);
+    page = ps2_mc_data_interface_get_page(read_sector);
+
 
     for (int i = 0; i < sz; ++i) {
         if (readptr < PS2_PAGE_SIZE + 16) {
@@ -311,7 +317,7 @@ inline __attribute__((always_inline)) void __time_critical_func(ps2_mc_cmd_commi
         is_write = 0;
         QPRINTF("%sWrite Sector %u\n", __func__, write_sector);
             
-        ps2_mc_data_interface_write_mc(write_sector, writetmp);
+        //ps2_mc_data_interface_write_mc(write_sector, writetmp);
 #ifdef DEBUG_MC_PROTOCOL
             debug_printf("WR 0x%08X : %02X %02X .. %08X %08X %08X\n", write_sector * 512, writetmp[0], writetmp[1], *(uint32_t *)&writetmp[512],
                          *(uint32_t *)&writetmp[516], *(uint32_t *)&writetmp[520]);
@@ -335,7 +341,7 @@ inline __attribute__((always_inline)) void __time_critical_func(ps2_mc_cmd_erase
     QPRINTF("START %s\n", __func__);
 
     /* do erase */
-    ps2_mc_data_interface_erase(erase_sector);
+   // ps2_mc_data_interface_erase(erase_sector);
 #ifdef DEBUG_MC_PROTOCOL
         debug_printf("ER 0x%08X\n", erase_sector * 512);
 #endif
@@ -344,6 +350,7 @@ inline __attribute__((always_inline)) void __time_critical_func(ps2_mc_cmd_erase
     receiveOrNextCmd(&_);
     mc_respond(term);
     QPRINTF("END %s\n", __func__);
+    erase_sector = UINT32_MAX;
 }
 
 inline __attribute__((always_inline)) void __time_critical_func(ps2_mc_cmd_0xBF)(void) {
