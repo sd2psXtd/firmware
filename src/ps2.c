@@ -34,11 +34,11 @@ void ps2_init(void) {
     
     ps2_cardman_init();
 
-    if (!settings_get_sd_mode()) {
 #if WITH_PSRAM
+    if (!settings_get_sd_mode()) {
         ps2_dirty_init();
-#endif
     }
+#endif
     ps2_history_tracker_init();
 
     multicore_launch_core1(ps2_memory_card_main);
