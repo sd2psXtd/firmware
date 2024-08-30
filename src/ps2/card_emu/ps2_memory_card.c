@@ -30,7 +30,7 @@ typedef struct {
     uint32_t sm;
 } pio_t;
 
-pio_t cmd_reader, dat_writer; //, clock_probe;
+pio_t cmd_reader, dat_writer, clock_probe;
 uint8_t term = 0xFF;
 
 static volatile uint8_t reset_tx_byte;
@@ -56,18 +56,18 @@ static inline void __time_critical_func(RAM_pio_sm_drain_tx_fifo)(PIO pio, uint 
 }
 
 static void __time_critical_func(reset_pio)(void) {
-    pio_set_sm_mask_enabled(pio0, (1 << cmd_reader.sm) | (1 << dat_writer.sm), false);// | (1 << clock_probe.sm), false);
-    pio_restart_sm_mask(pio0, (1 << cmd_reader.sm) | (1 << dat_writer.sm));// | (1 << clock_probe.sm));
+    pio_set_sm_mask_enabled(pio0, (1 << cmd_reader.sm) | (1 << dat_writer.sm) | (1 << clock_probe.sm), false);
+    pio_restart_sm_mask(pio0, (1 << cmd_reader.sm) | (1 << dat_writer.sm) | (1 << clock_probe.sm));
 
     pio_sm_exec(pio0, cmd_reader.sm, pio_encode_jmp(cmd_reader.offset));
     pio_sm_exec(pio0, dat_writer.sm, pio_encode_jmp(dat_writer.offset));
-//    pio_sm_exec(pio0, clock_probe.sm, pio_encode_jmp(clock_probe.offset));
+    pio_sm_exec(pio0, clock_probe.sm, pio_encode_jmp(clock_probe.offset));
 
     pio_sm_clear_fifos(pio0, cmd_reader.sm);
     RAM_pio_sm_drain_tx_fifo(pio0, dat_writer.sm);
-//    pio_sm_clear_fifos(pio0, clock_probe.sm);
+    pio_sm_clear_fifos(pio0, clock_probe.sm);
 
-    pio_enable_sm_mask_in_sync(pio0, (1 << cmd_reader.sm) | (1 << dat_writer.sm));// | (1 << clock_probe.sm));
+    pio_enable_sm_mask_in_sync(pio0, (1 << cmd_reader.sm) | (1 << dat_writer.sm) | (1 << clock_probe.sm));
 
     if (reset_place_tx_byte != 0) {
         mc_respond(reset_tx_byte);  //Preemptively place byte on tx for proper alignment with mmce fs read packets
@@ -101,12 +101,12 @@ static void __time_critical_func(init_pio)(void) {
     dat_writer.offset = pio_add_program(pio0, &dat_writer_program);
     dat_writer.sm = pio_claim_unused_sm(pio0, true);
 
-//    clock_probe.offset = pio_add_program(pio0, &clock_probe_program);
-//    clock_probe.sm = pio_claim_unused_sm(pio0, true);
+    clock_probe.offset = pio_add_program(pio0, &clock_probe_program);
+    clock_probe.sm = pio_claim_unused_sm(pio0, true);
 
     cmd_reader_program_init(pio0, cmd_reader.sm, cmd_reader.offset);
     dat_writer_program_init(pio0, dat_writer.sm, dat_writer.offset);
-//    clock_probe_program_init(pio0, clock_probe.sm, clock_probe.offset);
+    clock_probe_program_init(pio0, clock_probe.sm, clock_probe.offset);
 }
 
 static void __time_critical_func(card_deselected)(uint gpio, uint32_t event_mask) {
@@ -157,7 +157,7 @@ void __time_critical_func(mc_respond_dma)(uint8_t* const ptr, uint8_t size) {
 
 }
 
-uint8_t EccTable[] = {
+const uint8_t EccTable[] = {
     0x00, 0x87, 0x96, 0x11, 0xa5, 0x22, 0x33, 0xb4, 0xb4, 0x33, 0x22, 0xa5, 0x11, 0x96, 0x87, 0x00, 0xc3, 0x44, 0x55, 0xd2, 0x66, 0xe1, 0xf0, 0x77, 0x77, 0xf0,
     0xe1, 0x66, 0xd2, 0x55, 0x44, 0xc3, 0xd2, 0x55, 0x44, 0xc3, 0x77, 0xf0, 0xe1, 0x66, 0x66, 0xe1, 0xf0, 0x77, 0xc3, 0x44, 0x55, 0xd2, 0x11, 0x96, 0x87, 0x00,
     0xb4, 0x33, 0x22, 0xa5, 0xa5, 0x22, 0x33, 0xb4, 0x00, 0x87, 0x96, 0x11, 0xe1, 0x66, 0x77, 0xf0, 0x44, 0xc3, 0xd2, 0x55, 0x55, 0xd2, 0xc3, 0x44, 0xf0, 0x77,
@@ -409,8 +409,8 @@ void ps2_memory_card_unload(void) {
     pio_sm_unclaim(pio0, cmd_reader.sm);
     pio_remove_program(pio0, &dat_writer_program, dat_writer.offset);
     pio_sm_unclaim(pio0, dat_writer.sm);
-//    pio_remove_program(pio0, &clock_probe_program, clock_probe.offset);
-//    pio_sm_unclaim(pio0, clock_probe.sm);
+    pio_remove_program(pio0, &clock_probe_program, clock_probe.offset);
+    pio_sm_unclaim(pio0, clock_probe.sm);
 }
 
 bool ps2_memory_card_running(void) {
