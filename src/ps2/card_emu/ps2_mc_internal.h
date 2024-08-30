@@ -23,7 +23,7 @@ extern int is_write, is_dma_read;
 extern uint32_t readptr, writeptr;
 extern uint8_t *eccptr;
 
-extern uint8_t EccTable[];
+extern const uint8_t EccTable[];
 
 extern uint8_t receive(uint8_t *cmd);
 extern uint8_t receiveFirst(uint8_t *cmd);
