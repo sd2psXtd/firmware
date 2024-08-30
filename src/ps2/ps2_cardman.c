@@ -30,7 +30,7 @@ int current_read_sector = 0, priority_sector = -1;
 
 #define MAX_GAME_NAME_LENGTH (127)
 #define MAX_PREFIX_LENGTH    (4)
-#define MAX_SLICE_LENGTH     ( 10 * 1000 )
+#define MAX_SLICE_LENGTH     ( 2 * 1000 )
 
 static int card_idx;
 static int card_chan;
@@ -358,7 +358,7 @@ static void ps2_cardman_continue(void) {
             }
 
             if (cardman_cb)
-                cardman_cb(100 * cardprog_pos / card_size, cardman_state == CARDMAN_IDLE);
+                cardman_cb(100 * cardprog_pos / card_size, cardman_operation == CARDMAN_IDLE);
 
             cardman_sectors_done++;
         }
