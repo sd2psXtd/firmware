@@ -1,8 +1,10 @@
 #include <sd.h>
 #include <settings.h>
 #include <stdbool.h>
+#include <stdint.h>
 #include <string.h>
 
+#include "hardware/timer.h"
 #include "history_tracker/ps2_history_tracker.h"
 #include "pico/multicore.h"
 #include "pico/time.h"
@@ -24,6 +26,8 @@
 
 #define PAGE_CACHE_SIZE 35
 #define MAX_READ_AHEAD 1
+
+#define MAX_TIME_SLICE  ( 2 * 1000 )
 
 static bool dma_in_progress = false;
 
@@ -404,7 +408,8 @@ void ps2_mc_data_interface_set_sdmode(bool mode) {
 
 void ps2_mc_data_interface_task(void) {
     if (sdmode) {
-        while (op_fill_status() > 0) {
+        uint64_t time_start = time_us_64();
+        while ((op_fill_status() > 0) && ((time_us_64() - time_start) < MAX_TIME_SLICE) ){
             ps2_mcdi_page_t* page_p = pop_op();
             if (page_p)
                 switch(page_p->page_sate) {
