@@ -359,17 +359,11 @@ void ps2_cardman_close(void) {
 }
 
 void ps2_cardman_set_channel(uint16_t chan_num) {
-    if (chan_num != card_chan)
-        needs_update = true;
     if ((PS2_CM_STATE_NORMAL == cardman_state) || (PS2_CM_STATE_GAMEID == cardman_state)) {
+        if (chan_num != card_chan) needs_update = true;
         if (chan_num <= CHAN_MAX && chan_num >= CHAN_MIN) {
             card_chan = chan_num;
-        }
-    } else {
-        card_idx = settings_get_ps2_card();
-        card_chan = settings_get_ps2_channel();
-        cardman_state = PS2_CM_STATE_NORMAL;
-        snprintf(folder_name, sizeof(folder_name), "Card%d", card_idx);
+        }    
     }
 }
 
@@ -378,13 +372,10 @@ void ps2_cardman_next_channel(void) {
         card_chan += 1;
         if (card_chan > CHAN_MAX)
             card_chan = CHAN_MIN;
-    } else {
-        card_idx = settings_get_ps2_card();
-        card_chan = settings_get_ps2_channel();
-        cardman_state = PS2_CM_STATE_NORMAL;
-        snprintf(folder_name, sizeof(folder_name), "Card%d", card_idx);
+        needs_update = true;
+    } else if (PS2_CM_STATE_BOOT == cardman_state){
+        ps2_cardman_next_idx();
     }
-    needs_update = true;
 }
 
 void ps2_cardman_prev_channel(void) {
@@ -392,13 +383,10 @@ void ps2_cardman_prev_channel(void) {
         card_chan -= 1;
         if (card_chan < CHAN_MIN)
             card_chan = CHAN_MAX;
-    } else {
-        card_idx = settings_get_ps2_card();
-        card_chan = settings_get_ps2_channel();
-        cardman_state = PS2_CM_STATE_NORMAL;
-        snprintf(folder_name, sizeof(folder_name), "Card%d", card_idx);
+        needs_update = true;
+    } else if (PS2_CM_STATE_BOOT == cardman_state){
+        ps2_cardman_prev_idx();
     }
-    needs_update = true;
 }
 
 void ps2_cardman_set_idx(int idx_num) {
