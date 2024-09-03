@@ -34,6 +34,7 @@ typedef struct {
 #define SETTINGS_PS1_FLAGS_GAME_ID  (0b0000010)
 #define SETTINGS_PS2_FLAGS_AUTOBOOT (0b0000001)
 #define SETTINGS_PS2_FLAGS_GAME_ID  (0b0000010)
+#define SETTINGS_SYS_FLAGS_PS2_MODE (0b0000001)
 
 _Static_assert(sizeof(settings_t) == 20, "unexpected padding in the settings structure");
 
@@ -64,7 +65,7 @@ void settings_init(void) {
     }
 
     wear_leveling_read(0, &settings, sizeof(settings));
-    tempmode = settings.sys_flags & 1;
+    tempmode = settings.sys_flags & SETTINGS_SYS_FLAGS_PS2_MODE;
     if (settings.version_magic != SETTINGS_VERSION_MAGIC) {
         printf("version magic mismatch, reset settings\n");
         settings_reset();
@@ -176,10 +177,10 @@ void settings_set_ps1_boot_channel(int chan) {
 
 int settings_get_mode(void) {
     return MODE_PS2;
-    if ((settings.sys_flags & 1) != tempmode)
+    if ((settings.sys_flags & SETTINGS_SYS_FLAGS_PS2_MODE) != tempmode)
         return MODE_PS1;
     else
-        return settings.sys_flags & 1;
+        return settings.sys_flags & SETTINGS_SYS_FLAGS_PS2_MODE;
 }
 
 void settings_set_mode(int mode) {
@@ -192,7 +193,7 @@ void settings_set_mode(int mode) {
 
     if (mode != settings_get_mode()) {
         /* clear old mode, then set what was passed in */
-        settings.sys_flags &= ~1;
+        settings.sys_flags &= ~SETTINGS_SYS_FLAGS_PS2_MODE;
         settings.sys_flags |= mode;
         SETTINGS_UPDATE_FIELD(sys_flags);
     }
