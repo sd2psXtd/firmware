@@ -196,6 +196,7 @@ void settings_set_mode(int mode) {
         settings.sys_flags &= ~SETTINGS_SYS_FLAGS_PS2_MODE;
         settings.sys_flags |= mode;
         SETTINGS_UPDATE_FIELD(sys_flags);
+        tempmode = settings.sys_flags & SETTINGS_SYS_FLAGS_PS2_MODE;
     }
 }
 
