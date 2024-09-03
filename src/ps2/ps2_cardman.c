@@ -21,6 +21,7 @@
 
 #define MEMORY_CARDS_PATH "MemoryCards"
 #define PS2_CARDS_PATH MEMORY_CARDS_PATH "/PS2"
+#define PS2_BOOTCARD_PATH PS2_CARDS_PATH "/BOOT/BootCard.mcd"
 
 uint8_t available_sectors[SECTOR_COUNT / 8]; // bitmap
 static uint8_t flushbuf[BLOCK_SIZE];
@@ -281,7 +282,7 @@ void ps2_cardman_open(void) {
     ensuredirs();
 
     if (PS2_CM_STATE_BOOT == cardman_state)
-        snprintf(path, sizeof(path), PS2_CARDS_PATH "/%s/BootCard.mcd", folder_name);
+        snprintf(path, sizeof(path), PS2_BOOTCARD_PATH);
     else
         snprintf(path, sizeof(path), PS2_CARDS_PATH "/%s/%s-%d.mcd", folder_name, folder_name, card_chan);
 
@@ -403,7 +404,6 @@ void ps2_cardman_set_idx(int idx_num) {
       card_idx = PS2_CARD_IDX_SPECIAL;
       card_chan = CHAN_MIN;
       cardman_state = PS2_CM_STATE_BOOT;
-      snprintf(folder_name, sizeof(folder_name), "BOOT");
     }else{
       card_idx = ps2_cardman_set_folder_name_for_gameid_with_idx(idx_num);
       card_chan = CHAN_MIN;
@@ -424,7 +424,6 @@ void ps2_cardman_next_idx(void) {
           card_idx = ps2_cardman_set_folder_name_for_gameid_with_idx(newIdx);
           if (card_idx == PS2_CARD_IDX_SPECIAL) {
             cardman_state = PS2_CM_STATE_BOOT;
-            snprintf(folder_name, sizeof(folder_name), "BOOT");
           }else{
             cardman_state = PS2_CM_STATE_GAMEID;
           }
@@ -524,7 +523,6 @@ void ps2_cardman_init(void) {
         card_idx = PS2_CARD_IDX_SPECIAL;
         cardman_state = PS2_CM_STATE_BOOT;
         card_chan = CHAN_MIN;
-        snprintf(folder_name, sizeof(folder_name), "BOOT");
     } else {
         card_idx = settings_get_ps2_card();
         card_chan = settings_get_ps2_channel();
