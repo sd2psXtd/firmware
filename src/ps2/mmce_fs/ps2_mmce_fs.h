@@ -81,28 +81,26 @@ typedef struct ps2_mmce_fs_data_t {
 
 extern critical_section_t mmce_fs_crit; //used to lock writes to chunk_state (sd2psxman_commands <-> ps2_mmceman_fs)
 
-/* Flow (Core 0):
+/* Flow (Core 1):
  * enter cmd handler function
- * ps2_mmce_fs_wait_ready();               core0 waits for core1 to finish any ops (shouldn't be any)
- * ps2_mmce_fs_get_data();                 returns ptr to mmce_fs_data_t
+ * ps2_mmce_fs_wait_ready();               core1 waits for core0 to finish any ops (shouldn't be any)
  * write necessary data to mmce_fs_data_t
- * ps2_mmce_fs_signal_op(int op);          signal core1 to perform op
- * ps2_mmce_fs_wait_ready();               wait for op to be completed (Mostly unused now in favor of polling)
+ * ps2_mmce_fs_signal_op(int op);          signal core0 to perform op
+ * ps2_mmce_fs_wait_ready();               wait for op to be completed
  *          OR
- * ps2_mmce_fs_is_ready();                 polled by PS2 ready packet
+ * ps2_mmce_fs_is_ready();                 polled by PS2 ready packet (used only with writes)
  *          OR
- * poll pull chunk state or other status var (read and dread do this)
+ * poll chunk state or other status var (read and dread do this)
  * access data
  * repeat
 */
 
-//Core 1
+//Core 0
 void ps2_mmce_fs_init(void);
 void ps2_mmce_fs_run(void);
 
-//Core 0
+//Core 1
 void ps2_mmce_fs_wait_ready();
-int ps2_mmce_fs_is_ready(void);
 void ps2_mmce_fs_signal_operation(int op);
 
 ps2_mmce_fs_data_t *ps2_mmce_fs_get_data(void);

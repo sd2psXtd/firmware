@@ -291,9 +291,6 @@ inline __attribute__((always_inline)) void __time_critical_func(ps2_mmceman_cmd_
             data->bytes_read = 0;
             data->tail_idx = 0;
             data->head_idx = 0;
-
-            //TEMP: fix residual chunk state
-            //memset(data->chunk_state, 0, CHUNK_COUNT);
             
             len8 = (uint8_t*)&data->length;
 
@@ -483,6 +480,7 @@ inline __attribute__((always_inline)) void __time_critical_func(ps2_mmceman_cmd_
             data->bytes_transferred = 0x0;
             data->tail_idx = 0;
             data->bytes_read = 0;
+            data->bytes_written = 0;
 
             len8 = (uint8_t*)&data->length;
 
@@ -580,7 +578,7 @@ inline __attribute__((always_inline)) void __time_critical_func(ps2_mmceman_cmd_
 
         //Packet n + 2: Bytes written
         case 3:
-            bytes8 = (uint8_t*)&data->bytes_transferred;
+            bytes8 = (uint8_t*)&data->bytes_written;
 
             receiveOrNextCmd(&cmd); //Padding
 
@@ -1230,7 +1228,7 @@ inline __attribute__((always_inline)) void __time_critical_func(ps2_mmceman_cmd_
                     sd_seek_set_new(data->fd, offset);
                     position = sd_tell_new(data->fd);
                     if (position != offset) {
-                        printf("[WARN] Sector seek failed, possible fragmentation issues, check card! Got: 0x%llu, Exp: 0x%llu\n", position, offset);
+                        printf("[FATAL] Sector seek failed, possible fragmentation issues, check card! Got: 0x%llu, Exp: 0x%llu\n", position, offset);
                     } else {
                         break;
                     }

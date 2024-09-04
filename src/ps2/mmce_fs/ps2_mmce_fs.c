@@ -174,6 +174,8 @@ void ps2_mmce_fs_run(void)
             log_info(0, "Writing: %u to sd\n", write_size);
             m_data.rv = sd_write(m_data.fd, (void*)m_data.buffer[0], write_size);
             sd_flush(m_data.fd); //flush data
+
+            m_data.bytes_written += m_data.rv;
             log_info(0, "Wrote: %i, progress: %u of %u\n", m_data.rv, m_data.bytes_written, m_data.length);
 
             mmce_fs_operation = MMCE_FS_NONE;
@@ -295,22 +297,13 @@ void ps2_mmce_fs_run(void)
     MP_OP_END();
 }
 
-//Core 0
+//Core 1
 void ps2_mmce_fs_wait_ready(void)
 {
     while (mmce_fs_operation != MMCE_FS_NONE)
     {
         sleep_us(1);
     }
-}
-
-//Polling approach
-int ps2_mmce_fs_is_ready(void)
-{
-    if (mmce_fs_operation == MMCE_FS_NONE)
-        return 1;
-    else
-        return 0;
 }
 
 void ps2_mmce_fs_signal_operation(int op)
