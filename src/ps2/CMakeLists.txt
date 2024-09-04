@@ -1,5 +1,6 @@
 
 add_library(ps2_card STATIC
+                ${CMAKE_CURRENT_SOURCE_DIR}/card_emu/ps2_mmceman_debug.c
                 ${CMAKE_CURRENT_SOURCE_DIR}/card_emu/ps2_sd2psxman.c
                 ${CMAKE_CURRENT_SOURCE_DIR}/card_emu/ps2_sd2psxman_commands.c
                 ${CMAKE_CURRENT_SOURCE_DIR}/card_emu/ps2_memory_card.c
@@ -12,7 +13,6 @@ add_library(ps2_card STATIC
                 ${CMAKE_CURRENT_SOURCE_DIR}/ps2_pio_qspi.c
                 ${CMAKE_CURRENT_SOURCE_DIR}/ps2_psram.c
                 ${CMAKE_CURRENT_SOURCE_DIR}/ps2_exploit.c
-                ${CMAKE_CURRENT_SOURCE_DIR}/temp_profiling.c
             )
 
 target_include_directories(ps2_card

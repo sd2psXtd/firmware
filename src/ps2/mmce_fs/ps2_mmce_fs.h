@@ -62,7 +62,8 @@ typedef struct ps2_mmce_fs_data_t {
     uint8_t  whence64;
 
     uint32_t length;            //length of transfer, read only
-    uint32_t bytes_read;        //stop reading when == length 
+    uint32_t bytes_read;        //stop reading when == length
+    uint32_t bytes_written;     //
     uint32_t bytes_transferred; //stop sending when == length
 
     uint8_t tail_idx;           //read ring tail idx
