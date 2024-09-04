@@ -10,27 +10,25 @@
 
 #include "sd.h"
 
-enum mmce_fs_op_datas {
-    MMCE_FS_OP_NONE = 0x0,
-    MMCE_FS_OP_OPEN,
-    MMCE_FS_OP_CLOSE,
-    MMCE_FS_OP_READ,
-    MMCE_FS_OP_WRITE,
-    MMCE_FS_OP_LSEEK,
-    MMCE_FS_OP_IOCTL,
-    MMCE_FS_OP_REMOVE,
-    MMCE_FS_OP_MKDIR,
-    MMCE_FS_OP_RMDIR,
-    MMCE_FS_OP_DOPEN,
-    MMCE_FS_OP_DCLOSE,
-    MMCE_FS_OP_DREAD,
-    MMCE_FS_OP_GETSTAT,
-    MMCE_FS_OP_LSEEK64,
+//TODO: enumify
+#define MMCE_FS_NONE 0x0
+#define MMCE_FS_OPEN 0x1
+#define MMCE_FS_CLOSE 0x2
+#define MMCE_FS_READ 0x3
+#define MMCE_FS_WRITE 0x4
+#define MMCE_FS_LSEEK 0x5
+#define MMCE_FS_IOCTL 0x6
+#define MMCE_FS_REMOVE 0x7
+#define MMCE_FS_MKDIR 0x8
+#define MMCE_FS_RMDIR 0x9
+#define MMCE_FS_DOPEN 0xA
+#define MMCE_FS_DCLOSE 0xB
+#define MMCE_FS_DREAD 0xC
+#define MMCE_FS_GETSTAT 0xD
+#define MMCE_FS_VALIDATE_FD 0xE
+#define MMCE_FS_READ_AHEAD 0xF
 
-    MMCE_FS_OP_READ_AHEAD,
-    MMCE_FS_OP_VALIDATE_FD,
-    MMCE_FS_OP_RESET,
-};
+#define MMCE_FS_LSEEK64 0xee
 
 #define CHUNK_SIZE 256
 #define CHUNK_COUNT 15
@@ -39,7 +37,7 @@ enum mmce_fs_op_datas {
 #define CHUNK_STATE_READY 0x1
 #define CHUNK_STATE_INVALID 0x2
 
-//Single chunk read ahead during sector reads
+//Single chunk read ahead on open, lseek, and after read
 typedef struct ps2_mmce_fs_read_ahead_t {
     int fd;
     int valid;
@@ -53,15 +51,18 @@ typedef struct ps2_mmce_fs_data_t {
     int flags;          //file flags
     int it_fd;          //iterator dir
 
-    uint64_t filesize;
+    uint32_t filesize;
 
-    int64_t  offset;
-    uint64_t position;
+    int      offset;
+    int      position;
     uint8_t  whence;
 
+    int64_t  offset64;
+    int64_t  position64;
+    uint8_t  whence64;
+
     uint32_t length;            //length of transfer, read only
-    uint32_t bytes_read;        //stop reading when == length
-    uint32_t bytes_written;     //
+    uint32_t bytes_read;        //stop reading when == length 
     uint32_t bytes_transferred; //stop sending when == length
 
     uint8_t tail_idx;           //read ring tail idx
@@ -71,36 +72,34 @@ typedef struct ps2_mmce_fs_data_t {
     volatile uint8_t chunk_state[CHUNK_COUNT + 1]; //written to by both cores, writes encased in critical section
 
     uint8_t transfer_failed;
-    uint8_t abort;
-
-    uint8_t use_read_ahead;
+    int use_read_ahead;
     ps2_mmce_fs_read_ahead_t read_ahead;
 
     ps2_fileio_stat_t fileio_stat;
 } ps2_mmce_fs_data_t;
 
-extern volatile ps2_mmce_fs_data_t fs_op_data;
 extern critical_section_t mmce_fs_crit; //used to lock writes to chunk_state (sd2psxman_commands <-> ps2_mmceman_fs)
 
-/* Flow (Core 1):
+/* Flow (Core 0):
  * enter cmd handler function
- * ps2_mmce_fs_wait_ready();               core1 waits for core0 to finish any ops (shouldn't be any)
+ * ps2_mmce_fs_wait_ready();               core0 waits for core1 to finish any ops (shouldn't be any)
+ * ps2_mmce_fs_get_data();                 returns ptr to mmce_fs_data_t
  * write necessary data to mmce_fs_data_t
- * ps2_mmce_fs_signal_op(int op);          signal core0 to perform op
- * ps2_mmce_fs_wait_ready();               wait for op to be completed
+ * ps2_mmce_fs_signal_op(int op);          signal core1 to perform op
+ * ps2_mmce_fs_wait_ready();               wait for op to be completed (Mostly unused now in favor of polling)
  *          OR
- * ps2_mmce_fs_is_ready();                 polled by PS2 ready packet (used only with writes)
+ * ps2_mmce_fs_is_ready();                 polled by PS2 ready packet
  *          OR
- * poll chunk state or other status var (read and dread do this)
+ * poll pull chunk state or other status var (read and dread do this)
  * access data
  * repeat
 */
 
-//Core 0
+//Core 1
 void ps2_mmce_fs_init(void);
 void ps2_mmce_fs_run(void);
 
-//Core 1
+//Core 0
 void ps2_mmce_fs_wait_ready();
 int ps2_mmce_fs_is_ready(void);
 void ps2_mmce_fs_signal_operation(int op);

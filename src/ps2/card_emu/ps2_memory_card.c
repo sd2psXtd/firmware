@@ -16,7 +16,7 @@
 #include <stdint.h>
 #include <stdio.h>
 
-#include "ps2_mmceman_commands.h"
+#include "ps2_sd2psxman_commands.h"
 
 // #define DEBUG_MC_PROTOCOL
 
@@ -268,7 +268,7 @@ static void __time_critical_func(mc_main_loop)(void) {
                 case PS2_SIO2_CMD_SESSION_KEY_1: ps2_mc_sessionKeyEncr(); break;
                 default: debug_printf("Unknown Subcommand: %02x\n", cmd); break;
             }
-        } else if (cmd == MMCEMAN_CMD_ID) {
+        } else if (cmd == PS2_SD2PSXMAN_CMD_IDENTIFIER) {
             /* resp to 0x8B */
             mc_respond(0xAA);
 
@@ -279,15 +279,15 @@ static void __time_critical_func(mc_main_loop)(void) {
 
             switch (cmd)
             {
-                case MMCEMAN_CMD_PING: ps2_mmceman_cmd_ping(); break;
-                case MMCEMAN_CMD_GET_STATUS: ps2_mmceman_cmd_get_status(); break;
-                case MMCEMAN_CMD_GET_CARD: ps2_mmceman_cmd_get_card(); break;
-                case MMCEMAN_CMD_SET_CARD: ps2_mmceman_cmd_set_card(); break;
-                case MMCEMAN_CMD_GET_CHANNEL: ps2_mmceman_cmd_get_channel(); break;
-                case MMCEMAN_CMD_SET_CHANNEL: ps2_mmceman_cmd_set_channel(); break;
-                case MMCEMAN_CMD_GET_GAMEID: ps2_mmceman_cmd_get_gameid(); break;
-                case MMCEMAN_CMD_SET_GAMEID: ps2_mmceman_cmd_set_gameid(); break;
-                case SD2PSXMAN_UNMOUNT_BOOTCARD: ps2_mmceman_cmd_unmount_bootcard(); break;
+                case SD2PSXMAN_PING: ps2_sd2psxman_cmds_ping(); break;
+                case SD2PSXMAN_GET_STATUS: ps2_sd2psxman_cmds_get_status(); break;
+                case SD2PSXMAN_GET_CARD: ps2_sd2psxman_cmds_get_card(); break;
+                case SD2PSXMAN_SET_CARD: ps2_sd2psxman_cmds_set_card(); break;
+                case SD2PSXMAN_GET_CHANNEL: ps2_sd2psxman_cmds_get_channel(); break;
+                case SD2PSXMAN_SET_CHANNEL: ps2_sd2psxman_cmds_set_channel(); break;
+                case SD2PSXMAN_GET_GAMEID: ps2_sd2psxman_cmds_get_gameid(); break;
+                case SD2PSXMAN_SET_GAMEID: ps2_sd2psxman_cmds_set_gameid(); break;
+                case SD2PSXMAN_UNMOUNT_BOOTCARD: ps2_sd2psxman_cmds_unmount_bootcard(); break;
 
                 case MMCEMAN_CMD_FS_OPEN: ps2_mmceman_cmd_fs_open(); break;
                 case MMCEMAN_CMD_FS_CLOSE: ps2_mmceman_cmd_fs_close(); break;

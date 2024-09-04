@@ -12,6 +12,8 @@ extern "C" {
 
 #include <stdio.h>
 
+#define NUM_FILES 8
+
 static SdFat sd;
 static File files[NUM_FILES];
 
@@ -96,7 +98,20 @@ extern "C" int sd_seek(int fd, uint64_t pos) {
     return files[fd].seekSet(pos) != true;
 }
 
+//seekSet checks fd, no need for macro
+extern "C" int sd_seek_set_new(int fd, uint64_t pos) {
+    /* return 1 on error */
+    return files[fd].seekSet(pos) != true;
+}
+
 extern "C" size_t sd_tell(int fd) {
+    CHECK_FD(fd);
+
+    return files[fd].curPosition();
+}
+
+//curPosition returns a uint64_t
+extern "C" uint64_t sd_tell_new(int fd) {
     CHECK_FD(fd);
 
     return files[fd].curPosition();
@@ -124,6 +139,18 @@ extern "C" int sd_rmdir(const char* path) {
 extern "C" int sd_remove(const char* path) {
     /* return 1 on error */
     return sd.remove(path) != true;
+}
+
+extern "C" int sd_seek_new(int fd, int64_t offset, int whence) {
+    CHECK_FD(fd);
+    if (whence == 0) {
+        return files[fd].seekSet((uint64_t)offset) != true;
+    } else if (whence == 1) {
+        return files[fd].seekCur(offset) != true;
+    } else if (whence == 2) {
+        return files[fd].seekEnd(offset) != true;
+    }
+    return -1;
 }
 
 extern "C" int sd_iterate_dir(int dir, int it) {
@@ -213,31 +240,4 @@ extern "C" int sd_get_stat(int fd, ps2_fileio_stat_t* const ps2_fileio_stat) {
 extern "C" int sd_fd_is_open(int fd) {
     CHECK_FD(fd);
     return 0;
-}
-
-extern "C" uint64_t sd_filesize_new(int fd) {
-    CHECK_FD(fd);
-    return files[fd].fileSize();
-}
-
-extern "C" int sd_seek_new(int fd, int64_t offset, int whence) {
-    CHECK_FD(fd);
-    if (whence == 0) {
-        return files[fd].seekSet((uint64_t)offset) != true;
-    } else if (whence == 1) {
-        return files[fd].seekCur(offset) != true;
-    } else if (whence == 2) {
-        return files[fd].seekEnd(offset) != true;
-    }
-    return -1;
-}
-
-//seekSet checks fd, no need for macro
-extern "C" int sd_seek_set_new(int fd, uint64_t pos) {
-    return files[fd].seekSet(pos) != true;
-}
-
-extern "C" uint64_t sd_tell_new(int fd) {
-    CHECK_FD(fd);
-    return files[fd].curPosition();
 }
