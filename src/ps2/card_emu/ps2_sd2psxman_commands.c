@@ -1190,7 +1190,7 @@ inline __attribute__((always_inline)) void __time_critical_func(ps2_mmceman_cmd_
             mc_respond(0x0); receiveOrNextCmd(&sector8[0x1]);
             mc_respond(0x0); receiveOrNextCmd(&sector8[0x0]);
 
-            offset = (uint64_t)(sector * 2048);
+            offset = ((uint64_t)sector) * 2048;
 
             //Data read ahead, skip seeking
             if (data->read_ahead.fd == data->fd && data->read_ahead.valid && data->read_ahead.pos == offset) {
