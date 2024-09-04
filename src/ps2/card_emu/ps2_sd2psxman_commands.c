@@ -582,7 +582,6 @@ inline __attribute__((always_inline)) void __time_critical_func(ps2_mmceman_cmd_
 
             receiveOrNextCmd(&cmd); //Padding
 
-            //TODO: Return sum of rv from sd_write instead of bytes transferred
             mc_respond(bytes8[0x3]); receiveOrNextCmd(&cmd);
             mc_respond(bytes8[0x2]); receiveOrNextCmd(&cmd);
             mc_respond(bytes8[0x1]); receiveOrNextCmd(&cmd);
