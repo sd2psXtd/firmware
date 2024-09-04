@@ -142,12 +142,12 @@ void ps2_mmce_fs_run(void)
     
         /* Try to read a single chunk ahead into a separate buffer */
         case MMCE_FS_READ_AHEAD:
-            m_data.filesize = sd_filesize(m_data.fd);
+            m_data.filesize = sd_filesize_new(m_data.fd);
 
             DPRINTF("Entering read ahead\n");
             
             //Check if reading beyond file size
-            if (sd_tell(m_data.fd) + CHUNK_SIZE <= m_data.filesize) {
+            if (sd_tell_new(m_data.fd) + CHUNK_SIZE <= m_data.filesize) {
                 m_data.read_ahead.pos = sd_tell_new(m_data.fd);
                 m_data.rv = sd_read(m_data.fd, (void*)m_data.read_ahead.buffer, CHUNK_SIZE);
 
@@ -195,7 +195,7 @@ void ps2_mmce_fs_run(void)
             }
 
             sd_seek_new(m_data.fd, m_data.offset, m_data.whence);
-            m_data.position = sd_tell(m_data.fd);
+            m_data.position = sd_tell_new(m_data.fd);
 
             mmce_fs_operation = MMCE_FS_NONE;
         break;

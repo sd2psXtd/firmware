@@ -51,7 +51,7 @@ typedef struct ps2_mmce_fs_data_t {
     int flags;          //file flags
     int it_fd;          //iterator dir
 
-    uint32_t filesize;
+    uint64_t filesize;
 
     int      offset;
     int      position;

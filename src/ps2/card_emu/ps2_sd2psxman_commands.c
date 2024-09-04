@@ -515,17 +515,16 @@ inline __attribute__((always_inline)) void __time_critical_func(ps2_mmceman_cmd_
         case 1:
             receiveOrNextCmd(&cmd);
 
-            ready = ps2_mmce_fs_is_ready();
+            ps2_mmce_fs_wait_ready();
 
-            if (ready == 1) {
-                if (data->bytes_transferred == data->length) {
-                    transfer_stage = 3;  //Move to final transfer stage
-                } else {
-                    transfer_stage = 2;  //More data to write
-                }
+            if (data->bytes_transferred == data->length) {
+                transfer_stage = 3;  //Move to final transfer stage
+            } else {
+                transfer_stage = 2;  //More data to write
             }
-            DPRINTF("ready: %i\n", ready);
-            mc_respond(ready);
+
+            DPRINTF("ready: 1\n");
+            mc_respond(1);
         break;
 
         //Packet #n + 1: Read bytes

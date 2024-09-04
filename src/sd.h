@@ -53,3 +53,5 @@ int sd_iterate_dir(int dir, int it);
 size_t sd_get_name(int fd, char* name, size_t size);
 bool sd_is_dir(int fd);
 int sd_fd_is_open(int fd);
+
+uint64_t sd_filesize_new(int fd);
