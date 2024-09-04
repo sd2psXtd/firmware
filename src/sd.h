@@ -4,6 +4,8 @@
 #include <stdbool.h>
 #include <stdint.h>
 
+#define NUM_FILES 8
+
 typedef struct ps2_fileio_stat_t
 {
     unsigned int mode;
@@ -39,13 +41,8 @@ int sd_getStat(int fd, sd_file_stat_t* const sd_stat);
 int sd_filesize(int fd);
 int sd_mkdir(const char *path);
 int sd_exists(const char *path);
-
 int sd_remove(const char* path);
 int sd_rmdir(const char* path);
-int sd_seek_new(int fd, int64_t offset, int whence);
-
-int sd_seek_set_new(int fd, uint64_t pos);
-uint64_t sd_tell_new(int fd);
 
 int sd_get_stat(int fd, ps2_fileio_stat_t* const ps2_fileio_stat);
 
@@ -53,3 +50,8 @@ int sd_iterate_dir(int dir, int it);
 size_t sd_get_name(int fd, char* name, size_t size);
 bool sd_is_dir(int fd);
 int sd_fd_is_open(int fd);
+
+uint64_t sd_filesize_new(int fd);
+int sd_seek_new(int fd, int64_t offset, int whence);
+int sd_seek_set_new(int fd, uint64_t pos);
+uint64_t sd_tell_new(int fd);

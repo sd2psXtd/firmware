@@ -4,7 +4,7 @@
 #include <stdio.h>
 #include <string.h>
 
-#include "card_emu/ps2_sd2psxman.h"
+#include "card_emu/ps2_mmceman.h"
 #include "debug.h"
 #include "game_names/game_names.h"
 #include "hardware/timer.h"
@@ -313,7 +313,7 @@ void ps2_cardman_set_idx(uint16_t idx_num) {
 
 static void ps2_cardman_special_idx(int newIndx) {
     char parent_id[MAX_GAME_ID_LENGTH] = { 0x00 };
-    game_names_get_parent(sd2psxman_gameid, parent_id);
+    game_names_get_parent(mmceman_gameid, parent_id);
     debug_printf("Parent ID is %s, State is %i, new Index: %i\n", parent_id, cardman_state, newIndx);
     if (PS2_CM_STATE_NORMAL == cardman_state) {
         if (parent_id[0]) {

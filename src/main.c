@@ -26,7 +26,7 @@
 #include "ps2/ps2_cardman.h"
 #include "ps2/ps2_psram.h"
 
-#include "ps2/card_emu/ps2_sd2psxman.h"
+#include "ps2/card_emu/ps2_mmceman.h"
 #include "mmce_fs/ps2_mmce_fs.h"
 
 /* reboot to bootloader if either button is held on startup
@@ -134,7 +134,7 @@ int main() {
 
         while (1) {
             debug_task();
-            ps2_sd2psxman_task();
+            ps2_mmceman_task();
             ps2_dirty_task();
             ps2_history_tracker_run();
             gui_task();

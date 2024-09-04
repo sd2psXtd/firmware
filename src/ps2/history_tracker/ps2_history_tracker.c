@@ -7,8 +7,8 @@
 #include <string.h>
 #include <stdbool.h>
 
-#include "card_emu/ps2_sd2psxman.h"
-#include "card_emu/ps2_sd2psxman_commands.h"
+#include "card_emu/ps2_mmceman.h"
+#include "card_emu/ps2_mmceman_commands.h"
 #include "hardware/timer.h"
 #include "mcfat.h"
 #include "mcio.h"
@@ -270,8 +270,8 @@ void ps2_history_tracker_run() {
                             game_names_extract_title_id(&buff[j * HISTORY_ENTRY_SIZE], sanitized_game_id, 16, sizeof(sanitized_game_id));
                             // debug_printf("Game ID: %s\n", sanitized_game_id);
                             if (game_names_sanity_check_title_id(sanitized_game_id)) {
-                                ps2_sd2psxman_set_gameid(sanitized_game_id);
-                                sd2psxman_cmd = SD2PSXMAN_SET_GAMEID;
+                                ps2_mmceman_set_gameid(sanitized_game_id);
+                                mmceman_cmd = MMCEMAN_CMD_SET_GAMEID;
                             }
                         }
                     }
