@@ -153,7 +153,7 @@ void ps2_mmce_fs_run(void)
                 m_data.rv = sd_read(m_data.fd, (void*)m_data.read_ahead.buffer, CHUNK_SIZE);
 
                 if (m_data.rv == CHUNK_SIZE) {
-                    log_trace(0, "Read ahead: %i\n", m_data.rv);
+                    log_info(0, "Read ahead: %i\n", m_data.rv);
                     m_data.read_ahead.fd = m_data.fd;
                     m_data.read_ahead.valid = 1;
                 } else {
