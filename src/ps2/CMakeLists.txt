@@ -10,7 +10,6 @@ add_library(ps2_card STATIC
                 ${CMAKE_CURRENT_SOURCE_DIR}/history_tracker/ps2_history_tracker.c
                 ${CMAKE_CURRENT_SOURCE_DIR}/mmce_fs/ps2_mmce_fs.c
                 ${CMAKE_CURRENT_SOURCE_DIR}/ps2_cardman.c
-                ${CMAKE_CURRENT_SOURCE_DIR}/temp_profiling.c
             )
 
 target_include_directories(ps2_card
@@ -41,5 +40,3 @@ endif()
 configure_file(${CMAKE_CURRENT_LIST_DIR}/card_emu/ps2_mc_spi.pio ${CMAKE_CURRENT_BINARY_DIR}/ps2_mc_spi.pio)
 
 pico_generate_pio_header(ps2_card ${CMAKE_CURRENT_BINARY_DIR}/ps2_mc_spi.pio)
-
-#pico_generate_pio_header(ps2_card ${CMAKE_CURRENT_LIST_DIR}/card_emu/ps2_mc_spi.pio)
