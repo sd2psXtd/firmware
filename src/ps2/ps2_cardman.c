@@ -292,7 +292,8 @@ static void ps2_cardman_continue(void) {
 
                     printf("took = %.2f s; SD read speed = %.2f kB/s\n", (end - cardprog_start) / 1e6, 1000000.0 * card_size / (end - cardprog_start) / 1024);
                     ps2_mc_data_interface_card_changed();
-                    cardman_cb(100, true);
+                    if (cardman_cb)
+                        cardman_cb(100, true);
                     break;
                 }
 
