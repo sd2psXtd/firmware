@@ -245,3 +245,8 @@ extern "C" int sd_fd_is_open(int fd) {
     CHECK_FD(fd);
     return 0;
 }
+
+extern "C" uint64_t sd_filesize_new(int fd) {
+    CHECK_FD(fd);
+    return files[fd].fileSize();
+}

@@ -12,7 +12,7 @@
 #include <sys/stat.h>
 #include <sys/unistd.h>
 
-#include "temp_profiling.h"
+#include "card_emu/ps2_mmceman_debug.h"
 
 //#define DPRINTF(fmt, x...) printf(fmt, ##x)
 #define DPRINTF(x...) 
@@ -60,14 +60,14 @@ void ps2_mmce_fs_run(void)
     uint32_t bytes_in_chunk = 0;
     uint32_t write_size = 0;
 
-    DSTART_MMCE_FS_RUN();
+    MP_OP_START();
 
     switch (mmce_fs_operation) {
         case MMCE_FS_OPEN:
             m_data.fd = sd_open((const char*)m_data.buffer[0], m_data.flags);
 
             if (m_data.fd < 0) {
-                DPRINTF("Open failed fd: %i\n", m_data.fd);
+                log_error(0, "Open failed, fd: %i\n", m_data.fd);
             }
 
             mmce_fs_operation = MMCE_FS_NONE;
@@ -87,7 +87,8 @@ void ps2_mmce_fs_run(void)
 
         //Read async continuous until bytes_read == length
         case MMCE_FS_READ:
-            DPRINTF("C1: Entering read loop, bytes read: %i len: %i\n", m_data.bytes_read, m_data.length);
+
+            log_info(0, "Entering read loop, bytes read: %u len: %u\n", m_data.bytes_read, m_data.length);
 
             //Read requested length
             while (m_data.bytes_read < m_data.length)
@@ -108,7 +109,7 @@ void ps2_mmce_fs_run(void)
                     //Failed to get requested amount
                     if (m_data.rv != bytes_in_chunk) {
                         m_data.bytes_read += m_data.rv;
-                        DPRINTF("C1: Failed to read %i bytes, got %i bytes\n", bytes_in_chunk, m_data.rv);
+                        log_error(0, "Failed to read %u bytes, got %i bytes\n", bytes_in_chunk, m_data.rv);
                         critical_section_enter_blocking(&mmce_fs_crit);
                         m_data.chunk_state[m_data.head_idx] = CHUNK_STATE_INVALID; //Notify core0
                         critical_section_exit(&mmce_fs_crit);
@@ -123,7 +124,7 @@ void ps2_mmce_fs_run(void)
                     m_data.chunk_state[m_data.head_idx] = CHUNK_STATE_READY;
                     critical_section_exit(&mmce_fs_crit);
 
-                    DPRINTF("C1: %i r, bip %i\n", m_data.head_idx, bytes_in_chunk);
+                    log_trace(0, "%u r, bic %u\n", m_data.head_idx, bytes_in_chunk);
 
                     //Increment head pointer
                     m_data.head_idx++;
@@ -136,30 +137,30 @@ void ps2_mmce_fs_run(void)
                 }
             }
 
-            DPRINTF("exit read loop\n");
+            log_info(0, "Exit read loop\n");            
             mmce_fs_operation = MMCE_FS_NONE;
         break;
     
         /* Try to read a single chunk ahead into a separate buffer */
         case MMCE_FS_READ_AHEAD:
-            m_data.filesize = sd_filesize(m_data.fd);
+            m_data.filesize = sd_filesize_new(m_data.fd);
 
-            DPRINTF("Entering read ahead\n");
+            log_info(0, "Entering read ahead\n");
             
             //Check if reading beyond file size
-            if (sd_tell(m_data.fd) + CHUNK_SIZE <= m_data.filesize) {
+            if (sd_tell_new(m_data.fd) + CHUNK_SIZE <= m_data.filesize) {
                 m_data.read_ahead.pos = sd_tell_new(m_data.fd);
                 m_data.rv = sd_read(m_data.fd, (void*)m_data.read_ahead.buffer, CHUNK_SIZE);
 
                 if (m_data.rv == CHUNK_SIZE) {
-                    DPRINTF("C1: Read ahead: %i\n", m_data.rv);
+                    log_info(0, "Read ahead: %i\n", m_data.rv);
                     m_data.read_ahead.fd = m_data.fd;
                     m_data.read_ahead.valid = 1;
                 } else {
-                    DPRINTF("C1: Failed to read ahead %i bytes, got %i\n", CHUNK_SIZE, m_data.rv);
+                    log_error(0, "Failed to read ahead %i bytes, got %i\n", CHUNK_SIZE, m_data.rv);
                 }
             } else {
-                DPRINTF("C1: Skipping request to read ahead beyond file length\n");
+                log_warn(0, "Skipping request to read ahead beyond file length\n");
             }
 
             mmce_fs_operation = MMCE_FS_NONE;
@@ -170,10 +171,12 @@ void ps2_mmce_fs_run(void)
             if (write_size == 0)
                 write_size = 4096;
 
-            DPRINTF("C1: Writing: %i\n", write_size);
+            log_info(0, "Writing: %u to sd\n", write_size);
             m_data.rv = sd_write(m_data.fd, (void*)m_data.buffer[0], write_size);
             sd_flush(m_data.fd); //flush data
-            DPRINTF("C1: Wrote: %i\n", m_data.rv);
+
+            m_data.bytes_written += m_data.rv;
+            log_info(0, "Wrote: %i, progress: %u of %u\n", m_data.rv, m_data.bytes_written, m_data.length);
 
             mmce_fs_operation = MMCE_FS_NONE;
         break;
@@ -195,7 +198,7 @@ void ps2_mmce_fs_run(void)
             }
 
             sd_seek_new(m_data.fd, m_data.offset, m_data.whence);
-            m_data.position = sd_tell(m_data.fd);
+            m_data.position = sd_tell_new(m_data.fd);
 
             mmce_fs_operation = MMCE_FS_NONE;
         break;
@@ -291,25 +294,16 @@ void ps2_mmce_fs_run(void)
         break;
     }
 
-    DEND_MMCE_FS_RUN();
+    MP_OP_END();
 }
 
-//Core 0
+//Core 1
 void ps2_mmce_fs_wait_ready(void)
 {
     while (mmce_fs_operation != MMCE_FS_NONE)
     {
         sleep_us(1);
     }
-}
-
-//Polling approach
-int ps2_mmce_fs_is_ready(void)
-{
-    if (mmce_fs_operation == MMCE_FS_NONE)
-        return 1;
-    else
-        return 0;
 }
 
 void ps2_mmce_fs_signal_operation(int op)
