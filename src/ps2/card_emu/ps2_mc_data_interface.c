@@ -22,7 +22,7 @@
 
 
 //#define DPRINTF(fmt, x...) //printf(fmt, ##x)
-#define TPRINTF(fmt, x...) //printf(fmt, ##x)
+#define TPRINTF(fmt, x...) printf(fmt, ##x)
 
 #define ERASE_CACHE     2
 #define WRITE_CACHE     ( ERASE_CACHE * ERASE_SECTORS )
@@ -33,22 +33,22 @@
 
 #define MAX_TIME_SLICE  ( 3 * 1000 )
 
-static bool dma_in_progress = false;
+static volatile bool dma_in_progress = false;
 
-static ps2_mcdi_page_t      pages[PAGE_CACHE_SIZE];
-static ps2_mcdi_page_t*     ops[PAGE_CACHE_SIZE];
-static bool                 queue_full = false;
-static int                  ops_head = 0;
-static int                  ops_tail = 0;
-static ps2_mcdi_page_t*     prev_read_setup;
-static bool                 sdmode;
-static bool                 write_occured;
-static bool                 busy_cycle;
+static volatile ps2_mcdi_page_t      pages[PAGE_CACHE_SIZE];
+static volatile ps2_mcdi_page_t*     ops[PAGE_CACHE_SIZE];
+static volatile bool                 queue_full = false;
+static volatile int                  ops_head = 0;
+static volatile int                  ops_tail = 0;
+static volatile ps2_mcdi_page_t*     prev_read_setup;
+static volatile bool                 sdmode;
+static volatile bool                 write_occured;
+static volatile bool                 busy_cycle;
 
 
-static uint8_t erase_count = 0;
-static uint8_t write_count = 0;
-static uint8_t read_count  = 0;
+static volatile uint8_t erase_count = 0;
+static volatile uint8_t write_count = 0;
+static volatile uint8_t read_count  = 0;
 
 static inline void __time_critical_func(push_op)(ps2_mcdi_page_t* op) {
     while (queue_full) {TPRINTF(".");};
@@ -137,10 +137,10 @@ static void __time_critical_func(ps2_mc_data_interface_rx_done)() {
 }
 
 void __time_critical_func(ps2_mc_data_interface_start_dma)(ps2_mcdi_page_t* page_p) {
-    psram_wait_for_dma();
     ps2_dirty_lockout_renew();
     /* the spinlock will be unlocked by the DMA irq once all data is tx'd */
     ps2_dirty_lock();
+    psram_wait_for_dma();
     dma_in_progress = true;
     page_p->page_state = PAGE_DATA_AVAILABLE;
     psram_read_dma(page_p->page * PS2_PAGE_SIZE, page_p->data, PS2_PAGE_SIZE, ps2_mc_data_interface_rx_done);
