@@ -2,16 +2,16 @@
 
 #include <debug.h>
 #include <game_db/game_db.h>
+#include <stdbool.h>
 #include <stdint.h>
 #include <stdio.h>
 #include <string.h>
-#include <stdbool.h>
 
 #include "card_emu/ps2_mc_data_interface.h"
 #include "card_emu/ps2_mc_internal.h"
+#include "card_emu/ps2_memory_card.h"
 #include "card_emu/ps2_sd2psxman.h"
 #include "card_emu/ps2_sd2psxman_commands.h"
-#include "card_emu/ps2_memory_card.h"
 #include "hardware/timer.h"
 #include "mcfat.h"
 #include "mcio.h"
@@ -20,21 +20,19 @@
 #include "pico/types.h"
 #include "ps2_cardman.h"
 #if WITH_PSRAM
-#include "psram/psram.h"
+    #include "psram/psram.h"
 #endif
 
+#define DEBUG(fmt, x...)  // printf(fmt, ##x)
 
-#define DEBUG(fmt , x...) //printf(fmt, ##x)
-
-#define HISTORY_FILE_SIZE           462
-#define HISTORY_ENTRY_COUNT         21
-#define HISTORY_ENTRY_SIZE          22
-#define HISTORY_ENTRY_POS_LAUNCH    16
-#define HISTORY_WRITE_HYST_US       2 * 1000 * 1000
-#define HISTORY_CARD_CH_HYST_US     2 * 1000 * 1000
-#define HISTORY_BOOTUP_DEL          5 * 1000 * 1000
-#define HISTORY_NUMBER_OF_REGIONS   4
-#define HISTORY_ICON_SIZE           1776
+#define HISTORY_FILE_SIZE         462
+#define HISTORY_ENTRY_COUNT       21
+#define HISTORY_ENTRY_SIZE        22
+#define HISTORY_ENTRY_POS_LAUNCH  16
+#define HISTORY_WRITE_HYST_US     2 * 1000 * 1000
+#define HISTORY_CARD_CH_HYST_US   2 * 1000 * 1000
+#define HISTORY_BOOTUP_DEL        5 * 1000 * 1000
+#define HISTORY_NUMBER_OF_REGIONS 4
 
 #define CHAR_CHINA              'C'
 #define CHAR_NORTHAMERICA       'A'
@@ -42,13 +40,8 @@
 #define CHAR_JAPAN              'I'
 #define SYSTEMDATA_DIRNAME      "/B%cDATA-SYSTEM"
 #define HISTORY_FILENAME_FORMAT "/B%cDATA-SYSTEM/history"
-#define HISTORY_ICON_NAME       "/B%cDATA-SYSTEM/icon.sys"
 
-static enum  {
-    HISTORY_STATUS_CARD_CHANGED,
-    HISTORY_STATUS_WAITING_WRITE,
-    HISTORY_STATUS_WAITING_REFRESH
-} status;
+static enum { HISTORY_STATUS_CARD_CHANGED, HISTORY_STATUS_WAITING_WRITE, HISTORY_STATUS_WAITING_REFRESH } status;
 
 static mcfat_cardspecs_t cardspecs;
 static mcfat_mcops_t mcOps;
@@ -57,28 +50,13 @@ static bool writeOccured;
 
 const char regionList[] = {CHAR_CHINA, CHAR_NORTHAMERICA, CHAR_EUROPE, CHAR_JAPAN};
 static uint8_t slotCount[HISTORY_NUMBER_OF_REGIONS][HISTORY_ENTRY_COUNT] = {};
-static uint32_t fileCluster[HISTORY_NUMBER_OF_REGIONS] = { 0, 0, 0, 0};
+static uint32_t fileCluster[HISTORY_NUMBER_OF_REGIONS] = {0, 0, 0, 0};
 static bool refreshRequired[HISTORY_NUMBER_OF_REGIONS];
 
 int page_erase(mcfat_cardspecs_t* info, uint32_t page) {
     (void)info;
-    #ifdef USE_INJECT_LOGIC
-    if (!ps2_memory_card_running()) {
-        uint8_t buff[PS2_PAGE_SIZE];
-        memset(buff, 0xFF, PS2_PAGE_SIZE);
-        ps2_mc_data_interface_write_mc(page, buff);
-    }
-    if (page * info->pagesize + info->pagesize <= ps2_cardman_get_card_size()) {
-        uint8_t buff[info->pagesize];
-        memset((void*)buff, 0xFF, info->pagesize);
-        ps2_dirty_lockout_renew();
-        ps2_dirty_lock();
-        psram_write_dma(page * info->pagesize, buff, info->pagesize, NULL);
-        psram_wait_for_dma();
-        ps2_dirty_mark(page);
-        ps2_dirty_unlock();
-    }
-    #endif
+    (void)page;
+    
     return sceMcResSucceed;
 }
 
@@ -86,26 +64,14 @@ int page_write(mcfat_cardspecs_t* info, uint32_t page, void* buff) {
     (void)info;
     (void)page;
     (void)buff;
-    #ifdef USE_INJECT_LOGIC
-    if (!ps2_memory_card_running()) {
-        ps2_mc_data_interface_write_mc(page, buff);
-    }
-    if (page * info->pagesize + info->pagesize <= ps2_cardman_get_card_size()) {
-        ps2_dirty_lockout_renew();
-        ps2_dirty_lock();
-        psram_write_dma(page * info->pagesize, buff, info->pagesize, NULL);
-        psram_wait_for_dma();
-        ps2_dirty_mark(page);
-        ps2_dirty_unlock();
-    }
-    #endif
+    
     return sceMcResSucceed;
 }
 
 int __time_critical_func(page_read)(mcfat_cardspecs_t* info, uint32_t page, uint32_t count, void* buff) {
-    
-    ps2_mc_data_interface_setup_read_page(page , false, true);
-    ps2_mcdi_page_t* read_page = ps2_mc_data_interface_get_page( page );
+    (void)info;
+    ps2_mc_data_interface_setup_read_page(page, false, true);
+    ps2_mcdi_page_t* read_page = ps2_mc_data_interface_get_page(page);
     ps2_mc_data_interface_wait_for_byte(count);
 
     memcpy(buff, read_page->data, count);
@@ -116,18 +82,24 @@ int __time_critical_func(page_read)(mcfat_cardspecs_t* info, uint32_t page, uint
 }
 
 int __time_critical_func(ecc_write)(mcfat_cardspecs_t* info, uint32_t page, void* buff) {
-
+    (void)info;
+    (void)page;
+    (void)buff;
+    return 0;
 }
 
 int __time_critical_func(ecc_read)(mcfat_cardspecs_t* info, uint32_t page, uint32_t count, void* buff) {
-
+    (void)info;
+    (void)page;
+    (void)buff;
+    (void)count;
+    return 0;
 }
-
 
 static bool fileExists(char* filename) {
     int fd = mcio_mcOpen(filename, sceMcFileAttrReadable);
     DEBUG("File %s status %d\n", filename, fd);
-    if ( fd < 0 )
+    if (fd < 0)
         return false;
     else
         mcio_mcClose(fd);
@@ -139,23 +111,20 @@ static bool dirExists(char* dirname) {
     int fd = mcio_mcDopen(dirname);
     DEBUG("Dir %s status %d\n", dirname, fd);
 
-    if ( fd < 0 )
+    if (fd < 0)
         return false;
     else
         mcio_mcDclose(fd);
     return true;
 }
 
-
 static void readSlots(uint8_t historyFile[HISTORY_FILE_SIZE], uint8_t slots[HISTORY_ENTRY_COUNT]) {
     for (int i = 0; i < HISTORY_ENTRY_COUNT; i++) {
         if (historyFile[i * HISTORY_ENTRY_SIZE]) {
-            
-            for (int j = i * HISTORY_ENTRY_SIZE + HISTORY_ENTRY_POS_LAUNCH; j < (i+1) * HISTORY_ENTRY_SIZE; j++) {
+            for (int j = i * HISTORY_ENTRY_SIZE + HISTORY_ENTRY_POS_LAUNCH; j < (i + 1) * HISTORY_ENTRY_SIZE; j++) {
                 slots[i] ^= historyFile[j];
             }
-            DEBUG("Found game %s with %02x XOR\n", (char*)&historyFile[i * HISTORY_ENTRY_SIZE],
-                   historyFile[i * HISTORY_ENTRY_SIZE + HISTORY_ENTRY_POS_LAUNCH]);
+            DEBUG("Found game %s with %02x XOR\n", (char*)&historyFile[i * HISTORY_ENTRY_SIZE], historyFile[i * HISTORY_ENTRY_SIZE + HISTORY_ENTRY_POS_LAUNCH]);
         } else {
             slots[i] = 0;
         }
@@ -173,7 +142,6 @@ void __time_critical_func(ps2_history_tracker_registerPageWrite)(uint32_t page) 
                 status = HISTORY_STATUS_WAITING_REFRESH;
             }
         }
-
     }
 }
 
@@ -196,7 +164,7 @@ static void ps2_history_tracker_readClusters(void) {
             fileCluster[i] = cluster;
             mcio_mcRead(fh, buff, HISTORY_FILE_SIZE);
             readSlots(buff, slotCount[i]);
-            
+
             DEBUG("Registering Cluster %i\n", cluster);
             mcio_mcClose(fh);
         } else {
@@ -205,15 +173,14 @@ static void ps2_history_tracker_readClusters(void) {
     }
 }
 
-
 void ps2_history_tracker_card_changed() {
     DEBUG("%s\n", __func__);
 
     mcfat_setCardChanged(true);
-    
+
     status = HISTORY_STATUS_CARD_CHANGED;
     lastAccess = time_us_64();
-    
+
     DEBUG("%sCard changed finished\n", __func__);
 }
 
@@ -223,10 +190,10 @@ void ps2_history_tracker_init() {
     mcOps.page_write = &page_write;
     mcOps.ecc_write = &ecc_write;
     mcOps.ecc_read = &ecc_read;
-    
+
     cardspecs.pagesize = 512;
     cardspecs.blocksize = 16;
-    cardspecs.cardsize = ps2_cardman_get_card_size() ;
+    cardspecs.cardsize = ps2_cardman_get_card_size();
     cardspecs.flags = 0x08 | 0x10;
     status = HISTORY_STATUS_CARD_CHANGED;
     writeOccured = false;
@@ -236,30 +203,26 @@ void ps2_history_tracker_init() {
 
 void ps2_history_tracker_task() {
     uint64_t micros = time_us_64();
-    
+
     if (status == HISTORY_STATUS_CARD_CHANGED) {
-        if (ps2_mc_data_interface_busy() 
-            || (micros < HISTORY_BOOTUP_DEL) 
-            || writeOccured
-            || !ps2_cardman_is_idle()) {
+        if (ps2_mc_data_interface_busy() || (micros < HISTORY_BOOTUP_DEL) || writeOccured || !ps2_cardman_is_idle()) {
             lastAccess = micros;
         } else if ((micros - lastAccess) > HISTORY_CARD_CH_HYST_US) {
-                    ps2_history_tracker_readClusters();
+            ps2_history_tracker_readClusters();
             status = HISTORY_STATUS_WAITING_WRITE;
         }
-
     } else if (status == HISTORY_STATUS_WAITING_REFRESH) {
-            if (ps2_mc_data_interface_busy()) {
+        if (ps2_mc_data_interface_busy()) {
             lastAccess = micros;
-        } else if ((micros - lastAccess)  > HISTORY_WRITE_HYST_US) {
+        } else if ((micros - lastAccess) > HISTORY_WRITE_HYST_US) {
             // If Writing to MC has just finished...
             uint8_t buff[HISTORY_FILE_SIZE] = {0x00};
             char filename[23] = {0x00};
-            char dirname[15] = {0x00};        
+            char dirname[15] = {0x00};
             DEBUG("%s refreshing history...\n", __func__);
             writeOccured = false;
 
-            mcio_init(); // Call init to invalidate caches...
+            mcio_init();  // Call init to invalidate caches...
 
             for (int i = 0; i < HISTORY_NUMBER_OF_REGIONS; i++) {
                 uint8_t slots_new[21] = {};
@@ -298,7 +261,5 @@ void ps2_history_tracker_task() {
             }
             status = HISTORY_STATUS_WAITING_WRITE;
         }
-    } 
-    
-    
+    }
 }
