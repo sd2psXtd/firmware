@@ -2,6 +2,7 @@
 
 #include "../ps2_dirty.h"
 #include "psram/psram.h"
+#include "debug.h"
 
 
 #include <pico/platform.h>
@@ -32,5 +33,6 @@ extern void __time_critical_func(read_mc)(uint32_t addr, void *buf, size_t sz, v
 extern void __time_critical_func(write_mc)(uint32_t addr, void *buf, size_t sz);
 
 #define receiveOrNextCmd(cmd)          \
-    if (receive(cmd) == RECEIVE_RESET) \
-    return
+    if (receive(cmd) == RECEIVE_RESET) {\
+    DPRINTF("%s:%u", __func__, __LINE__); \
+    return;}
