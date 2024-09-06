@@ -12,6 +12,7 @@
 #include "history_tracker/ps2_history_tracker.h"
 #include "mmce_fs/ps2_mmce_fs.h"
 #include "ps2_cardman.h"
+#include "debug.h"
 
 #include <stdio.h>
 
@@ -34,11 +35,6 @@ void ps2_init(void) {
     
     ps2_cardman_init();
 
-#if WITH_PSRAM
-    if (!settings_get_sd_mode()) {
-        ps2_dirty_init();
-    }
-#endif
     ps2_history_tracker_init();
 
     multicore_launch_core1(ps2_memory_card_main);
@@ -69,10 +65,10 @@ bool ps2_task(void) {
 #endif
     ps2_mmce_fs_run();
 
-    if (ps2_cardman_is_accessible()) 
-        ps2_mc_data_interface_task();
-    else
+    if (ps2_cardman_is_accessible()) {
         ps2_history_tracker_task();
+        ps2_mc_data_interface_task();
+    }
 
     if ((settings_get_mode() == MODE_PS1) && (ps2_cardman_is_accessible()))
         return false;

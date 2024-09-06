@@ -13,7 +13,7 @@
 #include "debug.h"
 
 //#define DEBUG_MC_PROTOCOL
-#define QPRINTF(x, y...)
+#define QPRINTF(x, y...) //printf(x, y...)
 
 uint32_t read_sector, write_sector, erase_sector;
 uint8_t readecc[16];
@@ -113,12 +113,12 @@ inline __attribute__((always_inline)) void __time_critical_func(ps2_mc_cmd_setRe
     receiveOrNextCmd(&_);
     (void)ck;  // TODO: validate checksum
     if (raw.addr != read_sector) {
-        ps2_mc_data_interface_invalidate(read_sector);
+        ps2_mc_data_interface_invalidate_read(read_sector);
         ps2_mc_data_interface_invalidate_readahead();
     }
         
     read_sector = raw.addr;
-    ps2_mc_data_interface_setup_read_page(read_sector, true);
+    ps2_mc_data_interface_setup_read_page(read_sector, true, true);
 
     readptr = 0;
 
@@ -207,9 +207,10 @@ inline __attribute__((always_inline)) void __time_critical_func(ps2_mc_cmd_write
         ck ^= b;
         mc_respond(0xFF);
     }
-    if (writeptr >= PS2_PAGE_SIZE) {
-        ps2_mc_data_interface_write_mc(write_sector, writetmp);
-    }
+    //if (writeptr == PS2_PAGE_SIZE) {
+    //    QPRINTF("%s Early write commit: %u\n", __func__, write_sector);
+    //    ps2_mc_data_interface_write_mc(write_sector, writetmp);
+    //}
     // this should be checksum?
     receiveOrNextCmd(&ck2);
     (void)ck2;  // TODO: validate checksum
@@ -240,10 +241,12 @@ inline __attribute__((always_inline)) void __time_critical_func(ps2_mc_cmd_readD
 
     page = ps2_mc_data_interface_get_page(read_sector);
 
-    if (!page)
-        ps2_mc_data_interface_setup_read_page(read_sector, false);
-    page = ps2_mc_data_interface_get_page(read_sector);
-
+    if (!page) {
+        ps2_mc_data_interface_setup_read_page(read_sector, false, true);
+        page = ps2_mc_data_interface_get_page(read_sector);
+    } else {
+        while ((page->page_state != PAGE_DATA_AVAILABLE) && (page->page_state != PAGE_READ_AHEAD_AVAILABLE)) {printf(".");};
+    }
 
     for (int i = 0; i < sz; ++i) {
         if (readptr < PS2_PAGE_SIZE + 16) {
@@ -289,10 +292,10 @@ inline __attribute__((always_inline)) void __time_critical_func(ps2_mc_cmd_readD
     }
     if (readptr == PS2_PAGE_SIZE + 16) {
         /* a game may read more than one 528-byte sector in a sequence of read ops, e.g. re4 */
-        ps2_mc_data_interface_invalidate(read_sector);
+        ps2_mc_data_interface_invalidate_read(read_sector);
         ++read_sector;
         
-        ps2_mc_data_interface_setup_read_page(read_sector, true);
+        ps2_mc_data_interface_setup_read_page(read_sector, true, false);
 
         readptr = 0;
 
@@ -316,8 +319,8 @@ inline __attribute__((always_inline)) void __time_critical_func(ps2_mc_cmd_commi
 
         is_write = 0;
         QPRINTF("%sWrite Sector %u\n", __func__, write_sector);
-            
-        //ps2_mc_data_interface_write_mc(write_sector, writetmp);
+        //while (ps2_mc_data_interface_write_busy()) {};
+        ps2_mc_data_interface_write_mc(write_sector, writetmp);
 #ifdef DEBUG_MC_PROTOCOL
             debug_printf("WR 0x%08X : %02X %02X .. %08X %08X %08X\n", write_sector * 512, writetmp[0], writetmp[1], *(uint32_t *)&writetmp[512],
                          *(uint32_t *)&writetmp[516], *(uint32_t *)&writetmp[520]);

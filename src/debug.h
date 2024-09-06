@@ -12,6 +12,9 @@
     #define QPRINTF(fmt, x...)
 #endif
 
+#define DPRINTFFLT() printf("%s:%u - %lu\n", __func__, __LINE__, (uint32_t)time_us_64()/1000U)
+
+
 void debug_put(char c);
 char debug_get(void);
 void buffered_printf(const char *format, ...);

@@ -2,7 +2,7 @@
 #include <stdint.h>
 
 #if WITH_PSRAM
-    #define CACHE_SIZE  512 * 35
+    #define CACHE_SIZE  512 * 45
 #else
     #define CACHE_SIZE 1024 * 128
 #endif

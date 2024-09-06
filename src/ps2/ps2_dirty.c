@@ -14,7 +14,7 @@
 
 spin_lock_t *ps2_dirty_spin_lock;
 volatile uint32_t ps2_dirty_lockout;
-int ps2_dirty_activity;
+int ps2_dirty_activity = 0;
 
 static int num_dirty;
 
@@ -119,12 +119,13 @@ void ps2_dirty_task(void) {
         if (ps2_cardman_write_sector(sector, flushbuf) != 0) {
             // TODO: do something if we get too many errors?
             // for now lets push it back into the heap and try again later
-            printf("!! writing sector 0x%x failed\n", sector);
+            DPRINTF("!! writing sector 0x%x failed\n", sector);
 
             ps2_dirty_lock();
             ps2_dirty_mark(sector);
             ps2_dirty_unlock();
         }
+        DPRINTF("Writing %u\n", sector);
         ps2_history_tracker_registerPageWrite(sector);
     }
     /* to make sure writes hit the storage medium */

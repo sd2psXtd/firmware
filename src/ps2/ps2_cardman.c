@@ -297,7 +297,7 @@ static void ps2_cardman_continue(void) {
                 }
 
                 size_t pos = sector_idx * BLOCK_SIZE;
-                if (sd_seek(fd, pos) != 0)
+                if (sd_seek_new(fd, pos, 0) != 0)
                     fatal("cannot read memcard\nseek");
 
                 if (sd_read(fd, flushbuf, BLOCK_SIZE) != BLOCK_SIZE)
@@ -324,7 +324,7 @@ static void ps2_cardman_continue(void) {
             if (cardprog_pos >= card_size) {
                 sd_flush(fd);
                 printf("OK!\n");
-                //ps2_history_tracker_format();
+
                 cardman_operation = CARDMAN_IDLE;
                 uint64_t end = time_us_64();
                 printf("took = %.2f s; SD write speed = %.2f kB/s\n", (end - cardprog_start) / 1e6, 1000000.0 * card_size / (end - cardprog_start) / 1024);
@@ -674,6 +674,9 @@ bool ps2_cardman_is_accessible(void) {
         return true;
 }
 
+bool ps2_cardman_is_idle(void) {
+    return cardman_operation == CARDMAN_IDLE;
+}
 
 void ps2_cardman_init(void) {
     if (settings_get_ps2_autoboot()) {

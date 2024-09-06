@@ -1,5 +1,6 @@
 #pragma once
 
+#include <stddef.h>
 #include <stdint.h>
 #include <stdbool.h>
 
@@ -58,4 +59,4 @@ ps2_cardman_state_t ps2_cardman_get_state(void);
 
 bool ps2_cardman_needs_update(void);
 bool ps2_cardman_is_accessible(void);
-
+bool ps2_cardman_is_idle(void);
