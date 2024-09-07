@@ -23,7 +23,7 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
-          tag_name: ${{ github.ref }}
+          tag_name: latest
           release_name: ${{ github.ref }}
   build:
     # The CMake configure and build commands are platform agnostic and should work equally well on Windows or Mac.
