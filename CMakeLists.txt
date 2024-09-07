@@ -1,119 +1,27 @@
 cmake_minimum_required(VERSION 3.12)
-set(PICO_SDK_PATH ${CMAKE_CURRENT_SOURCE_DIR}/ext/pico-sdk)
-include(pico_sdk_import.cmake)
-
 project(SD2PSX LANGUAGES C CXX ASM)
 
 set(CMAKE_C_STANDARD 11)
 set(CMAKE_CXX_STANDARD 17)
 
-set(SD2PSX_WITH_PSRAM ON CACHE BOOL "Build SD2PSX with PSRAM support")
-set(SD2PSX_WITH_GUI   ON CACHE BOOL "Build SD2PSX with GUI support")
-
-# Variants...
-set(VARIANT "SD2PSX" CACHE STRING "Firmware variant to build")
-set_property(CACHE VARIANT PROPERTY STRINGS
-                    "SD2PSX" 
-                    "PMC+" 
-                    "SD2PSXlite" 
-                    "SD2PSXBF" 
-                    "Other")
-string(TOLOWER "${VARIANT}" TARGET_NAME)
-message(STATUS "Building for ${VARIANT}")
-if (VARIANT STREQUAL "SD2PSX")
-    set(PIN_PSX_ACK 16)
-    set(PIN_PSX_SEL 17)
-    set(PIN_PSX_CLK 18)
-    set(PIN_PSX_CMD 19)
-    set(PIN_PSX_DAT 20)
-    set(PIN_PSX_SPD_SEL 10)
-    add_compile_definitions("UART_TX=8"
-                            "UART_RX=9"
-                            "UART_PERIPH=uart1"
-                            "UART_BAUD=3000000"
-                            "SD_PERIPH=SPI1"
-                            "SD_MISO=24"
-                            "SD_MOSI=27"
-                            "SD_SCK=26"
-                            "SD_CS=29"
-                            "FLASH_OFF_CIV=0x7fb000"
-                            "FLASH_OFF_EEPROM=0x7fc000"
-                            )
-    set(SD2PSX_WITH_GUI TRUE)
-    set(SD2PSX_WITH_PSRAM TRUE)
-elseif (VARIANT STREQUAL "SD2PSXBF")
-    set(PIN_PSX_ACK 16)
-    set(PIN_PSX_SEL 17)
-    set(PIN_PSX_CLK 18)
-    set(PIN_PSX_CMD 19)
-    set(PIN_PSX_DAT 20)
-    set(PIN_PSX_SPD_SEL 10)
-    add_compile_definitions("UART_TX=8"
-                            "UART_RX=9"
-                            "UART_PERIPH=uart1"
-                            "UART_BAUD=3000000"
-                            "SD_PERIPH=SPI1"
-                            "SD_MISO=24"
-                            "SD_MOSI=27"
-                            "SD_SCK=26"
-                            "SD_CS=29"
-                            "FLASH_OFF_CIV=0x1fb000"
-                            "FLASH_OFF_EEPROM=0x1fc000"
-                            )
-    set(SD2PSX_WITH_GUI TRUE)
-    set(SD2PSX_WITH_PSRAM TRUE)
-elseif( VARIANT STREQUAL "PMC+")
-    set(PIN_PSX_ACK 9)
-    set(PIN_PSX_SEL 7)
-    set(PIN_PSX_CLK 8)
-    set(PIN_PSX_CMD 6)
-    set(PIN_PSX_DAT 5)
-    set(PIN_PSX_SPD_SEL 10)
-    add_compile_definitions("UART_TX=0"
-                            "UART_RX=1"
-                            "UART_PERIPH=uart1"
-                            "UART_BAUD=115200"
-                            "SD_PERIPH=SPI"
-                            "SD_MISO=16"
-                            "SD_MOSI=19"
-                            "SD_SCK=18"
-                            "SD_CS=17"
-                            "FLASH_OFF_CIV=0x1fb000"
-                            "FLASH_OFF_EEPROM=0x1fc000"
-                            )
-    set(SD2PSX_WITH_GUI FALSE)
-    set(SD2PSX_WITH_PSRAM FALSE)
-elseif( VARIANT STREQUAL "SD2PSXlite")
-    set(PIN_PSX_ACK 16)
-    set(PIN_PSX_SEL 17)
-    set(PIN_PSX_CLK 18)
-    set(PIN_PSX_CMD 19)
-    set(PIN_PSX_DAT 20)
-    set(PIN_PSX_SPD_SEL 10)
-    add_compile_definitions("UART_TX=8"
-                            "UART_RX=9"
-                            "UART_PERIPH=uart1"
-                            "UART_BAUD=3000000"
-                            "SD_PERIPH=SPI1"
-                            "SD_MISO=24"
-                            "SD_MOSI=27"
-                            "SD_SCK=26"
-                            "SD_CS=29"
-                            "FLASH_OFF_CIV=0x1fb000"
-                            "FLASH_OFF_EEPROM=0x1fc000"
-                            )
-    set(SD2PSX_WITH_GUI FALSE)
-    set(SD2PSX_WITH_PSRAM FALSE)
-else()
-    set(PIN_PSX_ACK 16)
-    set(PIN_PSX_SEL 17)
-    set(PIN_PSX_CLK 18)
-    set(PIN_PSX_CMD 19)
-    set(PIN_PSX_DAT 20)
-    set(PIN_PSX_SPD_SEL 10)
-endif()
-
+# Pico SDK
+set(PICO_SDK_PATH ${CMAKE_CURRENT_SOURCE_DIR}/ext/pico-sdk)
+include(pico_sdk_import.cmake)
 pico_sdk_init()
+
+option(SD2PSX_WITH_PSRAM "Build SD2PSX with PSRAM support" ON)
+option(SD2PSX_WITH_GUI   "Build SD2PSX with GUI support" ON)
+option(DEBUG_USB_UART "Activate UART over USB for debugging" OFF)
+
+# variants
+include(misc/variants.cmake)
+
+# set proper target name
+if (DEBUG_USB_UART)
+    string(TOLOWER "${VARIANT}-debug" TARGET_NAME)
+else()
+    string(TOLOWER "${VARIANT}" TARGET_NAME)
+endif()
 
 #add_compile_definitions(PICO_FLASH_SIZE_BYTES=16777216)
 add_compile_definitions(PICO_FLASH_SIZE_BYTES=2097152)
@@ -122,7 +30,6 @@ add_compile_definitions(PICO_FLASH_SIZE_BYTES=2097152)
 # Add all subdirectories for sub-targets
 
 add_subdirectory(database)
-add_subdirectory(misc)
 add_subdirectory(src/version)
 add_subdirectory(src/ps2)
 add_subdirectory(src/ps1)
@@ -162,7 +69,6 @@ target_link_libraries(${TARGET_NAME}
         hardware_i2c
         hardware_flash
         gamedb
-        ps2_history_icons
         sd2psx_version
         sd2psx_common
         ps1_card
@@ -224,7 +130,6 @@ set_target_properties(sd2psx_common PROPERTIES PICO_TARGET_LINKER_SCRIPT ${CMAKE
 
 pico_add_extra_outputs(${TARGET_NAME})
 
-option(DEBUG_USB_UART "Activate UART over USB for debugging" OFF)
 
 
 if(DEBUG_USB_UART)
