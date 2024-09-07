@@ -50,7 +50,7 @@ static volatile uint8_t erase_count = 0;
 static volatile uint8_t write_count = 0;
 static volatile uint8_t read_count  = 0;
 
-static inline void __time_critical_func(push_op)(ps2_mcdi_page_t* op) {
+static inline void __time_critical_func(push_op)(volatile ps2_mcdi_page_t* op) {
     while (queue_full) {TPRINTF(".");};
     ops[ops_head] = op;
     ops_head = ( ops_head + 1 ) % PAGE_CACHE_SIZE;
@@ -71,8 +71,8 @@ static inline void __time_critical_func(push_op)(ps2_mcdi_page_t* op) {
     }
 }
 
-static inline ps2_mcdi_page_t* __time_critical_func(pop_op)(void) {
-    ps2_mcdi_page_t* ptr = ops[ops_tail];
+static inline volatile ps2_mcdi_page_t* __time_critical_func(pop_op)(void) {
+    volatile ps2_mcdi_page_t* ptr = ops[ops_tail];
     ops_tail = (ops_tail + 1) % PAGE_CACHE_SIZE;
     queue_full = false;
     return ptr;
@@ -82,8 +82,8 @@ static inline int __time_critical_func(op_fill_status)(void) {
     return (ops_head - ops_tail + PAGE_CACHE_SIZE) % PAGE_CACHE_SIZE;
 }
 
-static inline ps2_mcdi_page_t* __time_critical_func(ps2_mc_data_interface_find_page)(uint32_t page, bool read) {
-    ps2_mcdi_page_t* page_p = NULL;
+static inline volatile ps2_mcdi_page_t* __time_critical_func(ps2_mc_data_interface_find_page)(uint32_t page, bool read) {
+    volatile ps2_mcdi_page_t* page_p = NULL;
     for (int i = 0; i < PAGE_CACHE_SIZE; i++) {
         if (pages[i].page == page) {
             if ( ( pages[i].page_state != PAGE_EMPTY ) 
@@ -105,9 +105,9 @@ static inline ps2_mcdi_page_t* __time_critical_func(ps2_mc_data_interface_find_p
     return page_p;
 }
 
-static inline ps2_mcdi_page_t* __time_critical_func(ps2_mc_data_interface_find_slot)(void) {
+static inline volatile ps2_mcdi_page_t* __time_critical_func(ps2_mc_data_interface_find_slot)(void) {
     int i = 0;
-    ps2_mcdi_page_t* page = NULL;
+    volatile ps2_mcdi_page_t* page = NULL;
     while (!page) {
         if (pages[i].page_state == PAGE_EMPTY) {
             page = &pages[i];
@@ -121,7 +121,7 @@ static inline ps2_mcdi_page_t* __time_critical_func(ps2_mc_data_interface_find_s
     return page;
 }
 
-static void ps2_mc_data_interface_set_page(ps2_mcdi_page_t* page, uint32_t addr, int state) {
+static void ps2_mc_data_interface_set_page(volatile ps2_mcdi_page_t* page, uint32_t addr, int state) {
     multicore_lockout_start_blocking();
     page->page = addr;
     page->page_state = state;
@@ -136,7 +136,7 @@ static void __time_critical_func(ps2_mc_data_interface_rx_done)() {
     ps2_dirty_unlock();
 }
 
-void __time_critical_func(ps2_mc_data_interface_start_dma)(ps2_mcdi_page_t* page_p) {
+void __time_critical_func(ps2_mc_data_interface_start_dma)(volatile ps2_mcdi_page_t* page_p) {
     ps2_dirty_lockout_renew();
     /* the spinlock will be unlocked by the DMA irq once all data is tx'd */
     ps2_dirty_lock();
@@ -164,7 +164,7 @@ void __time_critical_func(ps2_mc_data_interface_setup_read_page)(uint32_t page, 
                 while (read_count > READ_CACHE) {}
             }
             
-            ps2_mcdi_page_t* page_p = ps2_mc_data_interface_find_page(page, true);
+            volatile ps2_mcdi_page_t* page_p = ps2_mc_data_interface_find_page(page, true);
             if (!page_p) {
                 page_p = ps2_mc_data_interface_find_slot();
                 page_p->page = page;
@@ -185,9 +185,9 @@ void __time_critical_func(ps2_mc_data_interface_setup_read_page)(uint32_t page, 
 
             if (readahead) {
                 for (int i = 1; (i < MAX_READ_AHEAD) && ((page + i) * PS2_PAGE_SIZE + PS2_PAGE_SIZE <= ps2_cardman_get_card_size()); i++) {
-                    ps2_mcdi_page_t* next_p = ps2_mc_data_interface_find_page(page + i, true);
+                    volatile ps2_mcdi_page_t* next_p = ps2_mc_data_interface_find_page(page + i, true);
                     if (!next_p) {
-                        ps2_mcdi_page_t* next_p = ps2_mc_data_interface_find_slot();
+                        volatile ps2_mcdi_page_t* next_p = ps2_mc_data_interface_find_slot();
                         
                         next_p->page = page + i;
                         next_p->page_state = PAGE_READ_AHEAD_REQ;
@@ -213,7 +213,7 @@ void __time_critical_func(ps2_mc_data_interface_setup_read_page)(uint32_t page, 
 
 #if WITH_PSRAM
             
-            ps2_mcdi_page_t* page_p = ps2_mc_data_interface_find_page(page, true);
+            volatile ps2_mcdi_page_t* page_p = ps2_mc_data_interface_find_page(page, true);
             if (!page_p) {
                 page_p = ps2_mc_data_interface_find_slot();
                 page_p->page = page;
@@ -240,8 +240,8 @@ void __time_critical_func(ps2_mc_data_interface_setup_read_page)(uint32_t page, 
     }
 }
 
-ps2_mcdi_page_t* __time_critical_func(ps2_mc_data_interface_get_page)(uint32_t page) {
-    ps2_mcdi_page_t* ret = NULL;
+volatile ps2_mcdi_page_t* __time_critical_func(ps2_mc_data_interface_get_page)(uint32_t page) {
+    volatile ps2_mcdi_page_t* ret = NULL;
 
     if (!prev_read_setup || prev_read_setup->page_state == PAGE_EMPTY)
         ret = ps2_mc_data_interface_find_page(page, true);
@@ -282,7 +282,7 @@ void __time_critical_func(ps2_mc_data_interface_write_mc)(uint32_t page, void *b
                     while (write_count > WRITE_CACHE) {};
                 };
 
-                ps2_mcdi_page_t* slot = ps2_mc_data_interface_find_slot();
+                volatile ps2_mcdi_page_t* slot = ps2_mc_data_interface_find_slot();
                 
                 memcpy(slot->data, buf, PS2_PAGE_SIZE);
                 slot->page = page;
@@ -321,7 +321,7 @@ void __time_critical_func(ps2_mc_data_interface_erase)(uint32_t page) {
         if (sdmode) {
             if (!ps2_mc_data_interface_find_page(page, false)) {
                 
-                ps2_mcdi_page_t* slot = ps2_mc_data_interface_find_slot();
+                volatile ps2_mcdi_page_t* slot = ps2_mc_data_interface_find_slot();
 
                 slot->page = page;
                 slot->page_state = PAGE_ERASE_REQ;
@@ -455,7 +455,7 @@ void ps2_mc_data_interface_task(void) {
         busy_cycle = false;
         
         while ((op_fill_status() > 0) && ((time_us_64() - time_start) < MAX_TIME_SLICE) ){
-            ps2_mcdi_page_t* page_p = pop_op();
+            volatile ps2_mcdi_page_t* page_p = pop_op();
             busy_cycle = true;
             if (page_p)
                 switch(page_p->page_state) {

@@ -107,7 +107,7 @@ void ps2_mmce_fs_run(void)
                     m_data.rv = sd_read(m_data.fd, (void*)m_data.buffer[m_data.head_idx], bytes_in_chunk);
 
                     //Failed to get requested amount
-                    if (m_data.rv != bytes_in_chunk) {
+                    if (m_data.rv != (int)bytes_in_chunk) {
                         m_data.bytes_read += m_data.rv;
                         log_error(0, "Failed to read %u bytes, got %i bytes\n", bytes_in_chunk, m_data.rv);
                         critical_section_enter_blocking(&mmce_fs_crit);

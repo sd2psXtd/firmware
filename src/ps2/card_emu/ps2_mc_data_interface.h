@@ -27,7 +27,7 @@ typedef struct {
 void ps2_mc_data_interface_setup_read_page(uint32_t page, bool readahead, bool wait);
 void ps2_mc_data_interface_write_mc(uint32_t page, void *buf);
 void ps2_mc_data_interface_erase(uint32_t page);
-ps2_mcdi_page_t* ps2_mc_data_interface_get_page(uint32_t page);
+volatile ps2_mcdi_page_t* ps2_mc_data_interface_get_page(uint32_t page);
 void ps2_mc_data_interface_commit_write(uint32_t page, uint8_t *buf);
 bool ps2_mc_data_interface_write_busy(void);
 void ps2_mc_data_interface_invalidate_readahead(void);

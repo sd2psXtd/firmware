@@ -71,7 +71,7 @@ int page_write(mcfat_cardspecs_t* info, uint32_t page, void* buff) {
 int __time_critical_func(page_read)(mcfat_cardspecs_t* info, uint32_t page, uint32_t count, void* buff) {
     (void)info;
     ps2_mc_data_interface_setup_read_page(page, false, true);
-    ps2_mcdi_page_t* read_page = ps2_mc_data_interface_get_page(page);
+    volatile ps2_mcdi_page_t* read_page = ps2_mc_data_interface_get_page(page);
     ps2_mc_data_interface_wait_for_byte(count);
 
     memcpy(buff, read_page->data, count);

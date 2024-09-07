@@ -13,7 +13,6 @@
 #include "debug.h"
 
 //#define DEBUG_MC_PROTOCOL
-#define QPRINTF(x, y...) //printf(x, y...)
 
 uint32_t read_sector, write_sector, erase_sector;
 uint8_t readecc[16];
@@ -214,6 +213,8 @@ inline __attribute__((always_inline)) void __time_critical_func(ps2_mc_cmd_write
     // this should be checksum?
     receiveOrNextCmd(&ck2);
     (void)ck2;  // TODO: validate checksum
+    if (ck == ck2)
+        DPRINTF("%s Checksum match\n", __func__);
 
     mc_respond(0x2B);
     receiveOrNextCmd(&_);
@@ -225,8 +226,7 @@ inline __attribute__((always_inline)) void __time_critical_func(ps2_mc_cmd_readD
     uint8_t _ = 0U;
     /* read data */
     uint8_t sz;
-    ps2_mcdi_page_t* page;
-    QPRINTF("-------START %s\n", __func__);
+    volatile ps2_mcdi_page_t* page;
     mc_respond(0xFF);
     receiveOrNextCmd(&sz);
     mc_respond(0x2B);
@@ -307,18 +307,16 @@ inline __attribute__((always_inline)) void __time_critical_func(ps2_mc_cmd_readD
     receiveOrNextCmd(&_);
     mc_respond(term);
 
-    QPRINTF("-------END %s\n", __func__);
 
 }
 
 inline __attribute__((always_inline)) void __time_critical_func(ps2_mc_cmd_commitData)(void) {
     uint8_t _ = 0;
-    QPRINTF("-------START %s\n", __func__);
     /* commit for read/write? */
     if (is_write) {
 
         is_write = 0;
-        QPRINTF("%sWrite Sector %u\n", __func__, write_sector);
+        DPRINTF("%sWrite Sector %u\n", __func__, write_sector);
         //while (ps2_mc_data_interface_write_busy()) {};
         ps2_mc_data_interface_write_mc(write_sector, writetmp);
 #ifdef DEBUG_MC_PROTOCOL
@@ -336,12 +334,10 @@ inline __attribute__((always_inline)) void __time_critical_func(ps2_mc_cmd_commi
     mc_respond(0x2B);
     receiveOrNextCmd(&_);
     mc_respond(term);
-    QPRINTF("-------END %s\n", __func__);
 }
 
 inline __attribute__((always_inline)) void __time_critical_func(ps2_mc_cmd_erase(void)) {
     uint8_t _ = 0U;
-    QPRINTF("START %s\n", __func__);
 
     /* do erase */
    // ps2_mc_data_interface_erase(erase_sector);
@@ -352,7 +348,6 @@ inline __attribute__((always_inline)) void __time_critical_func(ps2_mc_cmd_erase
     mc_respond(0x2B);
     receiveOrNextCmd(&_);
     mc_respond(term);
-    QPRINTF("END %s\n", __func__);
     erase_sector = UINT32_MAX;
 }
 
