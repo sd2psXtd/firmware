@@ -33,8 +33,8 @@ jobs:
     needs: create_release
     strategy: 
       matrix:
-        target: [SD2PSX, SD2PSXBF, SD2PSXlite, PMC+, PMCZero]
-        debug: [ON, OFF]
+        target: [SD2PSX]#, SD2PSXBF, SD2PSXlite, PMC+, PMCZero]
+        debug: [ON]#, OFF]
         include:
           - debug: ON
             ext: -debug.uf2
