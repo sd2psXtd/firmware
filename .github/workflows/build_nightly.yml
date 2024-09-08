@@ -76,7 +76,7 @@ jobs:
       # Configure CMake in a 'build' subdirectory. `CMAKE_BUILD_TYPE` is only required if you are using a single-configuration generator such as make.
       # See https://cmake.org/cmake/help/latest/variable/CMAKE_BUILD_TYPE.html?highlight=cmake_build_type
       run: |
-          cmake -B ${{ github.workspace }}/build-${{ matrix.target }}-${{ matrix.debug }} -DCMAKE_BUILD_TYPE=${{ env.BUILD_TYPE }} -DDEBUG_USB_UART:BOOL=${{ matrix.debug }} -DVARIANT:STRING=${{ matrix.target }}  -G "Unix Makefiles"
+          cmake -B ${{ github.workspace }}/build-${{ matrix.target }}-${{ matrix.debug }} -DCMAKE_BUILD_TYPE=${{ env.BUILD_TYPE }} -DDEBUG_USB_UART:BOOL=${{ matrix.debug }} -DVARIANT:STRING=${{ matrix.target }} -D__unused=__attribute__((unused))  -G "Unix Makefiles"
           cmake --build ${{github.workspace}}/build-${{ matrix.target }}-${{ matrix.debug }}
 
     - name: Upload
