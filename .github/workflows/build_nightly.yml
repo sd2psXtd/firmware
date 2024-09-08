@@ -72,13 +72,12 @@ jobs:
     - name: add build essential
       run: sudo apt update && sudo apt install -y build-essential gcc-arm-none-eabi
    
-    - name: Configure CMake 
+    - name: Build
       # Configure CMake in a 'build' subdirectory. `CMAKE_BUILD_TYPE` is only required if you are using a single-configuration generator such as make.
       # See https://cmake.org/cmake/help/latest/variable/CMAKE_BUILD_TYPE.html?highlight=cmake_build_type
-      run: cmake -B ${{github.workspace}}/build -G"Unix Makefiles" -DCMAKE_BUILD_TYPE=${{env.BUILD_TYPE}} -DDEBUG_USB_UART:BOOL=${{matrix.debug}} -DVARIANT=${{ matrix.target }} -DCMAKE_C_COMPILER=arm-none-eabi-gcc -DCMAKE_CXX_COMPILER=arm-none-eabi-g++
-    - name: Build
-      # Build your program with the given configuration
-      run: cmake --build ${{github.workspace}}/build
+      run: |
+          cmake -B ${{ github.workspace }}/build -DCMAKE_BUILD_TYPE=${{ env.BUILD_TYPE }} -DDEBUG_USB_UART:BOOL=${{ matrix.debug }} -DVARIANT:STRING=${{ matrix.target }}  -G "Unix Makefiles"
+          cmake --build ${{github.workspace}}/build
 
     - name: Upload
       uses: actions/upload-release-asset@v1
