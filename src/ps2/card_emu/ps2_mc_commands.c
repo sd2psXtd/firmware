@@ -247,6 +247,7 @@ inline __attribute__((always_inline)) void __time_critical_func(ps2_mc_cmd_readD
     } else {
         while ((page->page_state != PAGE_DATA_AVAILABLE) && (page->page_state != PAGE_READ_AHEAD_AVAILABLE)) {printf(".");};
     }
+    if (!page) return;
 
     for (int i = 0; i < sz; ++i) {
         if (readptr < PS2_PAGE_SIZE + 16) {
