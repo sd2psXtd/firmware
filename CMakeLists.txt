@@ -1,13 +1,14 @@
 cmake_minimum_required(VERSION 3.12)
-project(SD2PSX LANGUAGES C CXX ASM)
-
-set(CMAKE_C_STANDARD 11)
-set(CMAKE_CXX_STANDARD 17)
-
 # Pico SDK
 set(PICO_SDK_PATH ${CMAKE_CURRENT_SOURCE_DIR}/ext/pico-sdk)
 include(pico_sdk_import.cmake)
+
+project(SD2PSX LANGUAGES C CXX ASM)
+
 pico_sdk_init()
+
+set(CMAKE_C_STANDARD 11)
+set(CMAKE_CXX_STANDARD 17)
 
 option(SD2PSX_WITH_PSRAM "Build SD2PSX with PSRAM support" ON)
 option(SD2PSX_WITH_GUI   "Build SD2PSX with GUI support" ON)
@@ -17,12 +18,14 @@ option(DEBUG_USB_UART "Activate UART over USB for debugging" OFF)
 include(misc/variants.cmake)
 
 # set proper target name
+set(TARGET_NAME)
 if (DEBUG_USB_UART)
-    string(TOLOWER "${VARIANT}-debug" TARGET_NAME)
+    string(TOLOWER "${VARIANT}-debug" TARGET_NAME PARENT_SCOPE)
 else()
-    string(TOLOWER "${VARIANT}" TARGET_NAME)
+    string(TOLOWER "${VARIANT}" TARGET_NAME PARENT_SCOPE)
 endif()
 
+message(STATUS "Building ${TARGET_NAME}")
 #add_compile_definitions(PICO_FLASH_SIZE_BYTES=16777216)
 add_compile_definitions(PICO_FLASH_SIZE_BYTES=2097152)
 
@@ -96,7 +99,7 @@ target_include_directories(sd2psx_common
 
 target_link_libraries(sd2psx_common 
                     PRIVATE 
-                        pico_platform_headers                        
+                        pico_platform_headers
                         hardware_flash
                         hardware_gpio
                         pico_multicore)
