@@ -80,6 +80,7 @@ void ps2_sd2psxman_task(void) {
             gui_do_ps2_card_switch();
             gui_request_refresh();
 #else
+            sleep_ms(500);
             ps2_cardman_open();
             ps2_memory_card_enter();
 #endif
