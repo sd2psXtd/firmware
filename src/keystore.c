@@ -98,3 +98,22 @@ int __not_in_flash_func(keystore_deploy)(void) {
 
     return 0;
 }
+
+void __not_in_flash_func(keystore_reset)(void) {
+    uint8_t chkbuf[256] = { 0 };
+
+    #if WITH_GUI
+    multicore_lockout_start_blocking();
+    #endif
+    uint32_t ints = save_and_disable_interrupts();
+    flash_range_erase(FLASH_OFF_CIV, 4096);
+    flash_range_program(FLASH_OFF_CIV, chkbuf, sizeof(chkbuf));
+    restore_interrupts (ints);
+    #if WITH_GUI
+    multicore_lockout_end_blocking();
+    #endif
+    QPRINTF("Resetting keytore done, reset!\n");
+    keystore_read();
+    watchdog_enable(1, 1);
+    while(true){};
+}
