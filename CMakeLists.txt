@@ -102,6 +102,7 @@ target_link_libraries(sd2psx_common
                         pico_platform_headers
                         hardware_flash
                         hardware_gpio
+                        hardware_watchdog
                         pico_multicore)
 
 target_compile_options(sd2psx_common
