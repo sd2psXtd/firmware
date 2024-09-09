@@ -6,6 +6,7 @@
 
 #include "card_emu/ps2_mc_data_interface.h"
 #include "debug.h"
+#include "pico/time.h"
 #if WITH_GUI
 #include "gui.h"
 #endif
