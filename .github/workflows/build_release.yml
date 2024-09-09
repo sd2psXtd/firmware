@@ -38,8 +38,10 @@ jobs:
         include:
           - debug: ON
             ext: -debug.uf2
+            delay: 3
           - debug: OFF
             ext: .uf2
+            delay: 0
           - target: SD2PSX
             filename: sd2psx
           - target: SD2PSXBF
@@ -70,22 +72,14 @@ jobs:
         fi
 
     - name: add build essential
-      run: sudo apt update && sudo apt install -y build-essential gcc-arm-none-eabi
-
-
-    - name: Configure CMake 
+      run: sudo apt-get update && sudo apt-get install -y cmake gcc-arm-none-eabi libnewlib-arm-none-eabi libstdc++-arm-none-eabi-newlib clangd git python3-venv
+   
+    - name: Build
       # Configure CMake in a 'build' subdirectory. `CMAKE_BUILD_TYPE` is only required if you are using a single-configuration generator such as make.
       # See https://cmake.org/cmake/help/latest/variable/CMAKE_BUILD_TYPE.html?highlight=cmake_build_type
-      run: cmake -B ${{github.workspace}}/build -DCMAKE_BUILD_TYPE=${{env.BUILD_TYPE}}-DDEBUG_USB_UART:BOOL=${{matrix.debug}} -DVARIANT=${{matrix.target}}
-    - name: Build Debug USB
-      # Build your program with the given configuration
-      run: cmake --build ${{github.workspace}}/build --config ${{env.BUILD_TYPE}}
-
-#    - name: Rename Debug USB uf2
-#      run: mv build_usb/sd2psx.uf2 build/sd2psx_usb_debug.uf2
-
-
-
+      run: |
+          cmake -B ${{ github.workspace }}/build -DCMAKE_BUILD_TYPE=${{ env.BUILD_TYPE }} -DDEBUG_USB_UART:BOOL=${{ matrix.debug }} -DVARIANT:STRING=${{ matrix.target }} -DDEBUG_STARTUP_DELAY=${{ matrix.delay }}  -G "Unix Makefiles"
+          cmake --build ${{github.workspace}}/build
 
     - name: Upload
       uses: actions/upload-release-asset@v1
@@ -96,24 +90,3 @@ jobs:
         asset_path: build/${{ matrix.filename }}${{ matrix.ext }}
         asset_name: ${{ matrix.filename }}${{ matrix.ext }}
         asset_content_type: application/octet-stream
-
-#    - name: Upload artifacts
-#      uses: actions/upload-artifact@v3
-#      with:
-#        name: SD2PSX-${{ github.sha }}
-#        path: |
-#          build/*.uf2
-#        
-
-#    - uses: marvinpinto/action-automatic-releases@v1.2.1
-#      if: github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/v') #only release on tag or master branch
-#      with:
-#        # GitHub secret token
-#        title:  "${{ env.SD2PSX_VERSION }}"
-#        repo_token: "${{ secrets.GITHUB_TOKEN }}"
-#        automatic_release_tag: ${{ env.SD2PSX_RLS_TAG }}
-#        prerelease: ${{ !startsWith(github.ref, 'refs/tags/v') }}        
-#        # Assets to upload to the release
-#        files: |
-#          build/*.uf2
-#

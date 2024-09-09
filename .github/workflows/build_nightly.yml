@@ -24,7 +24,7 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
           tag_name: nigthly
-          release_name: ${{ github.ref }}
+          release_name: nightly-${{ github.sha }}
   build:
     # The CMake configure and build commands are platform agnostic and should work equally well on Windows or Mac.
     # You can convert this to a matrix build if you need cross-platform coverage.
@@ -90,16 +90,3 @@ jobs:
         asset_path: build/${{ matrix.filename }}${{ matrix.ext }}
         asset_name: ${{ matrix.filename }}${{ matrix.ext }}
         asset_content_type: application/octet-stream
-
-#    - uses: marvinpinto/action-automatic-releases@v1.2.1
-#      if: github.ref == 'refs/heads/main' || startsWith(github.ref, 'refs/tags/v') #only release on tag or master branch
-#      with:
-#        # GitHub secret token
-#        title:  "${{ env.SD2PSX_VERSION }}"
-#        repo_token: "${{ secrets.GITHUB_TOKEN }}"
-#        automatic_release_tag: ${{ env.SD2PSX_RLS_TAG }}
-#        prerelease: ${{ !startsWith(github.ref, 'refs/tags/v') }}        
-#        # Assets to upload to the release
-#        files: |
-#          build/*.uf2
-#
