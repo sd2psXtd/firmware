@@ -22,7 +22,7 @@
 
 
 //#define DPRINTF(fmt, x...) //printf(fmt, ##x)
-#define TPRINTF(fmt, x...) printf(fmt, ##x)
+#define TPRINTF(fmt, x...) //printf(fmt, ##x)
 
 #define ERASE_CACHE     2
 #define WRITE_CACHE     ( ERASE_CACHE * ERASE_SECTORS )
@@ -180,7 +180,7 @@ void __time_critical_func(ps2_mc_data_interface_setup_read_page)(uint32_t page, 
                 page_p->page_state = PAGE_DATA_AVAILABLE;
                 DPRINTF("%s Hit ReadAhead\n", __func__);
             } else {
-                DPRINTF("%s found %u for %u \n", page_p->page_state, page_p->page);
+                DPRINTF("%s found %u for %u \n", __func__, page_p->page_state, page_p->page);
             }
 
             if (readahead) {
@@ -237,6 +237,8 @@ void __time_critical_func(ps2_mc_data_interface_setup_read_page)(uint32_t page, 
             }
 #endif
         }
+    } else {
+        TPRINTF("%s out of bounds: %u\n", __func__, page);
     }
 }
 
@@ -249,7 +251,7 @@ volatile ps2_mcdi_page_t* __time_critical_func(ps2_mc_data_interface_get_page)(u
         ret = prev_read_setup;
     if (sdmode) {
         if (!ret || ret->page_state == PAGE_EMPTY) {
-            TPRINTF("Miss ???\n");
+            TPRINTF("Miss ??? %u\n", page);
             ps2_mc_data_interface_setup_read_page(page, false, true);
             ret = ps2_mc_data_interface_find_page(page, true);
         }
@@ -356,7 +358,7 @@ inline void __time_critical_func(ps2_mc_data_interface_wait_for_byte)(uint32_t o
     } else
 #endif
     {
-        while (prev_read_setup->page_state != PAGE_DATA_AVAILABLE) {};
+        while (prev_read_setup->page_state != PAGE_DATA_AVAILABLE) {TPRINTF(".");};
     }
 }
 
