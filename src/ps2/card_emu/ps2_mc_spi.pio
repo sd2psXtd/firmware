@@ -37,46 +37,31 @@
     wait 0 gpio PIN_PSX_SEL
 .wrap_target
 wait_pull:
-    ; wait for the arm core to give us a byte to send
-    pull block
+    irq clear 7 ; Clear remaining IRQ
 
-    ; pulse ACK - this is about 2x shorter than legit card but seems to work ok
-    set pins, 0 [31]
+    ; wait for the arm core to give us a byte to send
+    pull block ; Pull Block for sending
+
+    ; Pulse ACK 24 ns
+    set pins, 0 [31] 
+    set pins, 0 [25]
     set pins, 1
 
-    jmp pin send_fast
-
-    ; Sending slow
-    set x, 7
+    set x 7 ; Send 8 Bits in total
 sendbit:
-    ; wait for falling clock edge
-    wait 1 gpio PIN_PSX_CLK
-    wait 0 gpio PIN_PSX_CLK
-    out pins 1 [2]
-    jmp x-- sendbit
-    jmp wait_pull
-send_fast:
-    set x, 6
-    ; we need to output bits one clock early due to rp2040 input/output delay
-    ; so output the first bit here and the rest after the clock goes low
+    wait 1 irq 7
     out pins 1
-sendbit_fast:
-    wait 0 gpio PIN_PSX_CLK [2]
-    out pins 1  
-    jmp x-- sendbit_fast
-    jmp wait_pull
+    jmp x-- sendbit ; Repeat until byte is sent
+    jmp wait_pull ; Wait for next byte
 .wrap
 
 .program clock_probe
-    wait 0 gpio PIN_PSX_SEL 
-    wait 0 gpio PIN_PSX_CLK [5] ; wait 24ns - this will get us into high clock phase for 25mhz, stay in low clock phase for 8mhz and under
-    jmp PIN setpin
-    set pins 0
-.wrap_target
-infloop:
-    jmp infloop
-setpin:
-    set pins 1
+    wait 0 gpio PIN_PSX_SEL [2] ; Make sure to set initial irq after previous one has been cleared
+    irq set 7 ; Set initial Bit before first clock cycle
+.wrap_target 
+    wait 0 gpio PIN_PSX_CLK 
+    wait 1 gpio PIN_PSX_CLK
+    irq set 7
 .wrap
 
 % c-sdk {
