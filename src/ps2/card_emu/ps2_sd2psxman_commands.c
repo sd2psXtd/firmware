@@ -20,8 +20,11 @@
 
 #include "ps2_mmceman_debug.h"
 
-//#define DPRINTF(fmt, x...) printf(fmt, ##x)
-#define DPRINTF(x...) 
+#if LOG_LEVEL_MMCEMAN == 0
+#define log(x...)
+#else
+#define log(level, fmt, x...) LOG_PRINT(LOG_LEVEL_MMCEMAN, level, fmt, ##x)
+#endif
 
 //TODO: temp global values, find them a home
 static int transfer_stage = 0;
@@ -216,7 +219,7 @@ inline __attribute__((always_inline)) void __time_critical_func(ps2_mmceman_cmd_
                 data->buffer[0][idx++] = cmd;
             } while (cmd != 0x0);
 
-            log_info(1, "%s: name: %s flags: 0x%x\n", __func__, (const char*)data->buffer, data->flags);
+            log(LOG_INFO, "%s: name: %s flags: 0x%x\n", __func__, (const char*)data->buffer, data->flags);
 
             MP_SIGNAL_OP();
             //Signal op in core1 (ps2_mmce_fs_run)
@@ -250,7 +253,7 @@ inline __attribute__((always_inline)) void __time_critical_func(ps2_mmceman_cmd_
     mc_respond(0x0); receiveOrNextCmd(&cmd);        //Reservered
     mc_respond(0x0); receiveOrNextCmd(&data->fd);   //File descriptor
 
-    log_info(1, "%s: fd: %i\n", __func__, data->fd);
+    log(LOG_INFO, "%s: fd: %i\n", __func__, data->fd);
 
     MP_SIGNAL_OP();
     ps2_mmce_fs_signal_operation(MMCE_FS_CLOSE);
@@ -258,7 +261,7 @@ inline __attribute__((always_inline)) void __time_critical_func(ps2_mmceman_cmd_
 
     mc_respond(data->rv);   //Return value
 
-    log_info(1, "%s: rv: %i\n", __func__, data->rv);
+    log(LOG_INFO, "%s: rv: %i\n", __func__, data->rv);
 
     mc_respond(term);
     
@@ -277,7 +280,7 @@ inline __attribute__((always_inline)) void __time_critical_func(ps2_mmceman_cmd_
     uint8_t next_chunk;
     uint32_t bytes_left_in_packet;
 
-    QPRINTF("%s called in Stage %d \n", __func__, transfer_stage);
+    log(LOG_TRACE, "%s called in Stage %d \n", __func__, transfer_stage);
 
     switch(transfer_stage) {
         //Packet #1: File handle, length, and return value
@@ -303,14 +306,14 @@ inline __attribute__((always_inline)) void __time_critical_func(ps2_mmceman_cmd_
             mc_respond(0x0); receiveOrNextCmd(&len8[0x1]);   //Len MSB - 2
             mc_respond(0x0); receiveOrNextCmd(&len8[0x0]);   //Len MSB - 3
 
-            log_info(1, "%s: fd: %i, len %u\n", __func__, data->fd, data->length);
+            log(LOG_INFO, "%s: fd: %i, len %u\n", __func__, data->fd, data->length);
 
             //Check if fd is valid before continuing
             ps2_mmce_fs_signal_operation(MMCE_FS_VALIDATE_FD);
             ps2_mmce_fs_wait_ready();
 
             if (data->rv == -1) {
-                log_error(1, "%s: bad fd: %i, abort\n", __func__, data->fd);
+                log(LOG_ERROR, "%s: bad fd: %i, abort\n", __func__, data->fd);
                 mc_respond(0x1);    //Return 1
                 return;             //Abort
             }
@@ -322,14 +325,14 @@ inline __attribute__((always_inline)) void __time_critical_func(ps2_mmceman_cmd_
             //Wait for first chunk to become available before ending this transfer (~2.5ms until timeout)
             while(data->chunk_state[data->tail_idx] != CHUNK_STATE_READY && data->transfer_failed != 1) {
 
-                log_trace(1, "w: %u s:%u\n", data->tail_idx, data->chunk_state[data->tail_idx]);
+                log(LOG_TRACE, "w: %u s:%u\n", data->tail_idx, data->chunk_state[data->tail_idx]);
                 
                 //Failed to read data
                 if (data->chunk_state[data->tail_idx] == CHUNK_STATE_INVALID) {
 
                     //Failed to read ANY data
                     if (data->rv == 0) {
-                        log_error(1, "Failed to read any data for chunk\n");    
+                        log(LOG_ERROR, "Failed to read any data for chunk\n");    
                         data->chunk_state[data->tail_idx] = CHUNK_STATE_NOT_READY;
                         mc_respond(0x1);    //Return 1
                         return;             //Abort
@@ -393,10 +396,10 @@ inline __attribute__((always_inline)) void __time_critical_func(ps2_mmceman_cmd_
                     //Wait for next chunk to be available before ending this transfer (~2s until timeout)
                     while(data->chunk_state[next_chunk] != CHUNK_STATE_READY && data->transfer_failed != 1) {
 
-                        log_trace(1, "w: %u s:%u\n", next_chunk, data->chunk_state[next_chunk]);
+                        log(LOG_TRACE, "w: %u s:%u\n", next_chunk, data->chunk_state[next_chunk]);
 
                         if (data->chunk_state[next_chunk] == CHUNK_STATE_INVALID) {
-                            log_error(1, "Failed to read chunk, got CHUNK_STATE_INVALID, aborting\n");
+                            log(LOG_ERROR, "Failed to read chunk, got CHUNK_STATE_INVALID, aborting\n");
                             data->transfer_failed = 1;
                         }
                         sleep_us(1);
@@ -415,7 +418,7 @@ inline __attribute__((always_inline)) void __time_critical_func(ps2_mmceman_cmd_
             data->chunk_state[data->tail_idx] = CHUNK_STATE_NOT_READY;
             critical_section_exit(&mmce_fs_crit);
 
-            log_trace(1, "%u c, bip: %u\n", data->tail_idx, (bytes_left_in_packet + 1));
+            log(LOG_TRACE, "%u c, bip: %u\n", data->tail_idx, (bytes_left_in_packet + 1));
 
             //Update tail idx
             data->tail_idx = next_chunk;
@@ -444,7 +447,7 @@ inline __attribute__((always_inline)) void __time_critical_func(ps2_mmceman_cmd_
             data->transfer_failed = 0; //clear fail state
             ps2_memory_card_set_cmd_callback(NULL);
 
-            log_info(1, "%s: read: %u\n", __func__, data->bytes_read);
+            log(LOG_INFO, "%s: read: %u\n", __func__, data->bytes_read);
         
             transfer_stage = 0;
             mc_respond(term);
@@ -493,14 +496,14 @@ inline __attribute__((always_inline)) void __time_critical_func(ps2_mmceman_cmd_
             mc_respond(0x0); receiveOrNextCmd(&len8[0x1]);   //Len MSB - 2
             mc_respond(0x0); receiveOrNextCmd(&len8[0x0]);   //Len MSB - 3
 
-            log_info(1, "%s: fd: %i, len %u\n", __func__, data->fd, data->length);
+            log(LOG_INFO, "%s: fd: %i, len %u\n", __func__, data->fd, data->length);
             
             //Check if fd is valid before continuing
             ps2_mmce_fs_signal_operation(MMCE_FS_VALIDATE_FD);
             ps2_mmce_fs_wait_ready();
 
             if (data->rv == -1) {
-                log_error(1, "%s: bad fd: %i, abort\n", __func__, data->fd);
+                log(LOG_ERROR, "%s: bad fd: %i, abort\n", __func__, data->fd);
                 mc_respond(0x1);    //Return 1
                 return;             //Abort
             }
@@ -523,7 +526,7 @@ inline __attribute__((always_inline)) void __time_critical_func(ps2_mmceman_cmd_
                 transfer_stage = 2;  //More data to write
             }
 
-            log_trace(1, "ready\n");
+            log(LOG_TRACE, "ready\n");
             mc_respond(1);
         break;
 
@@ -541,7 +544,7 @@ inline __attribute__((always_inline)) void __time_critical_func(ps2_mmceman_cmd_
 
             //Avoid trying to read more data if write len == 1
             if (bytes_left_in_packet != 0) {
-                log_trace(1, "bytes left in packet: %u, bytes transferred: %u\n", bytes_left_in_packet, data->bytes_transferred);
+                log(LOG_TRACE, "bytes left in packet: %u, bytes transferred: %u\n", bytes_left_in_packet, data->bytes_transferred);
 
                 //Recieve rest of bytes
                 for (int i = 1; i <= bytes_left_in_packet; i++) {
@@ -622,14 +625,14 @@ inline __attribute__((always_inline)) void __time_critical_func(ps2_mmceman_cmd_
     mc_respond(0x0); receiveOrNextCmd(&offset8[0x0]);
     mc_respond(0x0); receiveOrNextCmd(&data->whence);
 
-    log_info(1, "%s: fd: %i, offset: %lli, whence: %u\n", __func__, data->fd, (long long int)data->offset, data->whence);
+    log(LOG_INFO, "%s: fd: %i, offset: %lli, whence: %u\n", __func__, data->fd, (long long int)data->offset, data->whence);
 
     ps2_mmce_fs_signal_operation(MMCE_FS_VALIDATE_FD);
     ps2_mmce_fs_wait_ready();
 
     //Invalid fd, send -1
     if (data->rv == -1) {
-        log_error(1, "Invalid fd\n");
+        log(LOG_ERROR, "Invalid fd\n");
         mc_respond(0xff);
         mc_respond(0xff);
         mc_respond(0xff);
@@ -649,7 +652,7 @@ inline __attribute__((always_inline)) void __time_critical_func(ps2_mmceman_cmd_
     mc_respond(position8[0x1]); receiveOrNextCmd(&cmd);
     mc_respond(position8[0x0]); receiveOrNextCmd(&cmd);
 
-    log_info(1, "%s: position %llu\n", __func__, (long long unsigned int)data->position);
+    log(LOG_INFO, "%s: position %llu\n", __func__, (long long unsigned int)data->position);
 
     mc_respond(term);
     MP_CMD_END();
@@ -686,7 +689,7 @@ inline __attribute__((always_inline)) void __time_critical_func(ps2_mmceman_cmd_
                 data->buffer[0][idx++] = cmd;
             } while (cmd != 0x0);
 
-            log_info(1, "%s: name: %s\n", __func__, (const char*)data->buffer);
+            log(LOG_INFO, "%s: name: %s\n", __func__, (const char*)data->buffer);
 
             MP_SIGNAL_OP();
             ps2_mmce_fs_signal_operation(MMCE_FS_REMOVE);
@@ -702,7 +705,7 @@ inline __attribute__((always_inline)) void __time_critical_func(ps2_mmceman_cmd_
             receiveOrNextCmd(&cmd); //Padding
             mc_respond(data->rv); receiveOrNextCmd(&cmd); //Return value
 
-            log_info(1, "%s: rv: %i\n", __func__, data->rv);
+            log(LOG_INFO, "%s: rv: %i\n", __func__, data->rv);
 
             mc_respond(term);
             MP_CMD_END();
@@ -740,7 +743,7 @@ inline __attribute__((always_inline)) void __time_critical_func(ps2_mmceman_cmd_
                 data->buffer[0][idx++] = cmd;
             } while (cmd != 0x0);
         
-            log_info(1, "%s: name: %s\n", __func__, (const char*)data->buffer);
+            log(LOG_INFO, "%s: name: %s\n", __func__, (const char*)data->buffer);
             MP_SIGNAL_OP();
             ps2_mmce_fs_signal_operation(MMCE_FS_MKDIR);
         break;
@@ -754,7 +757,7 @@ inline __attribute__((always_inline)) void __time_critical_func(ps2_mmceman_cmd_
             receiveOrNextCmd(&cmd); //padding
             mc_respond(data->rv); receiveOrNextCmd(&cmd); //Return value
             
-            log_info(1, "%s: rv: %i\n", __func__, data->rv);
+            log(LOG_INFO, "%s: rv: %i\n", __func__, data->rv);
 
             mc_respond(term);
             MP_CMD_END();
@@ -792,7 +795,7 @@ inline __attribute__((always_inline)) void __time_critical_func(ps2_mmceman_cmd_
                 data->buffer[0][idx++] = cmd;
             } while (cmd != 0x0);
         
-            log_info(1, "%s: name: %s\n", __func__, (const char*)data->buffer);
+            log(LOG_INFO, "%s: name: %s\n", __func__, (const char*)data->buffer);
             
             MP_SIGNAL_OP();
             ps2_mmce_fs_signal_operation(MMCE_FS_RMDIR);
@@ -807,7 +810,7 @@ inline __attribute__((always_inline)) void __time_critical_func(ps2_mmceman_cmd_
             receiveOrNextCmd(&cmd); //Padding
             mc_respond(data->rv); receiveOrNextCmd(&cmd); //Return value
 
-            log_info(1, "%s: rv: %i\n", __func__, data->rv);
+            log(LOG_INFO, "%s: rv: %i\n", __func__, data->rv);
 
             mc_respond(term);
             MP_CMD_END();
@@ -848,7 +851,7 @@ inline __attribute__((always_inline)) void __time_critical_func(ps2_mmceman_cmd_
                 data->buffer[0][idx++] = cmd;
             } while (cmd != 0x0);
 
-            log_info(1, "%s: name: %s\n", __func__, (const char*)data->buffer);
+            log(LOG_INFO, "%s: name: %s\n", __func__, (const char*)data->buffer);
 
             MP_SIGNAL_OP();
             ps2_mmce_fs_signal_operation(MMCE_FS_DOPEN);
@@ -863,7 +866,7 @@ inline __attribute__((always_inline)) void __time_critical_func(ps2_mmceman_cmd_
             transfer_stage = 0;
             ps2_memory_card_set_cmd_callback(NULL);
 
-            log_info(1, "%s: rv: %i\n", __func__, data->rv);
+            log(LOG_INFO, "%s: rv: %i\n", __func__, data->rv);
 
             mc_respond(term);
 
@@ -884,7 +887,7 @@ inline __attribute__((always_inline)) void __time_critical_func(ps2_mmceman_cmd_
 
     mc_respond(0x0); receiveOrNextCmd(&cmd);        //Reservered
     mc_respond(0x0); receiveOrNextCmd(&data->fd);   //File descriptor
-    log_info(1, "%s: fd: %i\n", __func__, data->fd);
+    log(LOG_INFO, "%s: fd: %i\n", __func__, data->fd);
 
     MP_SIGNAL_OP();
     ps2_mmce_fs_signal_operation(MMCE_FS_DCLOSE);
@@ -892,7 +895,7 @@ inline __attribute__((always_inline)) void __time_critical_func(ps2_mmceman_cmd_
 
     mc_respond(data->rv);   //Return value
 
-    log_info(1, "%s: rv: %i\n", __func__, data->rv);
+    log(LOG_INFO, "%s: rv: %i\n", __func__, data->rv);
 
     mc_respond(term);       //Term
     MP_CMD_END();
@@ -915,13 +918,13 @@ inline __attribute__((always_inline)) void __time_critical_func(ps2_mmceman_cmd_
             mc_respond(0x0); receiveOrNextCmd(&cmd);        //Reservered
             mc_respond(0x0); receiveOrNextCmd(&data->fd);   //File descriptor
 
-            log_info(1, "%s: fd: %i\n", __func__, data->fd);
+            log(LOG_INFO, "%s: fd: %i\n", __func__, data->fd);
 
             ps2_mmce_fs_signal_operation(MMCE_FS_VALIDATE_FD);
             ps2_mmce_fs_wait_ready();
 
             if (data->rv == -1) {
-                log_error(1, "%s: Bad fd: %i, abort\n", __func__, data->fd);
+                log(LOG_ERROR, "%s: Bad fd: %i, abort\n", __func__, data->fd);
                 mc_respond(0x1);
                 return;
             }
@@ -931,7 +934,7 @@ inline __attribute__((always_inline)) void __time_critical_func(ps2_mmceman_cmd_
             ps2_mmce_fs_wait_ready();
 
             if (data->rv == -1) {
-                log_error(1, "%s: Failed to get stat\n", __func__);
+                log(LOG_ERROR, "%s: Failed to get stat\n", __func__);
                 mc_respond(0x1);
                 return;
             }
@@ -1039,7 +1042,7 @@ inline __attribute__((always_inline)) void __time_critical_func(ps2_mmceman_cmd_
             ps2_mmce_fs_signal_operation(MMCE_FS_OPEN);
             transfer_stage = 2;
 
-            log_info(1, "%s: name: %s\n", __func__, (const char*)data->buffer);
+            log(LOG_INFO, "%s: name: %s\n", __func__, (const char*)data->buffer);
         break;
 
         //Packet #2: io_stat_t, rv, and term
@@ -1129,13 +1132,13 @@ inline __attribute__((always_inline)) void __time_critical_func(ps2_mmceman_cmd_
 
     mc_respond(0x0); receiveOrNextCmd(&data->whence64);
 
-    log_info(1, "%s: fd: %i, whence: %u, offset: %llu\n", __func__, data->fd, data->whence, (long long unsigned int)data->offset);
+    log(LOG_INFO, "%s: fd: %i, whence: %u, offset: %llu\n", __func__, data->fd, data->whence, (long long unsigned int)data->offset);
 
     ps2_mmce_fs_signal_operation(MMCE_FS_VALIDATE_FD);
     ps2_mmce_fs_wait_ready();
 
     if (data->rv == -1) {
-        log_error(1, "%s: bad fd: %i, abort\n", __func__, data->fd);
+        log(LOG_ERROR, "%s: bad fd: %i, abort\n", __func__, data->fd);
         mc_respond(0xff);
         mc_respond(0xff);
         mc_respond(0xff);
@@ -1161,7 +1164,7 @@ inline __attribute__((always_inline)) void __time_critical_func(ps2_mmceman_cmd_
     mc_respond(position8[0x1]); receiveOrNextCmd(&cmd);
     mc_respond(position8[0x0]); receiveOrNextCmd(&cmd);
 
-    log_info(1, "%s: position: %llu\n", __func__, (long long unsigned int)data->position);
+    log(LOG_INFO, "%s: position: %llu\n", __func__, (long long unsigned int)data->position);
 
     mc_respond(term);
     MP_CMD_END();
@@ -1212,7 +1215,7 @@ inline __attribute__((always_inline)) void __time_critical_func(ps2_mmceman_cmd_
             //Data read ahead, skip seeking
             if (data->read_ahead.fd == data->fd && data->read_ahead.valid && data->read_ahead.pos == offset) {
                 
-                log_info(1, "%s: fd: %i, got valid read ahead, skipping seek\n", __func__, data->fd);
+                log(LOG_INFO, "%s: fd: %i, got valid read ahead, skipping seek\n", __func__, data->fd);
 
                 //Mark as consumed
                 data->read_ahead.valid = 0;
@@ -1222,7 +1225,7 @@ inline __attribute__((always_inline)) void __time_critical_func(ps2_mmceman_cmd_
                 //TEMP: Retry loop. Heavy fragmentation can result in long seek times and sometimes failed seeks altogether
                 //Retry if seek fails up to 3 times and print warning
 
-                log_info(1, "%s: fd: %i, seeking to offset %llu\n", __func__, data->fd, (long long unsigned int)offset);
+                log(LOG_INFO, "%s: fd: %i, seeking to offset %llu\n", __func__, data->fd, (long long unsigned int)offset);
 
                 for (int i = 0; i < 3; i++) {
                     sd_seek_set_new(data->fd, offset);
@@ -1244,17 +1247,17 @@ inline __attribute__((always_inline)) void __time_critical_func(ps2_mmceman_cmd_
             MP_SIGNAL_OP();
             ps2_mmce_fs_signal_operation(MMCE_FS_READ);
 
-            log_info(1, "%s: sector: %u, count: %u, length: %u\n", __func__, sector, count, data->length);
+            log(LOG_INFO, "%s: sector: %u, count: %u, length: %u\n", __func__, sector, count, data->length);
 
             if (data->use_read_ahead != 1) {
 
                 while(data->chunk_state[data->tail_idx] != CHUNK_STATE_READY) {
 
-                    log_trace(1, "w: %u s:%u\n", data->tail_idx, data->chunk_state[data->tail_idx]);
+                    log(LOG_TRACE, "w: %u s:%u\n", data->tail_idx, data->chunk_state[data->tail_idx]);
                     
                     //Reading ahead failed to get requested data
                     if (data->chunk_state[data->tail_idx] == CHUNK_STATE_INVALID) {
-                        log_error(1, "Failed to read chunk, got CHUNK_STATE_INVALID, aborting\n");
+                        log(LOG_ERROR, "Failed to read chunk, got CHUNK_STATE_INVALID, aborting\n");
                         data->chunk_state[data->tail_idx] = CHUNK_STATE_NOT_READY;
                         mc_respond(0x1);    //Return 1
                         return;             //Abort
@@ -1322,11 +1325,11 @@ inline __attribute__((always_inline)) void __time_critical_func(ps2_mmceman_cmd_
                 //Wait for next chunk to be available before ending this transfer (~2.5ms until timeout)
                 while(data->chunk_state[next_chunk] != CHUNK_STATE_READY && data->transfer_failed != 1) {
                     
-                    log_trace(1, "w: %u s:%u\n", next_chunk, data->chunk_state[next_chunk]);
+                    log(LOG_TRACE, "w: %u s:%u\n", next_chunk, data->chunk_state[next_chunk]);
 
                     //TODO: error handling
                     if (data->chunk_state[next_chunk] == CHUNK_STATE_INVALID) {
-                        log_error(1, "Failed to read chunk, got CHUNK_STATE_INVALID, aborting\n");
+                        log(LOG_ERROR, "Failed to read chunk, got CHUNK_STATE_INVALID, aborting\n");
                         data->transfer_failed = 1;
                     }
                     sleep_us(1);
@@ -1344,7 +1347,7 @@ inline __attribute__((always_inline)) void __time_critical_func(ps2_mmceman_cmd_
                 data->use_read_ahead = 0;
                 data->read_ahead.valid = 0;
 
-                log_trace(1, "ra c, bip: %u\n", (bytes_left_in_packet + 1));
+                log(LOG_TRACE, "ra c, bip: %u\n", (bytes_left_in_packet + 1));
 
             //Using ring buffer 
             } else {
@@ -1353,7 +1356,7 @@ inline __attribute__((always_inline)) void __time_critical_func(ps2_mmceman_cmd_
                 data->chunk_state[data->tail_idx] = CHUNK_STATE_NOT_READY;
                 critical_section_exit(&mmce_fs_crit);
 
-                log_trace(1, "%u c, bip: %u\n", data->tail_idx, (bytes_left_in_packet + 1));
+                log(LOG_TRACE, "%u c, bip: %u\n", data->tail_idx, (bytes_left_in_packet + 1));
                 
                 //Update tail idx
                 data->tail_idx = next_chunk;
@@ -1374,7 +1377,7 @@ inline __attribute__((always_inline)) void __time_critical_func(ps2_mmceman_cmd_
             //Get sectors read count
             data->bytes_read = data->bytes_read / 2048;
             
-            log_info(1, "Sectors read %u of %u\n", data->bytes_read, data->length/2048);
+            log(LOG_INFO, "Sectors read %u of %u\n", data->bytes_read, data->length/2048);
 
             count8 = (uint8_t*)&data->bytes_read;
 

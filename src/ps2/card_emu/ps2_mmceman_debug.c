@@ -1,22 +1,9 @@
 #include "card_emu/ps2_mmceman_debug.h"
+#include "pico/platform.h"
 
 #include <stdio.h>
 
 struct timeval tv_start_cmd, tv_end_cmd, tv_signal_mmce_fs, tv_start_mmce_fs, tv_end_mmce_fs;
-
-const char *log_level_str[] = {
-    " ",
-    "[ERROR]",
-    "[WARN]",
-    "[INFO]",
-    "[TRACE]"
-};
-
-void mmce_log(int core, int level, const char *fmt, ...)
-{
-    if (level <= MMCEMAN_LOG_LEVEL)
-        printf("C%i %s: %s", core, log_level_str[level], fmt);
-}
 
 //TODO: fix
 void mmce_profiling_stat()

@@ -2,30 +2,9 @@
 
 #include <sys/time.h>
 #include <stdio.h>
- 
-#define MMCEMAN_LOG_LEVEL 3
-#define MMCEMAN_PROFILING 1
+#include <pico/platform.h>
 
-extern const char *log_level_str[];
-
-#if MMCEMAN_LOG_LEVEL == 0
-#define log_error(x...)
-#define log_warn(x...)
-#define log_info(x...)
-#define log_trace(x...)
-#else
-#define MMCE_LOG(core, level, fmt, x...) \
-    do { \
-        if (level <= MMCEMAN_LOG_LEVEL) { \
-            printf("%s C%i: "fmt, log_level_str[level], core, ##x); \
-        } \
-    } while (0);
-
-#define log_error(core, fmt, x...) MMCE_LOG(core, 1, fmt, ##x)
-#define log_warn(core, fmt, x...) MMCE_LOG(core, 2, fmt, ##x)
-#define log_info(core, fmt, x...) MMCE_LOG(core, 3, fmt, ##x)
-#define log_trace(core, fmt, x...) MMCE_LOG(core, 4, fmt, ##x)
-#endif
+#define MMCEMAN_PROFILING 0
 
 #if MMCEMAN_PROFILING == 0
 #define MP_CMD_START(x...)

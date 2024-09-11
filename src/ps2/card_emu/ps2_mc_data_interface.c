@@ -20,9 +20,14 @@
 
 #include "debug.h"
 
+#if LOG_LEVEL_MC_DATA == 0
+#define log(x...)
+#else
+#define log(level, fmt, x...) LOG_PRINT(LOG_LEVEL_MC_DATA, level, fmt, ##x)
+#endif
 
-//#define DPRINTF(fmt, x...) //printf(fmt, ##x)
-#define TPRINTF(fmt, x...) //printf(fmt, ##x)
+//#define log(LOG_INFO, fmt, x...) //printf(fmt, ##x)
+//#define log(LOG_INFO, fmt, x...) //printf(fmt, ##x)
 
 #define ERASE_CACHE     2
 #define WRITE_CACHE     ( ERASE_CACHE * ERASE_SECTORS )
@@ -51,7 +56,7 @@ static volatile uint8_t write_count = 0;
 static volatile uint8_t read_count  = 0;
 
 static inline void __time_critical_func(push_op)(volatile ps2_mcdi_page_t* op) {
-    while (queue_full) {TPRINTF(".");};
+    while (queue_full) {log(LOG_INFO, ".");};
     ops[ops_head] = op;
     ops_head = ( ops_head + 1 ) % PAGE_CACHE_SIZE;
     queue_full = (ops_head == ops_tail);
@@ -115,7 +120,7 @@ static inline volatile ps2_mcdi_page_t* __time_critical_func(ps2_mc_data_interfa
         }
         i++;
         if (i == PAGE_CACHE_SIZE)
-            TPRINTF("%s:Page Cache full\n", __func__);
+            log(LOG_INFO, "%s:Page Cache full\n", __func__);
         i = i % PAGE_CACHE_SIZE;
     }
     return page;
@@ -144,7 +149,7 @@ void __time_critical_func(ps2_mc_data_interface_start_dma)(volatile ps2_mcdi_pag
     dma_in_progress = true;
     page_p->page_state = PAGE_DATA_AVAILABLE;
     psram_read_dma(page_p->page * PS2_PAGE_SIZE, page_p->data, PS2_PAGE_SIZE, ps2_mc_data_interface_rx_done);
-    DPRINTF("C%u: %s start dma %lu\n", get_core_num(), __func__, page_p->page);
+    log(LOG_INFO, "%s start dma %lu\n", __func__, page_p->page);
     busy_cycle = true;
 }
 #endif
@@ -157,10 +162,10 @@ void __time_critical_func(ps2_mc_data_interface_setup_read_page)(uint32_t page, 
 
         if (sdmode) {
             
-            DPRINTF("C%u: %s got page %u\n", get_core_num(), __func__, page);
+            log(LOG_INFO, "%s got page %u\n", get_core_num(), __func__, page);
 
             if (read_count > READ_CACHE) {
-                TPRINTF("!R!\n");
+                log(LOG_INFO, "!R!\n");
                 while (read_count > READ_CACHE) {}
             }
             
@@ -175,12 +180,12 @@ void __time_critical_func(ps2_mc_data_interface_setup_read_page)(uint32_t page, 
                     read_count++;
                 }
                 
-                DPRINTF("C%u: %s setting up read %u\n", get_core_num(), __func__, page);
+                log(LOG_INFO, "%s setting up read %u\n", get_core_num(), __func__, page);
             } else if (page_p->page_state == PAGE_READ_AHEAD_AVAILABLE) {
                 page_p->page_state = PAGE_DATA_AVAILABLE;
-                DPRINTF("%s Hit ReadAhead\n", __func__);
+                log(LOG_INFO, "%s Hit ReadAhead\n", __func__);
             } else {
-                DPRINTF("%s found %u for %u \n", __func__, page_p->page_state, page_p->page);
+                log(LOG_INFO, "%s found %u for %u \n", __func__, page_p->page_state, page_p->page);
             }
 
             if (readahead) {
@@ -198,7 +203,7 @@ void __time_critical_func(ps2_mc_data_interface_setup_read_page)(uint32_t page, 
             }
 
             if (get_core_num() == 1) {
-                DPRINTF("%s Waiting page %u - State: %u\n", __func__, page, page_p->page_state);
+                log(LOG_INFO, "%s Waiting page %u - State: %u\n", __func__, page, page_p->page_state);
                 while (wait && (page_p->page_state != PAGE_DATA_AVAILABLE) && (page_p->page_state != PAGE_READ_AHEAD_AVAILABLE)) { sleep_us(1);};
             } else {
                 if ((page_p->page_state == PAGE_READ_AHEAD_REQ) 
@@ -219,12 +224,12 @@ void __time_critical_func(ps2_mc_data_interface_setup_read_page)(uint32_t page, 
                 page_p->page = page;
                 page_p->page_state = PAGE_READ_REQ;
                 
-                DPRINTF("%s setting up read %u\n", __func__, page);
+                log(LOG_INFO, "%s setting up read %u\n", __func__, page);
             } else  {
-                DPRINTF("%s found %u for %u \n", page_p->page_state, page_p->page);
+                log(LOG_INFO, "%s found %u for %u \n", page_p->page_state, page_p->page);
             }
 
-            DPRINTF("%s Waiting page %u - State: %u\n", __func__, page, page_p->page_state);
+            log(LOG_INFO, "%s Waiting page %u - State: %u\n", __func__, page, page_p->page_state);
 
             prev_read_setup = page_p;
 
@@ -238,7 +243,7 @@ void __time_critical_func(ps2_mc_data_interface_setup_read_page)(uint32_t page, 
 #endif
         }
     } else {
-        TPRINTF("%s out of bounds: %u\n", __func__, page);
+        log(LOG_INFO, "%s out of bounds: %u\n", __func__, page);
     }
 }
 
@@ -251,7 +256,7 @@ volatile ps2_mcdi_page_t* __time_critical_func(ps2_mc_data_interface_get_page)(u
         ret = prev_read_setup;
     if (sdmode) {
         if (!ret || ret->page_state == PAGE_EMPTY) {
-            TPRINTF("Miss ??? %u\n", page);
+            log(LOG_INFO, "Miss ??? %u\n", page);
             ps2_mc_data_interface_setup_read_page(page, false, true);
             ret = ps2_mc_data_interface_find_page(page, true);
         }
@@ -280,7 +285,7 @@ void __time_critical_func(ps2_mc_data_interface_write_mc)(uint32_t page, void *b
                 ps2_cardman_flush();
             } else {
                 if (write_count > WRITE_CACHE) {
-                    TPRINTF("!W! %u/%u\n", write_count, op_fill_status());
+                    log(LOG_INFO, "!W! %u/%u\n", write_count, op_fill_status());
                     while (write_count > WRITE_CACHE) {};
                 };
 
@@ -292,7 +297,7 @@ void __time_critical_func(ps2_mc_data_interface_write_mc)(uint32_t page, void *b
                 push_op(slot);
             }
 
-            DPRINTF("%s Done\n", __func__);
+            log(LOG_INFO, "%s Done\n", __func__);
         } else {
 #if WITH_PSRAM
             psram_wait_for_dma();
@@ -358,7 +363,7 @@ inline void __time_critical_func(ps2_mc_data_interface_wait_for_byte)(uint32_t o
     } else
 #endif
     {
-        while (prev_read_setup->page_state != PAGE_DATA_AVAILABLE) {TPRINTF(".");};
+        while (prev_read_setup->page_state != PAGE_DATA_AVAILABLE) {log(LOG_INFO, ".");};
     }
 }
 
@@ -373,7 +378,7 @@ void __time_critical_func (ps2_mc_data_interface_invalidate_read)(uint32_t page)
                     pages[i].page_state = PAGE_EMPTY;
                     pages[i].page = 0;
                     read_count--;
-                    DPRINTF("%s Invalidated %u\n", __func__, page);
+                    log(LOG_INFO, "%s Invalidated %u\n", __func__, page);
                 }
         }
     //}
@@ -386,7 +391,7 @@ void __time_critical_func (ps2_mc_data_interface_invalidate_readahead)(void) {
             if ((pages[i].page_state == PAGE_READ_AHEAD_AVAILABLE) 
                 || (pages[i].page_state == PAGE_READ_AHEAD_REQ)  )
             {
-                DPRINTF("%s invalidating %u\n", __func__, pages[i].page);
+                log(LOG_INFO, "%s invalidating %u\n", __func__, pages[i].page);
 
                 pages[i].page_state = PAGE_EMPTY;
                 pages[i].page = 0;
@@ -401,7 +406,7 @@ void __time_critical_func (ps2_mc_data_interface_invalidate_readahead)(void) {
 // Core 0
 void ps2_mc_data_interface_card_changed(void) {
     //if (sdmode) {
-    DPRINTF("Card changed\n");
+    log(LOG_INFO, "Card changed\n");
 
     for(int i = 0; i < PAGE_CACHE_SIZE; i++) {
         pages[i].page_state = PAGE_EMPTY;
@@ -423,7 +428,7 @@ void ps2_mc_data_interface_card_changed(void) {
     erase_count = 0;
     write_occured = false;
 
-    DPRINTF("Done!\n");
+    log(LOG_INFO, "Done!\n");
 }
 
 bool ps2_mc_data_interface_write_occured(void) {
@@ -462,17 +467,17 @@ void ps2_mc_data_interface_task(void) {
             if (page_p)
                 switch(page_p->page_state) {
                     case PAGE_READ_REQ:
-                        DPRINTF("%s Reading page %u\n", __func__, page_p->page);
+                        log(LOG_INFO, "%s Reading page %u\n", __func__, page_p->page);
                         ps2_cardman_read_sector(page_p->page, page_p->data);
                         ps2_mc_data_interface_set_page(page_p, page_p->page, PAGE_DATA_AVAILABLE);
                         break;
                     case PAGE_READ_AHEAD_REQ:
-                        DPRINTF("%s Reading ahead page %u\n", __func__, page_p->page);
+                        log(LOG_INFO, "%s Reading ahead page %u\n", __func__, page_p->page);
                         ps2_cardman_read_sector(page_p->page, page_p->data);
                         ps2_mc_data_interface_set_page(page_p, page_p->page, PAGE_READ_AHEAD_AVAILABLE);
                         break;
                     case PAGE_WRITE_REQ:
-                        DPRINTF("%s Writing page %u\n", __func__, page_p->page);
+                        log(LOG_INFO, "%s Writing page %u\n", __func__, page_p->page);
                         write_occured = true;
                         ps2_cardman_write_sector(page_p->page, page_p->data);
                         ps2_history_tracker_registerPageWrite(page_p->page);
@@ -482,7 +487,7 @@ void ps2_mc_data_interface_task(void) {
                         flush_req = true;
                         break;
                     case PAGE_ERASE_REQ:
-                        TPRINTF("%s Erasing page %u\n", __func__, page_p->page);
+                        log(LOG_INFO, "%s Erasing page %u\n", __func__, page_p->page);
                         write_occured = true;
                         uint8_t erase_buff[PS2_PAGE_SIZE] = { 0x0 };
                         memset((void*)erase_buff, 0xFF, PS2_PAGE_SIZE);
@@ -499,9 +504,9 @@ void ps2_mc_data_interface_task(void) {
                         break;
                 }
         }
-        if (op_fill_status() > 0)
-            TPRINTF("%u left\n", op_fill_status());
-        else if (flush_req) {
+        if (op_fill_status() > 0) {
+            log(LOG_INFO, "%u left\n", op_fill_status());
+        } else if (flush_req) {
             ps2_cardman_flush();
             flush_req = false;
         }

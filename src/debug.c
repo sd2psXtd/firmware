@@ -9,6 +9,14 @@
 #endif
 #include "pico/platform.h"
 
+const char *log_level_str[] = {
+    " ",
+    "[ERROR]",
+    "[WARN] ",
+    "[INFO] ",
+    "[TRACE]"
+};
+
 static char debug_queue[1024];
 static size_t debug_read_pos, debug_write_pos;
 
