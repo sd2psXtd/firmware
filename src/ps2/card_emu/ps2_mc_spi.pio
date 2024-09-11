@@ -6,7 +6,6 @@
 .define PUBLIC PIN_PSX_CLK ${PIN_PSX_CLK}
 .define PUBLIC PIN_PSX_CMD ${PIN_PSX_CMD}
 .define PUBLIC PIN_PSX_DAT ${PIN_PSX_DAT}
-.define PUBLIC PIN_PSX_SPD_SEL ${PIN_PSX_SPD_SEL}
 
 ; SD2PSX
 ;.define PUBLIC PIN_PSX_ACK 16
@@ -78,8 +77,6 @@ static inline void cmd_reader_program_init(PIO pio, uint sm, uint offset) {
     sm_config_set_in_shift(&c, true, true, 8);
     sm_config_set_fifo_join(&c, PIO_FIFO_JOIN_RX);
 
-    sm_config_set_clkdiv_int_frac(&c, 2, 0);
-
     pio_sm_init(pio, sm, offset, &c);
 }
 
@@ -88,7 +85,6 @@ static inline void dat_writer_program_init(PIO pio, uint sm, uint offset) {
 
     sm_config_set_out_pins(&c, PIN_PSX_DAT, 1);
     sm_config_set_set_pins(&c, PIN_PSX_ACK, 1);
-    sm_config_set_jmp_pin(&c, PIN_PSX_SPD_SEL);
 
     /* configure ACK pin for output */
     pio_sm_set_pins_with_mask(pio, sm, 1 << PIN_PSX_ACK, 1 << PIN_PSX_ACK);
@@ -114,11 +110,9 @@ static inline void dat_writer_program_init(PIO pio, uint sm, uint offset) {
 
 static inline void clock_probe_program_init(PIO pio, uint sm, uint offset) {
     pio_sm_config c = clock_probe_program_get_default_config(offset);
-    pio_gpio_init(pio, PIN_PSX_SPD_SEL);
 
     pio_sm_set_consecutive_pindirs(pio, sm, PIN_PSX_SEL, 1, false);
     pio_sm_set_consecutive_pindirs(pio, sm, PIN_PSX_CLK, 1, false);
-    pio_sm_set_consecutive_pindirs(pio, sm, PIN_PSX_SPD_SEL, 1, true);
 
 
     /* shift ISR to right, autopush every bit */
@@ -126,11 +120,6 @@ static inline void clock_probe_program_init(PIO pio, uint sm, uint offset) {
     sm_config_set_in_shift(&c, true, true, 1);
     sm_config_set_fifo_join(&c, PIO_FIFO_JOIN_RX);
     sm_config_set_jmp_pin(&c, PIN_PSX_CLK);
-    sm_config_set_set_pins(&c, PIN_PSX_SPD_SEL, 1);
-
-    pio_sm_set_pins_with_mask(pio, sm, 0, 1 << PIN_PSX_SPD_SEL);
-
-    sm_config_set_clkdiv_int_frac(&c, 1, 0);
 
     pio_sm_init(pio, sm, offset, &c);
 }
