@@ -197,6 +197,9 @@ static void genblock(size_t pos, void *vbuf) {
 
     memset(buf, 0xFF, BLOCK_SIZE);
 
+    if (CARD_SIZE_MB > 16)
+        return;
+
     if (pos == 0) {
         // 0x30: Clusters Total (2 Bytes): card_size / 1024
         // 0x34: Alloc start: 0x49
