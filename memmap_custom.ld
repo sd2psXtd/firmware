@@ -23,10 +23,6 @@
 
 MEMORY
 {
-    /* SD2PSX 
-    FLASH(rx) : ORIGIN = 0x10000000, LENGTH = 7168k
-    */
-    /* BitFunX */
     FLASH(rx) : ORIGIN = 0x10000000, LENGTH = 2048k
     
     RAM(rwx) : ORIGIN =  0x20000000, LENGTH = 256k

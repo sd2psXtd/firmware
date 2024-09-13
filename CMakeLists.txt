@@ -26,8 +26,6 @@ else()
 endif()
 
 message(STATUS "Building ${TARGET_NAME}")
-#add_compile_definitions(PICO_FLASH_SIZE_BYTES=16777216)
-add_compile_definitions(PICO_FLASH_SIZE_BYTES=2097152)
 
 
 # Add all subdirectories for sub-targets
