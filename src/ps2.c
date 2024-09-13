@@ -38,10 +38,7 @@ void ps2_init(void) {
 
     keystore_init();
 
-#if WITH_PSRAM
-    ps2_dirty_init();
-#endif
-    ps2_mc_data_interface_card_changed();
+    ps2_mc_data_interface_init();
     
     ps2_cardman_init();
 
