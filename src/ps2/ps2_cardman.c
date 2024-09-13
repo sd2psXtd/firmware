@@ -1,5 +1,6 @@
 #include "ps2_cardman.h"
 
+#include <stdbool.h>
 #include <stddef.h>
 #include <stdint.h>
 #include <stdio.h>
@@ -11,12 +12,19 @@
 #include "game_db/game_db.h"
 #include "hardware/timer.h"
 #include "pico/multicore.h"
+#include "pico/platform.h"
 #if WITH_PSRAM
 #include "ps2_dirty.h"
 #include "psram/psram.h"
 #endif
 #include "sd.h"
 #include "settings.h"
+
+#if LOG_LEVEL_PS2_CM == 0
+#define log(x...)
+#else
+#define log(level, fmt, x...) LOG_PRINT(LOG_LEVEL_PS2_CM, level, fmt, ##x)
+#endif
 
 #define BLOCK_SIZE            (512)
 #define SECTOR_COUNT          (PS2_CARD_SIZE_8M / BLOCK_SIZE)
@@ -274,23 +282,26 @@ static void ps2_cardman_continue(void) {
         uint64_t slice_start = time_us_64();
         if (settings_get_sd_mode() || card_size > PS2_CARD_SIZE_8M) {
             uint64_t end = time_us_64();
-            printf("took = %.2f s; SD read speed = %.2f kB/s\n", (end - cardprog_start) / 1e6, 1000000.0 * card_size / (end - cardprog_start) / 1024);
+            log(LOG_INFO, "took = %.2f s; SD read speed = %.2f kB/s\n", (end - cardprog_start) / 1e6, 1000000.0 * card_size / (end - cardprog_start) / 1024);
             ps2_mc_data_interface_card_changed();
             if (cardman_cb)
                 cardman_cb(100, true);
             cardman_operation = CARDMAN_IDLE;
         } else {
-#if WITH_PSRAM
+#if WITH_PSRAM    
+          log(LOG_TRACE, "%s:%u\n", __func__, __LINE__);
             while (time_us_64() - slice_start < MAX_SLICE_LENGTH) {
+                log(LOG_TRACE, "Slice!\n");
+
                 ps2_dirty_lock();
                 int sector_idx = next_sector_to_load();
                 if (sector_idx == -1) {
                     ps2_dirty_unlock();
                     cardman_operation = CARDMAN_IDLE;
                     uint64_t end = time_us_64();
-                    printf("OK!\n");
+                    log(LOG_INFO, "OK!\n");
 
-                    printf("took = %.2f s; SD read speed = %.2f kB/s\n", (end - cardprog_start) / 1e6, 1000000.0 * card_size / (end - cardprog_start) / 1024);
+                    log(LOG_INFO, "took = %.2f s; SD read speed = %.2f kB/s\n", (end - cardprog_start) / 1e6, 1000000.0 * card_size / (end - cardprog_start) / 1024);
                     ps2_mc_data_interface_card_changed();
                     if (cardman_cb)
                         cardman_cb(100, true);
@@ -304,8 +315,11 @@ static void ps2_cardman_continue(void) {
                 if (sd_read(fd, flushbuf, BLOCK_SIZE) != BLOCK_SIZE)
                     fatal("cannot read memcard\nread %u", pos);
 
+                log(LOG_TRACE, "Writing pos %u\n", pos);
                 psram_write_dma(pos, flushbuf, BLOCK_SIZE, NULL);
+                log(LOG_TRACE, "%s:%u\n", __func__, __LINE__);
                 psram_wait_for_dma();
+
                 ps2_cardman_mark_sector_available(sector_idx);
                 ps2_dirty_unlock();
 
@@ -316,6 +330,8 @@ static void ps2_cardman_continue(void) {
 
                 cardman_sectors_done++;
             }
+            log(LOG_TRACE, "%s:%u\n", __func__, __LINE__);
+
 #endif
         }
     } else if (cardman_operation == CARDMAN_CREATE) {
@@ -324,11 +340,11 @@ static void ps2_cardman_continue(void) {
             cardprog_pos = cardman_sectors_done * BLOCK_SIZE;
             if (cardprog_pos >= card_size) {
                 sd_flush(fd);
-                printf("OK!\n");
+                log(LOG_INFO, "OK!\n");
 
                 cardman_operation = CARDMAN_IDLE;
                 uint64_t end = time_us_64();
-                printf("took = %.2f s; SD write speed = %.2f kB/s\n", (end - cardprog_start) / 1e6, 1000000.0 * card_size / (end - cardprog_start) / 1024);
+                log(LOG_INFO, "took = %.2f s; SD write speed = %.2f kB/s\n", (end - cardprog_start) / 1e6, 1000000.0 * card_size / (end - cardprog_start) / 1024);
                 if (cardman_cb) 
                     cardman_cb(100, true);
 
@@ -388,7 +404,7 @@ void ps2_cardman_open(void) {
         settings_set_ps2_channel(card_chan);
     }
 
-    printf("Switching to card path = %s\n", path);
+    log(LOG_INFO, "Switching to card path = %s\n", path);
 
     if (!sd_exists(path)) {
         card_size = settings_get_ps2_cardsize() * 1024 * 1024;
@@ -405,7 +421,7 @@ void ps2_cardman_open(void) {
         if (fd < 0)
             fatal("cannot open for creating new card");
 
-        printf("create new image at %s... ", path);
+        log(LOG_INFO, "create new image at %s... ", path);
         cardprog_start = time_us_64();
 
     #if WITH_PSRAM
@@ -419,7 +435,6 @@ void ps2_cardman_open(void) {
 
                 ps2_dirty_lock();
                 psram_write_dma(pos, flushbuf, BLOCK_SIZE, NULL);
-
                 psram_wait_for_dma();
                 ps2_cardman_mark_sector_available(pos / BLOCK_SIZE);
                 ps2_dirty_unlock();
@@ -458,7 +473,7 @@ void ps2_cardman_open(void) {
         }
 
         /* read 8 megs of card image */
-        printf("reading card (%lu KB).... ", (uint32_t)(card_size / 1024));
+        log(LOG_INFO, "reading card (%lu KB).... ", (uint32_t)(card_size / 1024));
         cardprog_start = time_us_64();
         if (cardman_cb)
             cardman_cb(0, false);
@@ -536,7 +551,7 @@ static void ps2_cardman_special_idx(int newIndx) {
     if (settings_get_ps2_game_id())
         (void)game_db_get_current_parent(parent_id);
 
-    DPRINTF("Parent ID is %s, State is %i, new Index: %i\n", parent_id, cardman_state, newIndx);
+    log(LOG_INFO, "Parent ID is %s, State is %i, new Index: %i\n", parent_id, cardman_state, newIndx);
     if (PS2_CM_STATE_NORMAL == cardman_state) {
         if (parent_id[0]) {
             card_idx = PS2_CARD_IDX_SPECIAL;
@@ -695,5 +710,7 @@ void ps2_cardman_init(void) {
 }
 
 void ps2_cardman_task(void) {
+    log(LOG_TRACE, "%s:%u\n", __func__, __LINE__);
     ps2_cardman_continue();
+    log(LOG_TRACE, "%s:%u\n", __func__, __LINE__);
 }

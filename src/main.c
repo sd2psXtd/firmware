@@ -160,8 +160,7 @@ int main() {
 
     settings_init();
 #if WITH_PSRAM
-    if (!settings_get_sd_mode())
-        psram_init();
+    psram_init();
 #endif
     game_db_init();
 

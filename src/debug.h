@@ -4,9 +4,14 @@
 #include <inttypes.h>
 #include <stdio.h>
 
-#define LOG_LEVEL_MC_DATA 4
+#define LOG_LEVEL_MC_DATA 2
 #define LOG_LEVEL_MMCEMAN 3
 #define LOG_LEVEL_MMCE_FS 4
+#define LOG_LEVEL_MC_AUTH 4
+#define LOG_LEVEL_PS2_CM  3
+#define LOG_LEVEL_PS2_MAIN 4
+#define LOG_LEVEL_PS2_MC 4
+#define LOG_LEVEL_PS2_HT 3
 
 #define LOG_ERROR 1
 #define LOG_WARN 2

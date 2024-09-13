@@ -16,6 +16,12 @@
 
 #include <stdio.h>
 
+#if LOG_LEVEL_PS2_MAIN == 0
+#define log(x...)
+#else
+#define log(level, fmt, x...) LOG_PRINT(LOG_LEVEL_PS2_MAIN, level, fmt, ##x)
+#endif
+
 void ps2_switch_card(void) {
     ps2_memory_card_exit();
     ps2_cardman_close();
@@ -28,9 +34,13 @@ void ps2_switch_card(void) {
 }
 
 void ps2_init(void) {
-    printf("starting in PS2 mode\n");
+    log(LOG_INFO, "starting in PS2 mode\n");
 
     keystore_init();
+
+#if WITH_PSRAM
+    ps2_dirty_init();
+#endif
     ps2_mc_data_interface_card_changed();
     
     ps2_cardman_init();
@@ -38,12 +48,14 @@ void ps2_init(void) {
     ps2_history_tracker_init();
 
     multicore_launch_core1(ps2_memory_card_main);
+
 #if WITH_GUI
     gui_init();
 #endif
+
     ps2_mmce_fs_init();
 
-    printf("Starting memory card... ");
+    log(LOG_INFO, "Starting memory card... ");
     uint64_t start = time_us_64();
 #if WITH_GUI
     gui_do_ps2_card_switch();
@@ -52,7 +64,7 @@ void ps2_init(void) {
     ps2_memory_card_enter();
 #endif
     uint64_t end = time_us_64();
-    printf("DONE! (%d us)\n", (int)(end - start));
+    log(LOG_INFO, "DONE! (%d us)\n", (int)(end - start));
 }
 
 bool ps2_task(void) {

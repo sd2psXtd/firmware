@@ -35,7 +35,7 @@ jobs:
     #needs: create_release
     strategy: 
       matrix:
-        target: [SD2PSX, SD2PSXBF, SD2PSXlite, PMC+, PMCZero]
+        target: [SD2PSX, SD2PSXlite, PMC+, PMCZero]
         debug: [ON, OFF]
         include:
           - debug: ON
@@ -46,8 +46,6 @@ jobs:
             delay: 0
           - target: SD2PSX
             filename: sd2psx
-          - target: SD2PSXBF
-            filename: sd2psxbf
           - target: SD2PSXlite
             filename: sd2psxlite
           - target: PMC+

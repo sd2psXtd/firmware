@@ -19,7 +19,11 @@
 
 #include "ps2_sd2psxman_commands.h"
 
-// #define DEBUG_MC_PROTOCOL
+#if LOG_LEVEL_PS2_CM == 0
+#define log(x...)
+#else
+#define log(level, fmt, x...) LOG_PRINT(LOG_LEVEL_PS2_CM, level, fmt, ##x)
+#endif
 
 uint64_t us_startup;
 
@@ -256,8 +260,6 @@ static void __time_critical_func(mc_main_loop)(void) {
             /* sub cmd */
             receiveOrNextCmd(&cmd);
 
-            //DPRINTF("RCVCMD %d\n", cmd);
-
             switch (cmd)
             {
                 case SD2PSXMAN_PING: ps2_sd2psxman_cmds_ping(); break;
@@ -285,7 +287,7 @@ static void __time_critical_func(mc_main_loop)(void) {
 
                 case MMCEMAN_CMD_FS_LSEEK64: ps2_mmceman_cmd_fs_lseek64(); break;
                 case MMCEMAN_CMD_FS_READ_SECTOR: ps2_mmceman_cmd_fs_read_sector(); break;
-                default: printf("Unknown Subcommand: %02x\n", cmd); break;
+                default: log(LOG_WARN, "Unknown Subcommand: %02x\n", cmd); break;
             }
         } else if (cmd == PS1_SIO2_CMD_IDENTIFIER) {
             settings_set_mode(MODE_TEMP_PS1);
@@ -307,7 +309,7 @@ static void __no_inline_not_in_flash_func(mc_main)(void) {
         
         reset_pio();
         mc_main_loop();
-        QPRINTF("%s exit\n", __func__);
+        log(LOG_TRACE, "%s exit\n", __func__);
     }
 }
 
@@ -364,7 +366,7 @@ void ps2_memory_card_main(void) {
     generateIvSeedNonce();
 
     us_startup = time_us_64();
-    QPRINTF("Secondary core!\n");
+    log(LOG_TRACE, "Secondary core!\n");
 
     my_gpio_set_irq_enabled_with_callback(PIN_PSX_SEL, GPIO_IRQ_EDGE_RISE, 1, card_deselected);
     
@@ -376,7 +378,7 @@ void ps2_memory_card_main(void) {
 
 
 void ps2_memory_card_exit(void) {
-    QPRINTF("MEMCARD EXIT!\n");
+    //log(LOG_TRACE, "MEMCARD EXIT!\n");
     if (!memcard_running)
         return;
 
@@ -384,7 +386,7 @@ void ps2_memory_card_exit(void) {
     while (!mc_exit_response) { };
     mc_exit_request = mc_exit_response = 0;
     memcard_running = 0;
-    QPRINTF("MEMCARD EXIT END!\n");
+    log(LOG_TRACE, "MEMCARD EXIT END!\n");
 }
 
 void ps2_memory_card_enter(void) {

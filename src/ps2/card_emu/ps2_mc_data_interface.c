@@ -162,7 +162,7 @@ void __time_critical_func(ps2_mc_data_interface_setup_read_page)(uint32_t page, 
 
         if (sdmode) {
             
-            log(LOG_INFO, "%s got page %u\n", get_core_num(), __func__, page);
+            log(LOG_INFO, "%s got page %u\n", __func__, page);
 
             if (read_count > READ_CACHE) {
                 log(LOG_INFO, "!R!\n");
@@ -420,9 +420,6 @@ void ps2_mc_data_interface_card_changed(void) {
     //    pages[0].page = 0;
     //    pages[0].data = cache;
     //}
-#if WITH_PSRAM
-    ps2_dirty_init();
-#endif
     read_count = 0;
     write_count = 0;
     erase_count = 0;

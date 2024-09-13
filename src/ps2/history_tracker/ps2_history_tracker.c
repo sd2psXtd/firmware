@@ -23,7 +23,11 @@
     #include "psram/psram.h"
 #endif
 
-#define DEBUG(fmt, x...)  // printf(fmt, ##x)
+#if LOG_LEVEL_PS2_HT == 0
+#define log(x...)
+#else
+#define log(level, fmt, x...) LOG_PRINT(LOG_LEVEL_PS2_HT, level, fmt, ##x)
+#endif
 
 #define HISTORY_FILE_SIZE         462
 #define HISTORY_ENTRY_COUNT       21
@@ -72,11 +76,15 @@ int __time_critical_func(page_read)(mcfat_cardspecs_t* info, uint32_t page, uint
     (void)info;
     ps2_mc_data_interface_setup_read_page(page, false, true);
     volatile ps2_mcdi_page_t* read_page = ps2_mc_data_interface_get_page(page);
-    ps2_mc_data_interface_wait_for_byte(count);
-
-    memcpy(buff, read_page->data, count);
-
-    ps2_mc_data_interface_invalidate_read(page);
+    if (read_page != NULL) {
+        ps2_mc_data_interface_wait_for_byte(count);
+    
+        memcpy(buff, read_page->data, count);
+    
+        ps2_mc_data_interface_invalidate_read(page);
+    } else {
+        return sceMcResFailReadCluster;
+    }
 
     return sceMcResSucceed;
 }
@@ -98,7 +106,7 @@ int __time_critical_func(ecc_read)(mcfat_cardspecs_t* info, uint32_t page, uint3
 
 static bool fileExists(char* filename) {
     int fd = mcio_mcOpen(filename, sceMcFileAttrReadable);
-    DEBUG("File %s status %d\n", filename, fd);
+    log(LOG_TRACE, "File %s status %d\n", filename, fd);
     if (fd < 0)
         return false;
     else
@@ -109,7 +117,7 @@ static bool fileExists(char* filename) {
 
 static bool dirExists(char* dirname) {
     int fd = mcio_mcDopen(dirname);
-    DEBUG("Dir %s status %d\n", dirname, fd);
+    log(LOG_TRACE, "Dir %s status %d\n", dirname, fd);
 
     if (fd < 0)
         return false;
@@ -124,7 +132,7 @@ static void readSlots(uint8_t historyFile[HISTORY_FILE_SIZE], uint8_t slots[HIST
             for (int j = i * HISTORY_ENTRY_SIZE + HISTORY_ENTRY_POS_LAUNCH; j < (i + 1) * HISTORY_ENTRY_SIZE; j++) {
                 slots[i] ^= historyFile[j];
             }
-            DEBUG("Found game %s with %02x XOR\n", (char*)&historyFile[i * HISTORY_ENTRY_SIZE], historyFile[i * HISTORY_ENTRY_SIZE + HISTORY_ENTRY_POS_LAUNCH]);
+            log(LOG_INFO, "Found game %s with %02x XOR\n", (char*)&historyFile[i * HISTORY_ENTRY_SIZE], historyFile[i * HISTORY_ENTRY_SIZE + HISTORY_ENTRY_POS_LAUNCH]);
         } else {
             slots[i] = 0;
         }
@@ -135,7 +143,7 @@ void __time_critical_func(ps2_history_tracker_registerPageWrite)(uint32_t page) 
     uint32_t cluster = page / 2;
     if (status != HISTORY_STATUS_CARD_CHANGED) {
         for (int i = 0; i < HISTORY_NUMBER_OF_REGIONS; i++) {
-            DEBUG("%u vs %u\n", fileCluster[i], cluster);
+            log(LOG_TRACE, "%u vs %u\n", fileCluster[i], cluster);
             if ((cluster == fileCluster[i]) || (fileCluster[i] == 0)) {
                 refreshRequired[i] = true;
                 lastAccess = time_us_64();
@@ -150,22 +158,22 @@ static void ps2_history_tracker_readClusters(void) {
     char filename[23] = {0x00};
     memset(fileCluster, 0x00, sizeof(fileCluster));
     mcio_init();
-    DEBUG("%s post init \n", __func__);
+    log(LOG_INFO, "%s post init \n", __func__);
     for (int i = 0; i < HISTORY_NUMBER_OF_REGIONS; i++) {
         // Read current history file for each region
         snprintf(filename, 23, HISTORY_FILENAME_FORMAT, regionList[i]);
         memset((void*)buff, 0x00, HISTORY_FILE_SIZE);
 
-        DEBUG("%s Start reading\n", __func__);
+        log(LOG_INFO, "%s Start reading\n", __func__);
         int fh = mcio_mcOpen(filename, sceMcFileAttrReadable);
-        DEBUG("Initially reading filename %s, fd %d\n", filename, fh);
+        log(LOG_INFO, "Initially reading filename %s, fd %d\n", filename, fh);
         if (fh >= 0) {
             int cluster = mcio_mcGetCluster(fh);
             fileCluster[i] = cluster;
             mcio_mcRead(fh, buff, HISTORY_FILE_SIZE);
             readSlots(buff, slotCount[i]);
 
-            DEBUG("Registering Cluster %i\n", cluster);
+            log(LOG_INFO, "Registering Cluster %i\n", cluster);
             mcio_mcClose(fh);
         } else {
             memset(slotCount[i], 0x00, HISTORY_ENTRY_COUNT);
@@ -174,14 +182,14 @@ static void ps2_history_tracker_readClusters(void) {
 }
 
 void ps2_history_tracker_card_changed() {
-    DEBUG("%s\n", __func__);
+    log(LOG_INFO, "%s\n", __func__);
 
     mcfat_setCardChanged(true);
 
     status = HISTORY_STATUS_CARD_CHANGED;
     lastAccess = time_us_64();
 
-    DEBUG("%sCard changed finished\n", __func__);
+    log(LOG_INFO, "%sCard changed finished\n", __func__);
 }
 
 void ps2_history_tracker_init() {
@@ -203,11 +211,11 @@ void ps2_history_tracker_init() {
 
 void ps2_history_tracker_task() {
     uint64_t micros = time_us_64();
-
     if (status == HISTORY_STATUS_CARD_CHANGED) {
         if (ps2_mc_data_interface_busy() || (micros < HISTORY_BOOTUP_DEL) || writeOccured || !ps2_cardman_is_idle()) {
             lastAccess = micros;
         } else if ((micros - lastAccess) > HISTORY_CARD_CH_HYST_US) {
+            log(LOG_TRACE, "%s:%u\n", __func__, __LINE__);
             ps2_history_tracker_readClusters();
             status = HISTORY_STATUS_WAITING_WRITE;
         }
@@ -219,7 +227,7 @@ void ps2_history_tracker_task() {
             uint8_t buff[HISTORY_FILE_SIZE] = {0x00};
             char filename[23] = {0x00};
             char dirname[15] = {0x00};
-            DEBUG("%s refreshing history...\n", __func__);
+            log(LOG_INFO, "%s refreshing history...\n", __func__);
             writeOccured = false;
 
             mcio_init();  // Call init to invalidate caches...
@@ -230,13 +238,13 @@ void ps2_history_tracker_task() {
                 memset((void*)buff, 0x00, HISTORY_FILE_SIZE);
                 snprintf(dirname, 15, SYSTEMDATA_DIRNAME, regionList[i]);
                 snprintf(filename, 23, HISTORY_FILENAME_FORMAT, regionList[i]);
-                DEBUG("Checking %s and %s\n", filename, dirname);
+                log(LOG_INFO, "Checking %s and %s\n", filename, dirname);
                 if (refreshRequired[i] && dirExists(dirname) && fileExists(filename)) {
                     int fh = mcio_mcOpen(filename, sceMcFileAttrReadable);
                     if (fileCluster[i] == 0x0)
                         fileCluster[i] = mcio_mcGetCluster(fh);
 
-                    DEBUG("Updating filename %s, fd %d, new cluster %u\n", filename, fh, fileCluster[i]);
+                    log(LOG_INFO, "Updating filename %s, fd %d, new cluster %u\n", filename, fh, fileCluster[i]);
                     if (fh >= 0) {
                         mcio_mcRead(fh, buff, HISTORY_FILE_SIZE);
                         readSlots(buff, slots_new);
@@ -244,7 +252,7 @@ void ps2_history_tracker_task() {
                             if (slots_new[j] != slotCount[i][j]) {
                                 char sanitized_game_id[11] = {0};
                                 game_db_extract_title_id(&buff[j * HISTORY_ENTRY_SIZE], sanitized_game_id, 16, sizeof(sanitized_game_id));
-                                DEBUG("Game ID: %s\n", sanitized_game_id);
+                                log(LOG_INFO, "Game ID: %s\n", sanitized_game_id);
                                 if (game_db_sanity_check_title_id(sanitized_game_id)) {
                                     ps2_sd2psxman_set_gameid(sanitized_game_id);
                                     break;
@@ -254,7 +262,7 @@ void ps2_history_tracker_task() {
                         mcio_mcClose(fh);
                         memcpy((void*)slotCount[i], (void*)slots_new, HISTORY_ENTRY_COUNT);
                     } else {
-                        DEBUG("File exists, but handle returned %d\n", fh);
+                        log(LOG_INFO, "File exists, but handle returned %d\n", fh);
                     }
                 }
                 refreshRequired[i] = false;
