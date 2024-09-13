@@ -6,6 +6,7 @@
 
 #include "hardware/timer.h"
 #include "history_tracker/ps2_history_tracker.h"
+#include "pico/critical_section.h"
 #include "pico/multicore.h"
 #include "pico/platform.h"
 #include "pico/time.h"
@@ -49,7 +50,7 @@ static volatile ps2_mcdi_page_t*     prev_read_setup;
 static volatile bool                 sdmode;
 static volatile bool                 write_occured;
 static volatile bool                 busy_cycle;
-
+static critical_section_t            crit;
 
 static volatile uint8_t erase_count = 0;
 static volatile uint8_t write_count = 0;
@@ -57,9 +58,7 @@ static volatile uint8_t read_count  = 0;
 
 static inline void __time_critical_func(push_op)(volatile ps2_mcdi_page_t* op) {
     while (queue_full) {log(LOG_INFO, ".");};
-    ops[ops_head] = op;
-    ops_head = ( ops_head + 1 ) % PAGE_CACHE_SIZE;
-    queue_full = (ops_head == ops_tail);
+    critical_section_enter_blocking(&crit);
     switch (op->page_state) {
         case PAGE_READ_REQ:
         case PAGE_READ_AHEAD_REQ:
@@ -74,12 +73,18 @@ static inline void __time_critical_func(push_op)(volatile ps2_mcdi_page_t* op) {
         default:
         break;
     }
+    ops[ops_head] = op;
+    ops_head = ( ops_head + 1 ) % PAGE_CACHE_SIZE;
+    queue_full = (ops_head == ops_tail);
+    critical_section_exit(&crit);
 }
 
 static inline volatile ps2_mcdi_page_t* __time_critical_func(pop_op)(void) {
+    critical_section_enter_blocking(&crit);
     volatile ps2_mcdi_page_t* ptr = ops[ops_tail];
     ops_tail = (ops_tail + 1) % PAGE_CACHE_SIZE;
     queue_full = false;
+    critical_section_exit(&crit);
     return ptr;
 }
 
@@ -128,8 +133,10 @@ static inline volatile ps2_mcdi_page_t* __time_critical_func(ps2_mc_data_interfa
 
 static void ps2_mc_data_interface_set_page(volatile ps2_mcdi_page_t* page, uint32_t addr, int state) {
     multicore_lockout_start_blocking();
+    critical_section_enter_blocking(&crit);
     page->page = addr;
     page->page_state = state;
+    critical_section_exit(&crit);
     multicore_lockout_end_blocking();
 }
 
@@ -160,12 +167,21 @@ void __time_critical_func(ps2_mc_data_interface_setup_read_page)(uint32_t page, 
 
     if (page * PS2_PAGE_SIZE + PS2_PAGE_SIZE <= ps2_cardman_get_card_size()) {
 
+        if ((prev_read_setup->page_state == PAGE_DATA_AVAILABLE) 
+            && (prev_read_setup->page + 1 != page)) {
+            critical_section_enter_blocking(&crit);
+            prev_read_setup->page_state = PAGE_EMPTY;
+            prev_read_setup->page = 0;
+            prev_read_setup = NULL;
+            read_count--;
+            critical_section_exit(&crit);
+        }
+
         if (sdmode) {
-            
             log(LOG_INFO, "%s got page %u\n", __func__, page);
 
             if (read_count > READ_CACHE) {
-                log(LOG_INFO, "!R!\n");
+                log(LOG_INFO, "!R!: %u\n", read_count);
                 while (read_count > READ_CACHE) {}
             }
             
@@ -261,7 +277,7 @@ volatile ps2_mcdi_page_t* __time_critical_func(ps2_mc_data_interface_get_page)(u
             ret = ps2_mc_data_interface_find_page(page, true);
         }
 
-        if (ret->page_state == PAGE_READ_AHEAD_AVAILABLE) {
+        if (ret && (ret->page_state == PAGE_READ_AHEAD_AVAILABLE)) {
             ret->page_state = PAGE_DATA_AVAILABLE;
         }
     } else {
@@ -375,9 +391,11 @@ void __time_critical_func (ps2_mc_data_interface_invalidate_read)(uint32_t page)
                     || (pages[i].page_state == PAGE_READ_AHEAD_AVAILABLE))
                     && ((pages[i].page == page)) )
                   {
+                    critical_section_enter_blocking(&crit);
                     pages[i].page_state = PAGE_EMPTY;
                     pages[i].page = 0;
                     read_count--;
+                    critical_section_exit(&crit);
                     log(LOG_INFO, "%s Invalidated %u\n", __func__, page);
                 }
         }
@@ -392,10 +410,13 @@ void __time_critical_func (ps2_mc_data_interface_invalidate_readahead)(void) {
                 || (pages[i].page_state == PAGE_READ_AHEAD_REQ)  )
             {
                 log(LOG_INFO, "%s invalidating %u\n", __func__, pages[i].page);
+                critical_section_enter_blocking(&crit);
 
                 pages[i].page_state = PAGE_EMPTY;
                 pages[i].page = 0;
                 read_count--;
+                critical_section_exit(&crit);
+
             }
         
     }
@@ -405,7 +426,6 @@ void __time_critical_func (ps2_mc_data_interface_invalidate_readahead)(void) {
 
 // Core 0
 void ps2_mc_data_interface_card_changed(void) {
-    //if (sdmode) {
     log(LOG_INFO, "Card changed\n");
 
     for(int i = 0; i < PAGE_CACHE_SIZE; i++) {
@@ -414,18 +434,20 @@ void ps2_mc_data_interface_card_changed(void) {
         pages[i].data = &cache[i * PS2_PAGE_SIZE];
         ops[i] = NULL;
     }
-//    ps2_mc_data_interface_invalidate_readahead();
-    //} else {
-    //    pages[0].page_state = PAGE_EMPTY;
-    //    pages[0].page = 0;
-    //    pages[0].data = cache;
-    //}
     read_count = 0;
     write_count = 0;
     erase_count = 0;
     write_occured = false;
 
     log(LOG_INFO, "Done!\n");
+}
+
+void ps2_mc_data_interface_init(void) {
+    critical_section_init(&crit);
+#if WITH_PSRAM
+    ps2_dirty_init();
+#endif
+    ps2_mc_data_interface_card_changed();
 }
 
 bool ps2_mc_data_interface_write_occured(void) {
