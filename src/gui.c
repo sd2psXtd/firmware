@@ -825,7 +825,7 @@ static void create_menu_screen(void) {
 
         {
             char text[8] = {};
-            if (settings_get_ps2_cardsize() < 8)
+            if (settings_get_ps2_cardsize() <= 8)
                 snprintf(text, ARRAY_SIZE(text), "%u MB>", settings_get_ps2_cardsize());
             else
                 snprintf(text, ARRAY_SIZE(text), "%u MB*>", settings_get_ps2_cardsize());            
