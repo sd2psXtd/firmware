@@ -1,4 +1,5 @@
 #include "config.h"
+#include "pico/platform.h"
 #include "psram.h"
 
 #include "pico/critical_section.h"
@@ -89,10 +90,11 @@ uint32_t psram_read_dma_remaining() {
 }
 
 inline void psram_wait_for_dma() {
-    dma_channel_wait_for_finish_blocking(PIO_SPI_DMA_TX_CMD_CHAN);
-    dma_channel_wait_for_finish_blocking(PIO_SPI_DMA_RX_CMD_CHAN);
-    dma_channel_wait_for_finish_blocking(PIO_SPI_DMA_TX_DATA_CHAN);
-    dma_channel_wait_for_finish_blocking(PIO_SPI_DMA_RX_DATA_CHAN);
+    while(pio_qspi_dma_active()) {tight_loop_contents();};
+//    dma_channel_wait_for_finish_blocking(PIO_SPI_DMA_TX_CMD_CHAN);
+//    dma_channel_wait_for_finish_blocking(PIO_SPI_DMA_RX_CMD_CHAN);
+//    dma_channel_wait_for_finish_blocking(PIO_SPI_DMA_TX_DATA_CHAN);
+//    dma_channel_wait_for_finish_blocking(PIO_SPI_DMA_RX_DATA_CHAN);
 }
 
 static void psram_run_tests(void) {

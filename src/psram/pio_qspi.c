@@ -3,6 +3,7 @@
  *
  * SPDX-License-Identifier: BSD-3-Clause
  */
+#include <stdio.h>
 
 #include "pio_qspi.h"
 #include "config.h"
@@ -80,6 +81,7 @@ void __time_critical_func(pio_qspi_write8_read8_blocking)(const pio_spi_inst_t *
 
 static dma_channel_config dma_tx_data_conf, dma_rx_data_conf,
                           dma_tx_cmd_conf, dma_rx_cmd_conf;
+static volatile bool dma_active = false;
 
 static void (*dma_done_cb)(void);
 
@@ -87,6 +89,9 @@ void __time_critical_func(pio_qspi_write8_dma)(const pio_spi_inst_t *spi, uint32
     io_rw_8 *txfifo = (io_rw_8 *) &spi->pio->txf[spi->sm];
     io_rw_8 *rxfifo = (io_rw_8 *) &spi->pio->rxf[spi->sm];
 
+    if (dma_active) printf("WARNING!!!DMA ALREADY ACTIVE!!!!!!!!!\n");
+    while (dma_active) {tight_loop_contents();};
+    dma_active = true;
     dma_done_cb = cb;
 
     pio_sm_set_pindirs_with_mask(spi->pio, spi->sm, QSPI_DAT_MASK, QSPI_DAT_MASK);
@@ -115,6 +120,9 @@ void __time_critical_func(pio_qspi_read8_dma)(const pio_spi_inst_t *spi, uint32_
     io_rw_8 *txfifo = (io_rw_8 *) &spi->pio->txf[spi->sm];
     io_rw_8 *rxfifo = (io_rw_8 *) &spi->pio->rxf[spi->sm];
 
+    if (dma_active) printf("WARNING!!!DMA ALREADY ACTIVE!!!!!!!!!\n");
+    while (dma_active) {tight_loop_contents();};
+    dma_active = true;
     dma_done_cb = cb;
 
     pio_sm_set_pindirs_with_mask(spi->pio, spi->sm, QSPI_DAT_MASK, QSPI_DAT_MASK);
@@ -152,8 +160,13 @@ static void __time_critical_func(dma_rx_done)(void) {
     /* note that this irq is called by core0 despite most dma tx started by core1 */
     dma_channel_acknowledge_irq0(PIO_SPI_DMA_RX_DATA_CHAN);
     gpio_put(PSRAM_CS, 1);
+    dma_active = false;
     if (dma_done_cb)
         dma_done_cb();
+}
+
+bool __time_critical_func(pio_qspi_dma_active)() {
+    return dma_active;
 }
 
 void pio_qspi_dma_init(const pio_spi_inst_t *spi) {
