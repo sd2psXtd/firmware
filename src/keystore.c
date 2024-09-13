@@ -112,8 +112,5 @@ void __not_in_flash_func(keystore_reset)(void) {
     #if WITH_GUI
     multicore_lockout_end_blocking();
     #endif
-    QPRINTF("Resetting keytore done, reset!\n");
     keystore_read();
-    watchdog_enable(1, 1);
-    while(true){};
 }
