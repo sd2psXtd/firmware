@@ -344,6 +344,8 @@ static void ps2_cardman_continue(void) {
 
                 cardman_operation = CARDMAN_IDLE;
                 uint64_t end = time_us_64();
+                ps2_mc_data_interface_card_changed();
+
                 log(LOG_INFO, "took = %.2f s; SD write speed = %.2f kB/s\n", (end - cardprog_start) / 1e6, 1000000.0 * card_size / (end - cardprog_start) / 1024);
                 if (cardman_cb) 
                     cardman_cb(100, true);
