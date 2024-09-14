@@ -11,6 +11,7 @@
 #include "debug.h"
 #include "game_db/game_db.h"
 #include "hardware/timer.h"
+#include "mmce_fs/ps2_mmce_fs.h"
 #include "pico/multicore.h"
 #include "pico/platform.h"
 #if WITH_PSRAM
@@ -38,7 +39,7 @@ int current_read_sector = 0, priority_sector = -1;
 
 #define MAX_GAME_NAME_LENGTH (127)
 #define MAX_PREFIX_LENGTH    (4)
-#define MAX_SLICE_LENGTH     ( 2 * 1000 )
+#define MAX_SLICE_LENGTH     ( 30 * 1000 )
 
 static int card_idx;
 static int card_chan;
@@ -292,8 +293,8 @@ static void ps2_cardman_continue(void) {
             cardman_operation = CARDMAN_IDLE;
         } else {
 #if WITH_PSRAM    
-          log(LOG_TRACE, "%s:%u\n", __func__, __LINE__);
-            while (time_us_64() - slice_start < MAX_SLICE_LENGTH) {
+            log(LOG_TRACE, "%s:%u\n", __func__, __LINE__);
+            while ((ps2_mmce_fs_idle()) && (time_us_64() - slice_start < MAX_SLICE_LENGTH)) {
                 log(LOG_TRACE, "Slice!\n");
 
                 ps2_dirty_lock();
@@ -302,8 +303,6 @@ static void ps2_cardman_continue(void) {
                     ps2_dirty_unlock();
                     cardman_operation = CARDMAN_IDLE;
                     uint64_t end = time_us_64();
-                    log(LOG_INFO, "OK!\n");
-
                     log(LOG_INFO, "took = %.2f s; SD read speed = %.2f kB/s\n", (end - cardprog_start) / 1e6, 1000000.0 * card_size / (end - cardprog_start) / 1024);
                     ps2_mc_data_interface_card_changed();
                     if (cardman_cb)
@@ -320,7 +319,7 @@ static void ps2_cardman_continue(void) {
 
                 log(LOG_TRACE, "Writing pos %u\n", pos);
                 psram_write_dma(pos, flushbuf, BLOCK_SIZE, NULL);
-                log(LOG_TRACE, "%s:%u\n", __func__, __LINE__);
+
                 psram_wait_for_dma();
 
                 ps2_cardman_mark_sector_available(sector_idx);
@@ -339,7 +338,7 @@ static void ps2_cardman_continue(void) {
         }
     } else if (cardman_operation == CARDMAN_CREATE) {
         uint64_t slice_start = time_us_64();
-        while (time_us_64() - slice_start < MAX_SLICE_LENGTH) {
+        while ((ps2_mmce_fs_idle()) && (time_us_64() - slice_start < MAX_SLICE_LENGTH)) {
             cardprog_pos = cardman_sectors_done * BLOCK_SIZE;
             if (cardprog_pos >= card_size) {
                 sd_flush(fd);
@@ -427,8 +426,9 @@ void ps2_cardman_open(void) {
             fatal("cannot open for creating new card");
 
         log(LOG_INFO, "create new image at %s... ", path);
-        cardprog_start = time_us_64();
 
+        if (cardman_cb)
+            cardman_cb(0, false);
     #if WITH_PSRAM
         if (!settings_get_sd_mode() || card_size <= PS2_CARD_SIZE_8M) {
             // quickly generate and write an empty card into PSRAM so that it's immediately available, takes about ~0.6s
@@ -446,8 +446,8 @@ void ps2_cardman_open(void) {
             }
         }
     #endif
-        if (cardman_cb)
-            cardman_cb(0, false);
+        cardprog_start = time_us_64();
+
         
     } else {
         fd = sd_open(path, O_RDWR);
@@ -715,7 +715,5 @@ void ps2_cardman_init(void) {
 }
 
 void ps2_cardman_task(void) {
-    log(LOG_TRACE, "%s:%u\n", __func__, __LINE__);
     ps2_cardman_continue();
-    log(LOG_TRACE, "%s:%u\n", __func__, __LINE__);
 }
