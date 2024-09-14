@@ -96,6 +96,7 @@ extern critical_section_t mmce_fs_crit; //used to lock writes to chunk_state (sd
 */
 
 //Core 0
+bool ps2_mmce_fs_idle(void);
 void ps2_mmce_fs_init(void);
 void ps2_mmce_fs_run(void);
 

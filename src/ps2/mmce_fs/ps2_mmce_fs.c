@@ -57,6 +57,11 @@ void ps2_mmce_fs_init(void)
     mmce_fs_operation = MMCE_FS_NONE;
 }
 
+bool ps2_mmce_fs_idle(void)
+{
+    return (mmce_fs_operation == MMCE_FS_NONE);
+}
+
 void ps2_mmce_fs_run(void)
 {
     int rv = 0;
