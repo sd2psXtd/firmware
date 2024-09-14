@@ -985,9 +985,9 @@ void gui_do_ps2_card_switch(void) {
 
     oled_update_last_action_time();
 
+    ps2_cardman_set_progress_cb(reload_card_cb);
     ps2_cardman_open();
     ps2_memory_card_enter();
-    ps2_cardman_set_progress_cb(reload_card_cb);
 
     waiting_card = true;
 }
