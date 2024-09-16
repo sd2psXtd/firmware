@@ -617,13 +617,13 @@ inline __attribute__((always_inline)) void __time_critical_func(ps2_mmceman_cmd_
     data->whence = 0;
 
     mc_respond(0x0); receiveOrNextCmd(&cmd);        //Reserved
-    mc_respond(0x0); receiveOrNextCmd(&data->fd);
+    mc_respond(0x0); receiveOrNextCmd((uint8_t*)&data->fd);
 
     mc_respond(0x0); receiveOrNextCmd(&offset8[0x3]);
     mc_respond(0x0); receiveOrNextCmd(&offset8[0x2]);
     mc_respond(0x0); receiveOrNextCmd(&offset8[0x1]);
     mc_respond(0x0); receiveOrNextCmd(&offset8[0x0]);
-    mc_respond(0x0); receiveOrNextCmd(&data->whence);
+    mc_respond(0x0); receiveOrNextCmd((uint8_t*)&data->whence);
 
     log(LOG_INFO, "%s: fd: %i, offset: %lli, whence: %u\n", __func__, data->fd, (long long int)data->offset, data->whence);
 
@@ -1205,7 +1205,7 @@ inline __attribute__((always_inline)) void __time_critical_func(ps2_mmceman_cmd_
             count8  = (uint8_t*)&count;
 
             mc_respond(0x0); receiveOrNextCmd(&cmd);         //Reserved byte
-            mc_respond(0x0); receiveOrNextCmd(&data->fd);    //File descriptor
+            mc_respond(0x0); receiveOrNextCmd((uint8_t*)&data->fd);    //File descriptor
             mc_respond(0x0); receiveOrNextCmd(&sector8[0x2]);
             mc_respond(0x0); receiveOrNextCmd(&sector8[0x1]);
             mc_respond(0x0); receiveOrNextCmd(&sector8[0x0]);
@@ -1228,9 +1228,12 @@ inline __attribute__((always_inline)) void __time_critical_func(ps2_mmceman_cmd_
                 log(LOG_INFO, "%s: fd: %i, seeking to offset %llu\n", __func__, data->fd, (long long unsigned int)offset);
 
                 for (int i = 0; i < 3; i++) {
-                    sd_seek_set_new(data->fd, offset);
-                    position = sd_tell_new(data->fd);
-                    if (position != offset) {
+                    data->offset64 = offset;
+                    data->whence64 = 0;
+                    MP_SIGNAL_OP();
+                    ps2_mmce_fs_signal_operation(MMCE_FS_LSEEK64);
+                    ps2_mmce_fs_wait_ready();
+                    if (data->position64 != data->offset64) {
                         printf("[FATAL] Sector seek failed, possible fragmentation issues, check card! Got: 0x%llu, Exp: 0x%llu\n", position, offset);
                     } else {
                         break;
