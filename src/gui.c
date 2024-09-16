@@ -1,7 +1,9 @@
 #include "gui.h"
 
+#include <debug.h>
 #include <game_db/game_db.h>
 #include <ps2/card_emu/ps2_mc_data_interface.h>
+#include <ps2/card_emu/ps2_sd2psxman.h>
 #include <ps2/history_tracker/ps2_history_tracker.h>
 #include <src/core/lv_obj.h>
 #include <src/core/lv_obj_class.h>
@@ -11,8 +13,10 @@
 #include <stdio.h>
 
 #include "config.h"
+#include "hardware/timer.h"
 #include "input.h"
 #include "keystore.h"
+#include "debug.h"
 #include "oled.h"
 #include "ps1/ps1_cardman.h"
 #include "ps1/ps1_memory_card.h"
@@ -24,6 +28,12 @@
 #include "ui_menu.h"
 #include "ui_theme_mono.h"
 #include "version/version.h"
+
+#if LOG_LEVEL_GUI == 0
+#define log(x...)
+#else
+#define log(level, fmt, x...) LOG_PRINT(LOG_LEVEL_GUI, level, fmt, ##x)
+#endif
 
 /* Displays the line at the bottom for long pressing buttons */
 static lv_obj_t *g_navbar, *g_progress_bar, *g_progress_text, *g_activity_frame;
@@ -343,22 +353,11 @@ static void evt_scr_main(lv_event_t *event) {
                     printf("new PS1 card=%d chan=%d\n", ps1_cardman_get_idx(), ps1_cardman_get_channel());
                 }
             } else {
-                ps2_cardman_state_t prevState = ps2_cardman_get_state();
-                prevChannel = ps2_cardman_get_channel();
-                prevIdx = ps2_cardman_get_idx();
-
                 switch (key) {
-                    case INPUT_KEY_PREV: ps2_cardman_prev_channel(); break;
-                    case INPUT_KEY_NEXT: ps2_cardman_next_channel(); break;
-                    case INPUT_KEY_BACK: ps2_cardman_prev_idx(); break;
-                    case INPUT_KEY_ENTER: ps2_cardman_next_idx(); break;
-                }
-
-                if ((prevChannel != ps2_cardman_get_channel()) || (prevIdx != ps2_cardman_get_idx()) || (prevState != ps2_cardman_get_state())) {
-                    ps2_memory_card_exit();
-                    ps2_cardman_close();
-                    switching_card = 1;
-                    printf("new PS2 card=%d chan=%d\n", ps2_cardman_get_idx(), ps2_cardman_get_channel());
+                    case INPUT_KEY_PREV: ps2_sd2psxman_prev_ch(true); break;
+                    case INPUT_KEY_NEXT: ps2_sd2psxman_next_ch(true); break;
+                    case INPUT_KEY_BACK: ps2_sd2psxman_prev_idx(true); break;
+                    case INPUT_KEY_ENTER: ps2_sd2psxman_next_idx(true); break;
                 }
             }
 
@@ -910,6 +909,27 @@ static void create_ui(void) {
     UI_GOTO_SCREEN(scr_main);
 }
 
+static void update_activity(void) {
+    static uint64_t last_update = 0U;
+    static bool visible = false;
+    uint64_t time = time_us_64();
+    if ((time - last_update) > 500 * 1000) {
+        //TODO: Causes a 31ms delay that causes issues with mmce fs
+        if (ps1_dirty_activity || ps2_mc_data_interface_write_occured()) {
+            //printf("ps2_dirty_activity\n");
+            input_flush();
+            if (!visible) {
+                lv_obj_clear_flag(g_activity_frame, LV_OBJ_FLAG_HIDDEN);
+                visible = true;
+            }
+            last_update = time;
+        } else if (visible){
+            lv_obj_add_flag(g_activity_frame, LV_OBJ_FLAG_HIDDEN);
+            last_update = time;
+        }
+    }
+}
+
 void gui_init(void) {
     if (!lv_is_initialized())
     {
@@ -999,7 +1019,7 @@ void gui_task(void) {
     const char *folder_name = NULL;
 
     if (waiting_card) {
-        
+        log(LOG_INFO, "%s Waiting for card\n", __func__);
         update_bar();
 
         oled_update_last_action_time();
@@ -1117,14 +1137,7 @@ void gui_task(void) {
             gui_do_ps2_card_switch();
         }
 
-        //TODO: Causes a 31ms delay that causes issues with mmce fs
-        if (ps1_dirty_activity || ps2_mc_data_interface_write_occured()) {
-            //printf("ps2_dirty_activity\n");
-            //input_flush();
-            //lv_obj_clear_flag(g_activity_frame, LV_OBJ_FLAG_HIDDEN);
-        } else {
-            lv_obj_add_flag(g_activity_frame, LV_OBJ_FLAG_HIDDEN);
-        }
+        update_activity();
     }
 
     gui_tick();

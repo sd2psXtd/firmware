@@ -414,3 +414,7 @@ void ps2_memory_card_unload(void) {
 bool ps2_memory_card_running(void) {
     return (memcard_running != 0);
 }
+
+bool ps2_memory_card_transfer_running(void) {
+    return (mc_callback != NULL);
+}

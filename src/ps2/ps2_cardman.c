@@ -682,7 +682,7 @@ bool ps2_cardman_needs_update(void) {
     return needs_update;
 }
 
-bool ps2_cardman_is_accessible(void) {
+bool __time_critical_func(ps2_cardman_is_accessible)(void) {
     // SD: X IDLE   => X
     // SD: X CREATE => /
     // SD: X OPEN =>   /

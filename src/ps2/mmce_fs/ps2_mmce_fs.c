@@ -52,7 +52,8 @@ void ps2_mmce_fs_init(void)
 
     memset((void*)m_data.chunk_state, 0, sizeof(m_data.chunk_state));
 
-    critical_section_init(&mmce_fs_crit);
+    if (!mmce_fs_crit.spin_lock)
+        critical_section_init(&mmce_fs_crit);
 
     mmce_fs_operation = MMCE_FS_NONE;
 }
