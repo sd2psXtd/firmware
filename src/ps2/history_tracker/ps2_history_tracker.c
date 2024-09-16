@@ -45,7 +45,7 @@
 #define SYSTEMDATA_DIRNAME      "/B%cDATA-SYSTEM"
 #define HISTORY_FILENAME_FORMAT "/B%cDATA-SYSTEM/history"
 
-static enum { HISTORY_STATUS_CARD_CHANGED, HISTORY_STATUS_WAITING_WRITE, HISTORY_STATUS_WAITING_REFRESH } status;
+static enum { HISTORY_STATUS_INIT, HISTORY_STATUS_CARD_CHANGED, HISTORY_STATUS_WAITING_WRITE, HISTORY_STATUS_WAITING_REFRESH } status;
 
 static mcfat_cardspecs_t cardspecs;
 static mcfat_mcops_t mcOps;
@@ -185,8 +185,11 @@ void ps2_history_tracker_card_changed() {
     log(LOG_INFO, "%s\n", __func__);
 
     mcfat_setCardChanged(true);
+    cardspecs.cardsize = ps2_cardman_get_card_size();
+    mcfat_setConfig(mcOps, cardspecs);
 
     status = HISTORY_STATUS_CARD_CHANGED;
+
     lastAccess = time_us_64();
 
     log(LOG_INFO, "%sCard changed finished\n", __func__);
@@ -201,11 +204,10 @@ void ps2_history_tracker_init() {
 
     cardspecs.pagesize = 512;
     cardspecs.blocksize = 16;
-    cardspecs.cardsize = ps2_cardman_get_card_size();
     cardspecs.flags = 0x08 | 0x10;
-    status = HISTORY_STATUS_CARD_CHANGED;
+
+    status = HISTORY_STATUS_INIT;
     writeOccured = false;
-    mcfat_setConfig(mcOps, cardspecs);
     memset(slotCount, 0x00, sizeof(slotCount));
 }
 
