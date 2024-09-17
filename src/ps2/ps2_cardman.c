@@ -287,7 +287,6 @@ static void ps2_cardman_continue(void) {
         if (settings_get_sd_mode() || card_size > PS2_CARD_SIZE_8M) {
             uint64_t end = time_us_64();
             log(LOG_INFO, "took = %.2f s; SD read speed = %.2f kB/s\n", (end - cardprog_start) / 1e6, 1000000.0 * card_size / (end - cardprog_start) / 1024);
-            ps2_mc_data_interface_card_changed();
             if (cardman_cb)
                 cardman_cb(100, true);
             cardman_operation = CARDMAN_IDLE;
@@ -304,7 +303,6 @@ static void ps2_cardman_continue(void) {
                     cardman_operation = CARDMAN_IDLE;
                     uint64_t end = time_us_64();
                     log(LOG_INFO, "took = %.2f s; SD read speed = %.2f kB/s\n", (end - cardprog_start) / 1e6, 1000000.0 * card_size / (end - cardprog_start) / 1024);
-                    ps2_mc_data_interface_card_changed();
                     if (cardman_cb)
                         cardman_cb(100, true);
                     break;
@@ -346,7 +344,6 @@ static void ps2_cardman_continue(void) {
 
                 cardman_operation = CARDMAN_IDLE;
                 uint64_t end = time_us_64();
-                ps2_mc_data_interface_card_changed();
 
                 log(LOG_INFO, "took = %.2f s; SD write speed = %.2f kB/s\n", (end - cardprog_start) / 1e6, 1000000.0 * card_size / (end - cardprog_start) / 1024);
                 if (cardman_cb) 
@@ -409,6 +406,7 @@ void ps2_cardman_open(void) {
     }
 
     log(LOG_INFO, "Switching to card path = %s\n", path);
+    ps2_mc_data_interface_card_changed();
 
     if (!sd_exists(path)) {
         card_size = settings_get_ps2_cardsize() * 1024 * 1024;
