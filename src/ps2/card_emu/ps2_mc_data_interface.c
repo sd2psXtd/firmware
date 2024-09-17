@@ -152,7 +152,7 @@ void __time_critical_func(ps2_mc_data_interface_start_dma)(volatile ps2_mcdi_pag
     dma_in_progress = true;
     page_p->page_state = PAGE_DATA_AVAILABLE;
     psram_read_dma(page_p->page * PS2_PAGE_SIZE, page_p->data, PS2_PAGE_SIZE, ps2_mc_data_interface_rx_done);
-    log(LOG_INFO, "%s start dma %lu\n", __func__, page_p->page);
+    log(LOG_INFO, "%s start dma %zu\n", __func__, page_p->page);
     busy_cycle = true;
 }
 #endif
@@ -238,7 +238,7 @@ void __time_critical_func(ps2_mc_data_interface_setup_read_page)(uint32_t page, 
                 
                 log(LOG_INFO, "%s setting up read %u\n", __func__, page);
             } else  {
-                log(LOG_INFO, "%s found %u for %u \n", page_p->page_state, page_p->page);
+                log(LOG_INFO, "%s found %u for %u \n", __func__, page_p->page_state, page_p->page);
             }
 
             log(LOG_INFO, "%s Waiting page %u - State: %u\n", __func__, page, page_p->page_state);
