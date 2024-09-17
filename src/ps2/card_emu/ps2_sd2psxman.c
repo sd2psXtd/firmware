@@ -103,6 +103,7 @@ void ps2_sd2psxman_task(void) {
         log(LOG_TRACE, "%s After Close\n", __func__);
         ps2_mmce_fs_init();
 
+        sleep_ms(500);
         // open new card
 #if WITH_GUI
         gui_do_ps2_card_switch();
@@ -110,7 +111,6 @@ void ps2_sd2psxman_task(void) {
         gui_request_refresh();
         log(LOG_TRACE, "%s After Refresh\n", __func__);
 #else
-        sleep_ms(500);
         ps2_cardman_open();
         ps2_memory_card_enter();
 #endif
