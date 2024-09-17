@@ -213,63 +213,63 @@ void ps2_history_tracker_init() {
 
 void ps2_history_tracker_task() {
     uint64_t micros = time_us_64();
-    if (status == HISTORY_STATUS_CARD_CHANGED) {
-        if (ps2_mc_data_interface_busy() || (micros < HISTORY_BOOTUP_DEL) || writeOccured || !ps2_cardman_is_idle()) {
+    
+    if ((micros < HISTORY_BOOTUP_DEL) 
+            || writeOccured
+            || !ps2_cardman_is_idle()) {
             lastAccess = micros;
-        } else if ((micros - lastAccess) > HISTORY_CARD_CH_HYST_US) {
-            log(LOG_TRACE, "%s:%u\n", __func__, __LINE__);
-            ps2_history_tracker_readClusters();
-            status = HISTORY_STATUS_WAITING_WRITE;
-        }
-    } else if (status == HISTORY_STATUS_WAITING_REFRESH) {
-        if (ps2_mc_data_interface_busy()) {
-            lastAccess = micros;
-        } else if ((micros - lastAccess) > HISTORY_WRITE_HYST_US) {
-            // If Writing to MC has just finished...
-            uint8_t buff[HISTORY_FILE_SIZE] = {0x00};
-            char filename[23] = {0x00};
-            char dirname[15] = {0x00};
-            log(LOG_INFO, "%s refreshing history...\n", __func__);
-            writeOccured = false;
+    } else if ((status == HISTORY_STATUS_CARD_CHANGED) 
+        && (micros - lastAccess) > HISTORY_CARD_CH_HYST_US) {
+        log(LOG_TRACE, "%s:%u\n", __func__, __LINE__);
+        ps2_history_tracker_readClusters();
+        status = HISTORY_STATUS_WAITING_WRITE;
+    
+    } else if ((status == HISTORY_STATUS_WAITING_REFRESH) 
+        && (micros - lastAccess) > HISTORY_WRITE_HYST_US) {
+        // If Writing to MC has just finished...
+        uint8_t buff[HISTORY_FILE_SIZE] = {0x00};
+        char filename[23] = {0x00};
+        char dirname[15] = {0x00};
+        log(LOG_INFO, "%s refreshing history...\n", __func__);
+        writeOccured = false;
 
-            mcio_init();  // Call init to invalidate caches...
+        mcio_init();  // Call init to invalidate caches...
 
-            for (int i = 0; i < HISTORY_NUMBER_OF_REGIONS; i++) {
-                uint8_t slots_new[21] = {};
-                // Read current history file for each region
-                memset((void*)buff, 0x00, HISTORY_FILE_SIZE);
-                snprintf(dirname, 15, SYSTEMDATA_DIRNAME, regionList[i]);
-                snprintf(filename, 23, HISTORY_FILENAME_FORMAT, regionList[i]);
-                log(LOG_INFO, "Checking %s and %s\n", filename, dirname);
-                if (refreshRequired[i] && dirExists(dirname) && fileExists(filename)) {
-                    int fh = mcio_mcOpen(filename, sceMcFileAttrReadable);
-                    if (fileCluster[i] == 0x0)
-                        fileCluster[i] = mcio_mcGetCluster(fh);
+        for (int i = 0; i < HISTORY_NUMBER_OF_REGIONS; i++) {
+            uint8_t slots_new[21] = {};
+            // Read current history file for each region
+            memset((void*)buff, 0x00, HISTORY_FILE_SIZE);
+            snprintf(dirname, 15, SYSTEMDATA_DIRNAME, regionList[i]);
+            snprintf(filename, 23, HISTORY_FILENAME_FORMAT, regionList[i]);
+            log(LOG_INFO, "Checking %s and %s\n", filename, dirname);
+            if (refreshRequired[i] && dirExists(dirname) && fileExists(filename)) {
+                int fh = mcio_mcOpen(filename, sceMcFileAttrReadable);
+                if (fileCluster[i] == 0x0)
+                    fileCluster[i] = mcio_mcGetCluster(fh);
 
-                    log(LOG_INFO, "Updating filename %s, fd %d, new cluster %u\n", filename, fh, fileCluster[i]);
-                    if (fh >= 0) {
-                        mcio_mcRead(fh, buff, HISTORY_FILE_SIZE);
-                        readSlots(buff, slots_new);
-                        for (int j = 0; j < HISTORY_ENTRY_COUNT; j++) {
-                            if (slots_new[j] != slotCount[i][j]) {
-                                char sanitized_game_id[11] = {0};
-                                game_db_extract_title_id(&buff[j * HISTORY_ENTRY_SIZE], sanitized_game_id, 16, sizeof(sanitized_game_id));
-                                log(LOG_INFO, "Game ID: %s\n", sanitized_game_id);
-                                if (game_db_sanity_check_title_id(sanitized_game_id)) {
-                                    ps2_sd2psxman_set_gameid(sanitized_game_id);
-                                    break;
-                                }
+                log(LOG_INFO, "Updating filename %s, fd %d, new cluster %u\n", filename, fh, fileCluster[i]);
+                if (fh >= 0) {
+                    mcio_mcRead(fh, buff, HISTORY_FILE_SIZE);
+                    readSlots(buff, slots_new);
+                    for (int j = 0; j < HISTORY_ENTRY_COUNT; j++) {
+                        if (slots_new[j] != slotCount[i][j]) {
+                            char sanitized_game_id[11] = {0};
+                            game_db_extract_title_id(&buff[j * HISTORY_ENTRY_SIZE], sanitized_game_id, 16, sizeof(sanitized_game_id));
+                            log(LOG_INFO, "Game ID: %s\n", sanitized_game_id);
+                            if (game_db_sanity_check_title_id(sanitized_game_id)) {
+                                ps2_sd2psxman_set_gameid(sanitized_game_id);
+                                break;
                             }
                         }
-                        mcio_mcClose(fh);
-                        memcpy((void*)slotCount[i], (void*)slots_new, HISTORY_ENTRY_COUNT);
-                    } else {
-                        log(LOG_INFO, "File exists, but handle returned %d\n", fh);
                     }
+                    mcio_mcClose(fh);
+                    memcpy((void*)slotCount[i], (void*)slots_new, HISTORY_ENTRY_COUNT);
+                } else {
+                    log(LOG_INFO, "File exists, but handle returned %d\n", fh);
                 }
-                refreshRequired[i] = false;
             }
-            status = HISTORY_STATUS_WAITING_WRITE;
+            refreshRequired[i] = false;
         }
+        status = HISTORY_STATUS_WAITING_WRITE;
     }
 }
