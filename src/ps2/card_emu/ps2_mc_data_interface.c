@@ -425,7 +425,7 @@ void ps2_mc_data_interface_card_changed(void) {
     for(int i = 0; i < (ERASE_CACHE + WRITE_CACHE); i++) {
         writepages[i].page_state = PAGE_EMPTY;
         writepages[i].page = 0;
-        writepages[i].data = &cache[READ_CACHE + (i * PS2_PAGE_SIZE)];
+        writepages[i].data = &cache[(READ_CACHE * PS2_PAGE_SIZE) + (i * PS2_PAGE_SIZE)];
     }
     for (int i = 0; i < PAGE_CACHE_SIZE; i++) {
         ops[i] = NULL;
