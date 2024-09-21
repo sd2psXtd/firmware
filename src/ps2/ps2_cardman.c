@@ -364,6 +364,8 @@ static void ps2_cardman_continue(void) {
             } else {
 #if WITH_PSRAM
                 ps2_dirty_lock();
+                psram_wait_for_dma();
+
                 // read back from PSRAM to make sure to retain already rewritten sectors, if any
                 psram_read_dma(cardprog_pos, flushbuf, BLOCK_SIZE, NULL);
                 psram_wait_for_dma();

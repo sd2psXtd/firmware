@@ -309,10 +309,11 @@ void ps2_mmce_fs_run(void)
 //Core 1
 void ps2_mmce_fs_wait_ready(void)
 {
-    while (mmce_fs_operation != MMCE_FS_NONE)
+    while ((mmce_fs_operation != MMCE_FS_NONE) && (mmce_fs_operation != MMCE_FS_BLOCKING))
     {
         sleep_us(1);
     }
+    mmce_fs_operation = MMCE_FS_BLOCKING;
 }
 
 void ps2_mmce_fs_signal_operation(int op)

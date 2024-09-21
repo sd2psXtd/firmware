@@ -306,6 +306,8 @@ static void __no_inline_not_in_flash_func(mc_main)(void) {
         while (!ps2_cardman_is_accessible()) {}
         ps2_history_tracker_card_changed();
         memcard_running = 1;
+        transfer_stage = 0;
+        mc_callback = NULL;
         
         reset_pio();
         mc_main_loop();

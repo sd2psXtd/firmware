@@ -82,6 +82,14 @@ void __time_critical_func(psram_write_dma)(uint32_t addr, void *vbuf, size_t sz,
     critical_section_exit(&crit_psram);
 }
 
+void __time_critical_func(psram_write)(uint32_t addr, void *vbuf, size_t sz) {
+    uint8_t *buf = vbuf;
+    critical_section_enter_blocking(&crit_psram);
+    gpio_put(spi.cs_pin, 0);
+    pio_qspi_write8_blocking(&spi, addr, buf, sz);
+    critical_section_exit(&crit_psram);
+}
+
 uint32_t psram_write_dma_remaining() {
     return dma_channel_hw_addr(PIO_SPI_DMA_TX_DATA_CHAN)->transfer_count;
 }
@@ -90,11 +98,13 @@ uint32_t psram_read_dma_remaining() {
 }
 
 inline void psram_wait_for_dma() {
-    while(pio_qspi_dma_active()) {tight_loop_contents();};
-//    dma_channel_wait_for_finish_blocking(PIO_SPI_DMA_TX_CMD_CHAN);
-//    dma_channel_wait_for_finish_blocking(PIO_SPI_DMA_RX_CMD_CHAN);
-//    dma_channel_wait_for_finish_blocking(PIO_SPI_DMA_TX_DATA_CHAN);
-//    dma_channel_wait_for_finish_blocking(PIO_SPI_DMA_RX_DATA_CHAN);
+    //while(pio_qspi_dma_active()) {tight_loop_contents();
+    //printf("Rd: %u Wr: %u Reg: %08x\n", psram_read_dma_remaining(), psram_write_dma_remaining(), dma_channel_hw_addr(PIO_SPI_DMA_RX_DATA_CHAN)->ctrl_trig); if (cnt-- == 0) fatal("Took too long");
+    //};
+    dma_channel_wait_for_finish_blocking(PIO_SPI_DMA_TX_CMD_CHAN);
+    dma_channel_wait_for_finish_blocking(PIO_SPI_DMA_RX_CMD_CHAN);
+    dma_channel_wait_for_finish_blocking(PIO_SPI_DMA_TX_DATA_CHAN);
+    dma_channel_wait_for_finish_blocking(PIO_SPI_DMA_RX_DATA_CHAN);
 }
 
 static void psram_run_tests(void) {

@@ -27,7 +27,7 @@
 #endif
 
 //TODO: temp global values, find them a home
-static int transfer_stage = 0;
+int transfer_stage = 0;
 volatile ps2_mmce_fs_data_t *data = NULL;
 
 //#define DEBUG_SD2PSXMAN_PROTOCOL

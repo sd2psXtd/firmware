@@ -27,6 +27,7 @@
 #define MMCE_FS_GETSTAT 0xD
 #define MMCE_FS_VALIDATE_FD 0xE
 #define MMCE_FS_READ_AHEAD 0xF
+#define MMCE_FS_BLOCKING 0x10
 
 #define MMCE_FS_LSEEK64 0xee
 
