@@ -35,5 +35,5 @@ extern void __time_critical_func(write_mc)(uint32_t addr, void *buf, size_t sz);
 
 #define receiveOrNextCmd(cmd)          \
     if (receive(cmd) == RECEIVE_RESET) {\
-    DPRINTF("%s:%u", __func__, __LINE__); \
+    DPRINTF("Reset at %s:%u", __func__, __LINE__); \
     return;}
