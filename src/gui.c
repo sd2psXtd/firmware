@@ -153,7 +153,6 @@ static lv_obj_t *ui_header_create(lv_obj_t *parent, const char *text) {
 static void update_bar(void) {
     static lv_point_t line_points[2] = {{0, DISPLAY_HEIGHT / 2}, {0, DISPLAY_HEIGHT / 2}};
     static int prev_progress;
-    current_progress += 5;
     if (current_progress / 5 == prev_progress / 5)
         return;
     prev_progress = current_progress;
@@ -1019,7 +1018,6 @@ void gui_task(void) {
     const char *folder_name = NULL;
 
     if (waiting_card) {
-        log(LOG_INFO, "%s Waiting for card\n", __func__);
         update_bar();
 
         oled_update_last_action_time();
