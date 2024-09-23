@@ -5,6 +5,7 @@
 #include <string.h>
 
 #include "card_emu/ps2_mc_data_interface.h"
+#include "card_emu/ps2_mc_internal.h"
 #include "debug.h"
 #include "hardware/timer.h"
 #include "history_tracker/ps2_history_tracker.h"
@@ -91,8 +92,7 @@ void ps2_sd2psxman_task(void) {
     if (ps2_cardman_needs_update() 
         && (sd2psxman_switching_timeout < time_us_64())
         && !input_is_any_down()
-        && !ps2_memory_card_transfer_running()
-        && ps2_mmce_fs_idle()) {
+        && !op_in_progress) {
         log(LOG_INFO, "%s Switching card now\n", __func__);
 
         ps2_history_tracker_init();

@@ -28,6 +28,7 @@
 
 //TODO: temp global values, find them a home
 int transfer_stage = 0;
+volatile bool op_in_progress = false;
 volatile ps2_mmce_fs_data_t *data = NULL;
 
 //#define DEBUG_SD2PSXMAN_PROTOCOL
@@ -194,6 +195,7 @@ inline __attribute__((always_inline)) void __time_critical_func(ps2_mmceman_cmd_
         //Packet #1: Command and flags
         case 0:
             MP_CMD_START();
+            op_in_progress = true;
             ps2_mmce_fs_wait_ready();         //Wait for file handling to be ready
             data = ps2_mmce_fs_get_data();    //Get pointer to mmce fs data
 
@@ -236,6 +238,7 @@ inline __attribute__((always_inline)) void __time_critical_func(ps2_mmceman_cmd_
             ps2_memory_card_set_cmd_callback(NULL); //Clear callback
             transfer_stage = 0; //Clear stage
             mc_respond(term);   //End transfer
+            op_in_progress = false;
             MP_CMD_END();
             
         break;
@@ -247,6 +250,7 @@ inline __attribute__((always_inline)) void __time_critical_func(ps2_mmceman_cmd_
     uint8_t cmd;
 
     MP_CMD_START();
+    op_in_progress = true;
     ps2_mmce_fs_wait_ready();
     data = ps2_mmce_fs_get_data();
 
@@ -264,7 +268,7 @@ inline __attribute__((always_inline)) void __time_critical_func(ps2_mmceman_cmd_
     log(LOG_INFO, "%s: rv: %i\n", __func__, data->rv);
 
     mc_respond(term);
-    
+    op_in_progress = false;
     MP_CMD_END();
     
 }
@@ -286,6 +290,7 @@ inline __attribute__((always_inline)) void __time_critical_func(ps2_mmceman_cmd_
         //Packet #1: File handle, length, and return value
         case 0:
             MP_CMD_START();
+            op_in_progress = true;
 
             ps2_mmce_fs_wait_ready();           //Wait for file handling to be ready
             data = ps2_mmce_fs_get_data();      //Get pointer to data
@@ -451,6 +456,7 @@ inline __attribute__((always_inline)) void __time_critical_func(ps2_mmceman_cmd_
         
             transfer_stage = 0;
             mc_respond(term);
+            op_in_progress = false;
             MP_CMD_END();
             
 
@@ -478,6 +484,7 @@ inline __attribute__((always_inline)) void __time_critical_func(ps2_mmceman_cmd_
     switch(transfer_stage) {
         //Packet 1: File descriptor, length, and return value
         case 0:
+            op_in_progress = true;
             ps2_mmce_fs_wait_ready();          //Wait for file handling to be ready
             data = ps2_mmce_fs_get_data();     //Get pointer to data
             
@@ -505,6 +512,7 @@ inline __attribute__((always_inline)) void __time_critical_func(ps2_mmceman_cmd_
             if (data->rv == -1) {
                 log(LOG_ERROR, "%s: bad fd: %i, abort\n", __func__, data->fd);
                 mc_respond(0x1);    //Return 1
+                op_in_progress = false;
                 return;             //Abort
             }
 
@@ -594,8 +602,8 @@ inline __attribute__((always_inline)) void __time_critical_func(ps2_mmceman_cmd_
             ps2_memory_card_set_cmd_callback(NULL);
 
             transfer_stage = 0;
-
             mc_respond(term);
+            op_in_progress = false;
 
         break;
     }
@@ -609,6 +617,7 @@ inline __attribute__((always_inline)) void __time_critical_func(ps2_mmceman_cmd_
     
 
     MP_CMD_START();
+    op_in_progress = true;
     ps2_mmce_fs_wait_ready();
     data = ps2_mmce_fs_get_data();
 
@@ -638,6 +647,7 @@ inline __attribute__((always_inline)) void __time_critical_func(ps2_mmceman_cmd_
         mc_respond(0xff);
         mc_respond(0xff);
         mc_respond(term);
+        op_in_progress = false;
         return;
     }
 
@@ -654,6 +664,7 @@ inline __attribute__((always_inline)) void __time_critical_func(ps2_mmceman_cmd_
 
     log(LOG_INFO, "%s: position %llu\n", __func__, (long long unsigned int)data->position);
 
+    op_in_progress = false;
     mc_respond(term);
     MP_CMD_END();
     
@@ -670,6 +681,7 @@ inline __attribute__((always_inline)) void __time_critical_func(ps2_mmceman_cmd_
         //Packet #1: Command and padding
         case 0:
             MP_CMD_START();
+            op_in_progress = true;
             ps2_mmce_fs_wait_ready();
             data = ps2_mmce_fs_get_data();
 
@@ -708,6 +720,7 @@ inline __attribute__((always_inline)) void __time_critical_func(ps2_mmceman_cmd_
             log(LOG_INFO, "%s: rv: %i\n", __func__, data->rv);
 
             mc_respond(term);
+            op_in_progress = false;
             MP_CMD_END();
             
         break;
@@ -724,6 +737,7 @@ inline __attribute__((always_inline)) void __time_critical_func(ps2_mmceman_cmd_
         //Packet #1: Command and padding
         case 0:
             MP_CMD_START();
+            op_in_progress = true;
             ps2_mmce_fs_wait_ready();
             data = ps2_mmce_fs_get_data();
 
@@ -760,6 +774,7 @@ inline __attribute__((always_inline)) void __time_critical_func(ps2_mmceman_cmd_
             log(LOG_INFO, "%s: rv: %i\n", __func__, data->rv);
 
             mc_respond(term);
+            op_in_progress = false;
             MP_CMD_END();
             
         break;
@@ -776,6 +791,7 @@ inline __attribute__((always_inline)) void __time_critical_func(ps2_mmceman_cmd_
         //Packet #1: Command and padding
         case 0:
             MP_CMD_START();
+            op_in_progress = false;
             ps2_mmce_fs_wait_ready();
             data = ps2_mmce_fs_get_data();
 
@@ -813,6 +829,7 @@ inline __attribute__((always_inline)) void __time_critical_func(ps2_mmceman_cmd_
             log(LOG_INFO, "%s: rv: %i\n", __func__, data->rv);
 
             mc_respond(term);
+            op_in_progress = false;
             MP_CMD_END();
             
         break;
@@ -831,6 +848,7 @@ inline __attribute__((always_inline)) void __time_critical_func(ps2_mmceman_cmd_
         //Packet #1: Command and padding
         case 0:
             MP_CMD_START();
+            op_in_progress = false;
             ps2_mmce_fs_wait_ready();
             data = ps2_mmce_fs_get_data();
 
@@ -869,6 +887,7 @@ inline __attribute__((always_inline)) void __time_critical_func(ps2_mmceman_cmd_
             log(LOG_INFO, "%s: rv: %i\n", __func__, data->rv);
 
             mc_respond(term);
+            op_in_progress = false;
 
             MP_CMD_END();
             
@@ -882,6 +901,7 @@ inline __attribute__((always_inline)) void __time_critical_func(ps2_mmceman_cmd_
     
 
     MP_CMD_START();
+    op_in_progress = true;
     ps2_mmce_fs_wait_ready();
     data = ps2_mmce_fs_get_data();
 
@@ -898,6 +918,7 @@ inline __attribute__((always_inline)) void __time_critical_func(ps2_mmceman_cmd_
     log(LOG_INFO, "%s: rv: %i\n", __func__, data->rv);
 
     mc_respond(term);       //Term
+    op_in_progress = false;
     MP_CMD_END();
     
 }
@@ -912,6 +933,7 @@ inline __attribute__((always_inline)) void __time_critical_func(ps2_mmceman_cmd_
         //Packet #1: File descriptor
         case 0:
             MP_CMD_START();
+            op_in_progress = true;
             ps2_mmce_fs_wait_ready();
             data = ps2_mmce_fs_get_data();
 
@@ -926,6 +948,7 @@ inline __attribute__((always_inline)) void __time_critical_func(ps2_mmceman_cmd_
             if (data->rv == -1) {
                 log(LOG_ERROR, "%s: Bad fd: %i, abort\n", __func__, data->fd);
                 mc_respond(0x1);
+                op_in_progress = false;
                 return;
             }
 
@@ -936,6 +959,7 @@ inline __attribute__((always_inline)) void __time_critical_func(ps2_mmceman_cmd_
             if (data->rv == -1) {
                 log(LOG_ERROR, "%s: Failed to get stat\n", __func__);
                 mc_respond(0x1);
+                op_in_progress = false;
                 return;
             }
 
@@ -1004,6 +1028,7 @@ inline __attribute__((always_inline)) void __time_critical_func(ps2_mmceman_cmd_
             transfer_stage = 0;
 
             mc_respond(term);       //Term
+            op_in_progress = false;
             MP_CMD_END();
             
         break;
@@ -1020,6 +1045,7 @@ inline __attribute__((always_inline)) void __time_critical_func(ps2_mmceman_cmd_
         //Packet #1: File descriptor
         case 0:
             MP_CMD_START();
+            op_in_progress = false;
             ps2_mmce_fs_wait_ready();
             data = ps2_mmce_fs_get_data();
 
@@ -1095,6 +1121,7 @@ inline __attribute__((always_inline)) void __time_critical_func(ps2_mmceman_cmd_
                 ps2_mmce_fs_signal_operation(MMCE_FS_CLOSE);
                 ps2_mmce_fs_wait_ready();
             }
+            op_in_progress = false;
 
             mc_respond(term); 
         break;
@@ -1108,6 +1135,7 @@ inline __attribute__((always_inline)) void __time_critical_func(ps2_mmceman_cmd_
     uint8_t *position8 = NULL;
 
     MP_CMD_START();
+    op_in_progress = true;
     ps2_mmce_fs_wait_ready();
     data = ps2_mmce_fs_get_data();
 
@@ -1148,6 +1176,7 @@ inline __attribute__((always_inline)) void __time_critical_func(ps2_mmceman_cmd_
         mc_respond(0xff);
         mc_respond(0xff);
         mc_respond(term);
+        op_in_progress = false;
         return;
     }
 
@@ -1167,6 +1196,7 @@ inline __attribute__((always_inline)) void __time_critical_func(ps2_mmceman_cmd_
     log(LOG_INFO, "%s: position: %llu\n", __func__, (long long unsigned int)data->position);
 
     mc_respond(term);
+    op_in_progress = false;
     MP_CMD_END();
     
 }
@@ -1189,6 +1219,7 @@ inline __attribute__((always_inline)) void __time_critical_func(ps2_mmceman_cmd_
     switch(transfer_stage) {
         case 0:
             MP_CMD_START();
+            op_in_progress = true;
             ps2_mmce_fs_wait_ready();
             data = ps2_mmce_fs_get_data();
             
@@ -1263,6 +1294,7 @@ inline __attribute__((always_inline)) void __time_critical_func(ps2_mmceman_cmd_
                         log(LOG_ERROR, "Failed to read chunk, got CHUNK_STATE_INVALID, aborting\n");
                         data->chunk_state[data->tail_idx] = CHUNK_STATE_NOT_READY;
                         mc_respond(0x1);    //Return 1
+                        op_in_progress = false;
                         return;             //Abort
                     }
 
@@ -1396,6 +1428,7 @@ inline __attribute__((always_inline)) void __time_critical_func(ps2_mmceman_cmd_
         
             transfer_stage = 0;
             mc_respond(term);
+            op_in_progress = false;
             MP_CMD_END();
             
         break;
