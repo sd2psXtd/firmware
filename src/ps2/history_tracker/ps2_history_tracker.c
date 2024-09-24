@@ -74,6 +74,7 @@ int page_write(mcfat_cardspecs_t* info, uint32_t page, void* buff) {
 
 int __time_critical_func(page_read)(mcfat_cardspecs_t* info, uint32_t page, uint32_t count, void* buff) {
     (void)info;
+    log(LOG_TRACE, "Reading page %d\n", page);
     ps2_mc_data_interface_setup_read_page(page, false, true);
     volatile ps2_mcdi_page_t* read_page = ps2_mc_data_interface_get_page(page);
     if (read_page != NULL) {
@@ -85,6 +86,7 @@ int __time_critical_func(page_read)(mcfat_cardspecs_t* info, uint32_t page, uint
     } else {
         return sceMcResFailReadCluster;
     }
+    log(LOG_TRACE, "Reading page %d done\n", page);
 
     return sceMcResSucceed;
 }
@@ -234,6 +236,7 @@ void ps2_history_tracker_task() {
         writeOccured = false;
 
         mcio_init();  // Call init to invalidate caches...
+        log(LOG_TRACE, "%s Post Init\n", __func__);
 
         for (int i = 0; i < HISTORY_NUMBER_OF_REGIONS; i++) {
             uint8_t slots_new[21] = {};

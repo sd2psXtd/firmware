@@ -239,9 +239,18 @@ static void __time_critical_func(mc_main_loop)(void) {
                 case PS2_SIO2_CMD_SET_TERMINATOR: ps2_mc_cmd_setTerminator(); break;
                 case PS2_SIO2_CMD_GET_TERMINATOR: ps2_mc_cmd_getTerminator(); break;
                 case PS2_SIO2_CMD_WRITE_DATA: ps2_mc_cmd_writeData(); break;
-                case PS2_SIO2_CMD_READ_DATA: ps2_mc_cmd_readData(); break;
-                case PS2_SIO2_CMD_COMMIT_DATA: ps2_mc_cmd_commitData(); break;
-                case PS2_SIO2_CMD_ERASE: ps2_mc_cmd_erase(); break;
+                case PS2_SIO2_CMD_READ_DATA: 
+                    if (ps2_cardman_is_accessible())
+                        ps2_mc_cmd_readData(); 
+                    break;
+                case PS2_SIO2_CMD_COMMIT_DATA: 
+                    if (ps2_cardman_is_accessible())
+                        ps2_mc_cmd_commitData(); 
+                    break;
+                case PS2_SIO2_CMD_ERASE: 
+                    if (ps2_cardman_is_accessible())
+                        ps2_mc_cmd_erase(); 
+                    break;
                 case PS2_SIO2_CMD_BF: ps2_mc_cmd_0xBF(); break;
                 case PS2_SIO2_CMD_F3: ps2_mc_cmd_0xF3(); break;
                 case PS2_SIO2_CMD_KEY_SELECT: ps2_mc_cmd_keySelect(); break;
@@ -303,7 +312,7 @@ static void __no_inline_not_in_flash_func(mc_main)(void) {
     while (1) {
         while (!mc_enter_request) {}
         mc_enter_response = 1;
-        while (!ps2_cardman_is_accessible()) {}
+        
         ps2_history_tracker_card_changed();
         memcard_running = 1;
         transfer_stage = 0;

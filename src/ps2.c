@@ -22,43 +22,32 @@
 #define log(level, fmt, x...) LOG_PRINT(LOG_LEVEL_PS2_MAIN, level, fmt, ##x)
 #endif
 
-void ps2_switch_card(void) {
-    ps2_memory_card_exit();
-    ps2_cardman_close();
-#if WITH_GUI
-    gui_do_ps2_card_switch();
-#else
-    ps2_cardman_open();
-    ps2_memory_card_enter();
-#endif
-}
-
 void ps2_init(void) {
     log(LOG_INFO, "starting in PS2 mode\n");
 
     keystore_init();
+    
+    multicore_launch_core1(ps2_memory_card_main);
+
+    ps2_history_tracker_init();
+
+    ps2_memory_card_enter();
 
     ps2_mc_data_interface_init();
     
     ps2_cardman_init();
 
-    ps2_history_tracker_init();
-
-    multicore_launch_core1(ps2_memory_card_main);
-
-#if WITH_GUI
-    gui_init();
-#endif
+    log(LOG_INFO, "Starting memory card... ");
+    ps2_cardman_open();
 
     ps2_mmce_fs_init();
 
-    log(LOG_INFO, "Starting memory card... ");
     uint64_t start = time_us_64();
+
 #if WITH_GUI
+    gui_init();
+
     gui_do_ps2_card_switch();
-#else
-    ps2_cardman_open();
-    ps2_memory_card_enter();
 #endif
     uint64_t end = time_us_64();
     log(LOG_INFO, "DONE! (%d us)\n", (int)(end - start));
@@ -72,7 +61,9 @@ bool ps2_task(void) {
     input_task();
     oled_task();
 #endif
+    log(LOG_TRACE, "%s after GUI\n", __func__);
     ps2_mmce_fs_run();
+    log(LOG_TRACE, "%s mmcefs\n", __func__);
 
     if (ps2_cardman_is_accessible()) {
         ps2_history_tracker_task();

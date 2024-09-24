@@ -997,16 +997,16 @@ void gui_do_ps1_card_switch(void) {
 }
 
 void gui_do_ps2_card_switch(void) {
-    printf("switching the card now!\n");
+
     current_progress = 0;
+
     update_bar();
+
     UI_GOTO_SCREEN(scr_card_switch);
 
     oled_update_last_action_time();
 
     ps2_cardman_set_progress_cb(reload_card_cb);
-    ps2_cardman_open();
-    ps2_memory_card_enter();
 
     waiting_card = true;
 }
