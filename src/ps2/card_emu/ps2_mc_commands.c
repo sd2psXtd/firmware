@@ -206,10 +206,7 @@ inline __attribute__((always_inline)) void __time_critical_func(ps2_mc_cmd_write
         ck ^= b;
         mc_respond(0xFF);
     }
-    //if (writeptr == PS2_PAGE_SIZE) {
-    //    QPRINTF("%s Early write commit: %u\n", __func__, write_sector);
-    //    ps2_mc_data_interface_write_mc(write_sector, writetmp);
-    //}
+    
     // this should be checksum?
     receiveOrNextCmd(&ck2);
     (void)ck2;  // TODO: validate checksum
