@@ -22,12 +22,17 @@
 
 extern const char *log_level_str[];
 
+#ifdef DEBUG_USB_UART
 #define LOG_PRINT(file_level, level, fmt, x...) \
     do { \
         if (level <= file_level) { \
             printf("%s C%i: "fmt, log_level_str[level], get_core_num(), ##x); \
         } \
     } while (0);
+#else
+#define LOG_PRINT(file_level, level, fmt, x...)
+
+#endif
 
 #define TIME_PROFILE(f) do {\
     uint64_t time = time_us_64();\
