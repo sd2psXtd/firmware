@@ -7,9 +7,13 @@
 #include <ps2/history_tracker/ps2_history_tracker.h>
 #include <src/core/lv_obj.h>
 #include <src/core/lv_obj_class.h>
+#include <src/core/lv_obj_style.h>
 #include <src/core/lv_obj_tree.h>
 #include <src/hal/lv_hal_disp.h>
+#include <src/misc/lv_anim.h>
+#include <src/misc/lv_style.h>
 #include <src/widgets/lv_label.h>
+#include <stdint.h>
 #include <stdio.h>
 
 #include "config.h"
@@ -219,15 +223,19 @@ static void create_nav(void) {
 
 static void gui_tick(void) {
     static uint64_t prev_time;
+    static uint32_t delay = 0;
+    
     if (!prev_time)
         prev_time = time_us_64();
     uint64_t now_time = time_us_64();
     uint64_t diff_ms = (now_time - prev_time) / 1000;
 
-    if (diff_ms) {
-        prev_time += diff_ms * 1000;
+    if (diff_ms > delay) {
+        prev_time = now_time;
         lv_tick_inc(diff_ms);
-        lv_timer_handler();
+        delay = lv_timer_handler();
+    } else {
+        log(LOG_TRACE, "%s delay %u not reached\n", __func__, delay);
     }
 }
 
@@ -571,6 +579,7 @@ static void create_main_screen(void) {
     lv_label_set_text(src_main_title_lbl, "");
     lv_label_set_long_mode(src_main_title_lbl, LV_LABEL_LONG_SCROLL_CIRCULAR);
     lv_obj_set_width(src_main_title_lbl, 128);
+
 
     lbl = lv_label_create(scr_main);
     lv_obj_set_align(lbl, LV_ALIGN_BOTTOM_LEFT);
@@ -1021,7 +1030,6 @@ void gui_task(void) {
         update_bar();
 
         oled_update_last_action_time();
-        gui_tick();
     } else if (settings_get_mode() == MODE_PS1) {
         static int displayed_card_idx = -1;
         static int displayed_card_channel = -1;
@@ -1069,6 +1077,23 @@ void gui_task(void) {
 
             if (card_name[0]) {
                 lv_label_set_text(src_main_title_lbl, card_name);
+
+                {
+                    lv_anim_t animation_template;
+                    lv_style_t label_style;
+
+                    lv_anim_init(&animation_template);
+                    lv_anim_set_delay(&animation_template, 1000);           /*Wait 1 second to start the first scroll*/
+                    lv_anim_set_repeat_delay(&animation_template, 15000);    /*Repeat the scroll 15 seconds after the label scrolls back to the initial position*/
+                    lv_anim_set_repeat_count(&animation_template, 3);
+                    lv_anim_set_time(&animation_template, 1000);
+                    /*Initialize the label style with the animation template*/
+                    lv_style_init(&label_style);
+                    lv_style_set_anim(&label_style, &animation_template);
+
+                    lv_obj_add_style(src_main_title_lbl, &label_style, LV_STATE_DEFAULT);
+                }
+
             } else {
                 lv_label_set_text(src_main_title_lbl, "");
             }
