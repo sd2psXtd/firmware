@@ -43,7 +43,8 @@
 static lv_obj_t *g_navbar, *g_progress_bar, *g_progress_text, *g_activity_frame;
 
 static lv_obj_t *scr_switch_nag, *scr_card_switch, *scr_main, *scr_menu, *menu, *main_page, *main_header;
-static lv_style_t style_inv;
+static lv_style_t style_inv, src_main_label_style;
+static lv_anim_t src_main_animation_template;
 static lv_obj_t *scr_main_idx_lbl, *scr_main_channel_lbl, *src_main_title_lbl, *lbl_channel, *lbl_ps1_autoboot, *lbl_ps1_game_id, *lbl_ps2_autoboot, *lbl_ps2_cardsize, *lbl_ps2_game_id, *lbl_civ_err, *auto_off_lbl, *contrast_lbl, *vcomh_lbl, *lbl_mode;
 
 static struct {
@@ -580,6 +581,18 @@ static void create_main_screen(void) {
     lv_label_set_long_mode(src_main_title_lbl, LV_LABEL_LONG_SCROLL_CIRCULAR);
     lv_obj_set_width(src_main_title_lbl, 128);
 
+    {
+        lv_anim_init(&src_main_animation_template);
+        lv_anim_set_delay(&src_main_animation_template, 1000);           /*Wait 1 second to start the first scroll*/
+        lv_anim_set_repeat_count(&src_main_animation_template, 0);
+        
+        /*Initialize the label style with the animation template*/
+        lv_style_init(&src_main_label_style);
+        lv_style_set_anim(&src_main_label_style, &src_main_animation_template);
+
+        lv_obj_add_style(src_main_title_lbl, &src_main_label_style, LV_STATE_DEFAULT);
+    }
+
 
     lbl = lv_label_create(scr_main);
     lv_obj_set_align(lbl, LV_ALIGN_BOTTOM_LEFT);
@@ -1077,23 +1090,6 @@ void gui_task(void) {
 
             if (card_name[0]) {
                 lv_label_set_text(src_main_title_lbl, card_name);
-
-                {
-                    lv_anim_t animation_template;
-                    lv_style_t label_style;
-
-                    lv_anim_init(&animation_template);
-                    lv_anim_set_delay(&animation_template, 1000);           /*Wait 1 second to start the first scroll*/
-                    lv_anim_set_repeat_delay(&animation_template, 15000);    /*Repeat the scroll 15 seconds after the label scrolls back to the initial position*/
-                    lv_anim_set_repeat_count(&animation_template, 3);
-                    lv_anim_set_time(&animation_template, 1000);
-                    /*Initialize the label style with the animation template*/
-                    lv_style_init(&label_style);
-                    lv_style_set_anim(&label_style, &animation_template);
-
-                    lv_obj_add_style(src_main_title_lbl, &label_style, LV_STATE_DEFAULT);
-                }
-
             } else {
                 lv_label_set_text(src_main_title_lbl, "");
             }
@@ -1146,6 +1142,15 @@ void gui_task(void) {
 
             if (card_name[0]) {
                 lv_label_set_text(src_main_title_lbl, card_name);
+                lv_anim_init(&src_main_animation_template);
+                lv_anim_set_delay(&src_main_animation_template, 1000);           /*Wait 1 second to start the first scroll*/
+                lv_anim_set_repeat_count(&src_main_animation_template, 0);
+
+                lv_obj_remove_style(src_main_title_lbl, &src_main_label_style, LV_STATE_DEFAULT);
+                lv_style_init(&src_main_label_style);
+                lv_style_set_anim(&src_main_label_style, &src_main_animation_template);
+                
+                lv_obj_add_style(src_main_title_lbl, &src_main_label_style, LV_STATE_DEFAULT);
             } else {
                 lv_label_set_text(src_main_title_lbl, "");
             }
@@ -1164,5 +1169,7 @@ void gui_task(void) {
     }
 
     gui_tick();
+                    log(LOG_TRACE, "repeat count %u, time %u\n", src_main_animation_template.repeat_cnt, src_main_animation_template.playback_time);
+
 
 }
