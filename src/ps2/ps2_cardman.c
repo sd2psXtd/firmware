@@ -51,7 +51,7 @@ static uint64_t cardprog_start;
 static int cardman_sectors_done;
 static size_t cardprog_pos;
 
-static ps2_cardman_state_t cardman_state = PS2_CM_STATE_CLOSED;
+static ps2_cardman_state_t cardman_state;
 
 static enum {
     CARDMAN_CREATE,
