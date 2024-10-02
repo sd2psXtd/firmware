@@ -1211,7 +1211,6 @@ inline __attribute__((always_inline)) void __time_critical_func(ps2_mmceman_cmd_
     uint8_t next_chunk;
     uint32_t bytes_left_in_packet;
     uint64_t offset;
-    uint64_t position;
 
     switch(transfer_stage) {
         case 0:
@@ -1262,7 +1261,7 @@ inline __attribute__((always_inline)) void __time_critical_func(ps2_mmceman_cmd_
                     ps2_mmce_fs_signal_operation(MMCE_FS_LSEEK64);
                     ps2_mmce_fs_wait_ready();
                     if (data->position64 != data->offset64) {
-                        printf("[FATAL] Sector seek failed, possible fragmentation issues, check card! Got: 0x%llu, Exp: 0x%llu\n", position, offset);
+                        printf("[FATAL] Sector seek failed, possible fragmentation issues, check card! Got: 0x%llu, Exp: 0x%llu\n", data->position64, offset);
                     } else {
                         break;
                     }
