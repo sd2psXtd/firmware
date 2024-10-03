@@ -572,6 +572,18 @@ static void create_main_screen(void) {
 
     scr_main_idx_lbl = ui_label_create_at(scr_main, 0, 24, "");
     lv_obj_set_align(scr_main_idx_lbl, LV_ALIGN_TOP_RIGHT);
+    lv_obj_set_width(scr_main_idx_lbl, 11 * 8); // 11 characters, assuming 8px monospace font
+    lv_obj_set_style_text_align(scr_main_idx_lbl, LV_TEXT_ALIGN_RIGHT, LV_PART_MAIN);
+    lv_label_set_long_mode(scr_main_idx_lbl, LV_LABEL_LONG_SCROLL_CIRCULAR);
+
+    lv_anim_init(&src_main_animation_template);
+    lv_anim_set_delay(&src_main_animation_template, 1000);           /*Wait 1 second to start the first scroll*/
+    lv_anim_set_repeat_count(&src_main_animation_template, 0);
+
+    lv_obj_remove_style(scr_main_idx_lbl, &src_main_label_style, LV_STATE_DEFAULT);
+    lv_style_init(&src_main_label_style);
+    lv_style_set_anim(&src_main_label_style, &src_main_animation_template); //<
+    lv_obj_add_style(scr_main_idx_lbl, &src_main_label_style, LV_STATE_DEFAULT);
 
     lbl_channel = ui_label_create_at(scr_main, 0, 32, "Channel");
 
