@@ -60,7 +60,7 @@ static bool refreshRequired[HISTORY_NUMBER_OF_REGIONS];
 int page_erase(mcfat_cardspecs_t* info, uint32_t page) {
     (void)info;
     (void)page;
-    
+
     return sceMcResSucceed;
 }
 
@@ -68,7 +68,7 @@ int page_write(mcfat_cardspecs_t* info, uint32_t page, void* buff) {
     (void)info;
     (void)page;
     (void)buff;
-    
+
     return sceMcResSucceed;
 }
 
@@ -79,9 +79,9 @@ int __time_critical_func(page_read)(mcfat_cardspecs_t* info, uint32_t page, uint
     volatile ps2_mcdi_page_t* read_page = ps2_mc_data_interface_get_page(page);
     if (read_page != NULL) {
         ps2_mc_data_interface_wait_for_byte(count);
-    
+
         memcpy(buff, read_page->data, count);
-    
+
         ps2_mc_data_interface_invalidate_read(page);
     } else {
         return sceMcResFailReadCluster;
@@ -215,18 +215,18 @@ void ps2_history_tracker_init() {
 
 void ps2_history_tracker_task() {
     uint64_t micros = time_us_64();
-    
-    if ((micros < HISTORY_BOOTUP_DEL) 
+
+    if ((micros < HISTORY_BOOTUP_DEL)
             || writeOccured
             || !ps2_cardman_is_idle()) {
             lastAccess = micros;
-    } else if ((status == HISTORY_STATUS_CARD_CHANGED) 
+    } else if ((status == HISTORY_STATUS_CARD_CHANGED)
         && (micros - lastAccess) > HISTORY_CARD_CH_HYST_US) {
         log(LOG_TRACE, "%s:%u\n", __func__, __LINE__);
         ps2_history_tracker_readClusters();
         status = HISTORY_STATUS_WAITING_WRITE;
-    
-    } else if ((status == HISTORY_STATUS_WAITING_REFRESH) 
+
+    } else if ((status == HISTORY_STATUS_WAITING_REFRESH)
         && (micros - lastAccess) > HISTORY_WRITE_HYST_US) {
         // If Writing to MC has just finished...
         uint8_t buff[HISTORY_FILE_SIZE] = {0x00};
@@ -256,13 +256,8 @@ void ps2_history_tracker_task() {
                     readSlots(buff, slots_new);
                     for (int j = 0; j < HISTORY_ENTRY_COUNT; j++) {
                         if (slots_new[j] != slotCount[i][j]) {
-                            char sanitized_game_id[11] = {0};
-                            game_db_extract_title_id(&buff[j * HISTORY_ENTRY_SIZE], sanitized_game_id, 16, sizeof(sanitized_game_id));
-                            log(LOG_INFO, "Game ID: %s\n", sanitized_game_id);
-                            if (game_db_sanity_check_title_id(sanitized_game_id)) {
-                                ps2_sd2psxman_set_gameid(sanitized_game_id);
+                            if (ps2_sd2psxman_set_gameid(&buff[j * HISTORY_ENTRY_SIZE]))
                                 break;
-                            }
                         }
                     }
                     mcio_mcClose(fh);

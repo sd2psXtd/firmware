@@ -68,12 +68,12 @@ void ps2_sd2psxman_task(void) {
                 }
                 break;
 
-            case SD2PSXMAN_SET_GAMEID: 
+            case SD2PSXMAN_SET_GAMEID:
             {
                 if (MODE_PS1 == game_db_update_game(sd2psxman_gameid))
                     settings_set_mode(MODE_TEMP_PS1);
                 else
-                    ps2_cardman_set_gameid(sd2psxman_gameid); 
+                    ps2_cardman_set_gameid(sd2psxman_gameid);
                     log(LOG_INFO, "%s: set game id\n", __func__);
                 break;
             }
@@ -89,7 +89,7 @@ void ps2_sd2psxman_task(void) {
         sd2psxman_cmd = 0;
     }
 
-    if (ps2_cardman_needs_update() 
+    if (ps2_cardman_needs_update()
         && (sd2psxman_switching_timeout < time_us_64())
         && !input_is_any_down()
         && !op_in_progress) {
@@ -116,12 +116,18 @@ void ps2_sd2psxman_task(void) {
     }
 }
 
-void __time_critical_func(ps2_sd2psxman_set_gameid)(const char* const game_id) {
-    if (strcmp(game_id, sd2psxman_gameid)) {
-        snprintf(sd2psxman_gameid, sizeof(sd2psxman_gameid), "%s", game_id);
+bool __time_critical_func(ps2_sd2psxman_set_gameid)(const uint8_t* const game_id) {
+    char sanitized_game_id[11] = {0};
+    bool ret = false;
+    game_db_extract_title_id(game_id, sanitized_game_id, 16, sizeof(sanitized_game_id));
+    log(LOG_INFO, "Game ID: %s\n", sanitized_game_id);
+    if (game_db_sanity_check_title_id(sanitized_game_id)) {
+        snprintf(sd2psxman_gameid, sizeof(sd2psxman_gameid), "%s", sanitized_game_id);
         sd2psxman_switching_timeout = 0U;
         sd2psxman_cmd = SD2PSXMAN_SET_GAMEID;
+        ret = true;
     }
+    return ret;
 }
 
 const char* ps2_sd2psxman_get_gameid(void) {

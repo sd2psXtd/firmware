@@ -117,7 +117,7 @@ static void ensuredirs(void) {
     sd_mkdir("MemoryCards");
     sd_mkdir("MemoryCards/PS2");
     sd_mkdir(cardpath);
-    
+
     if (!sd_exists("MemoryCards") || !sd_exists("MemoryCards/PS2") || !sd_exists(cardpath))
         fatal("error creating directories");
 }
@@ -193,7 +193,7 @@ static const uint8_t blockA600[512] = {
 
 static void genblock(size_t pos, void *vbuf) {
     uint8_t *buf = vbuf;
-    
+
     #define CARD_SIZE_MB    ( card_size / (1024 * 1024) )
 
     memset(buf, 0xFF, BLOCK_SIZE);
@@ -291,7 +291,7 @@ static void ps2_cardman_continue(void) {
                 cardman_cb(100, true);
             cardman_operation = CARDMAN_IDLE;
         } else {
-#if WITH_PSRAM    
+#if WITH_PSRAM
             log(LOG_TRACE, "%s:%u\n", __func__, __LINE__);
             while ((ps2_mmce_fs_idle()) && (time_us_64() - slice_start < MAX_SLICE_LENGTH)) {
                 log(LOG_TRACE, "Slice!\n");
@@ -346,7 +346,7 @@ static void ps2_cardman_continue(void) {
                 uint64_t end = time_us_64();
 
                 log(LOG_INFO, "took = %.2f s; SD write speed = %.2f kB/s\n", (end - cardprog_start) / 1e6, 1000000.0 * card_size / (end - cardprog_start) / 1024);
-                if (cardman_cb) 
+                if (cardman_cb)
                     cardman_cb(100, true);
 
                 break;
@@ -382,7 +382,7 @@ static void ps2_cardman_continue(void) {
 
             cardman_sectors_done++;
         }
-        
+
     } else if (cardman_cb) {
         cardman_cb(100, true);
     }
@@ -448,7 +448,7 @@ void ps2_cardman_open(void) {
     #endif
         cardprog_start = time_us_64();
 
-        
+
     } else {
         fd = sd_open(path, O_RDWR);
         card_size = sd_filesize(fd);
@@ -625,7 +625,7 @@ void ps2_cardman_prev_idx(void) {
     needs_update = true;
 }
 
-int ps2_cardman_get_idx(void) {    
+int ps2_cardman_get_idx(void) {
     return (cardman_state == PS2_CM_STATE_NORMAL) ? card_idx : PS2_CARD_IDX_SPECIAL;
 }
 
@@ -640,7 +640,7 @@ void ps2_cardman_set_gameid(const char *const card_game_id) {
     char new_folder_name[MAX_GAME_ID_LENGTH];
     if (card_game_id[0]) {
         snprintf(new_folder_name, sizeof(new_folder_name), "%s", card_game_id);
-        if ((strcmp(new_folder_name, folder_name) != 0) 
+        if ((strcmp(new_folder_name, folder_name) != 0)
             || (PS2_CM_STATE_GAMEID != cardman_state)){
             card_idx = PS2_CARD_IDX_SPECIAL;
             cardman_state = PS2_CM_STATE_GAMEID;
