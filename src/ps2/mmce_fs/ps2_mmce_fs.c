@@ -31,7 +31,7 @@ void ps2_mmce_fs_init(void)
     m_data.fd = 0;
     m_data.it_fd = 0;
     m_data.flags = 0;
-    
+
     m_data.filesize = 0;
 
     m_data.offset = 0;
@@ -65,7 +65,7 @@ bool ps2_mmce_fs_idle(void)
 
 void ps2_mmce_fs_run(void)
 {
-    int rv = 0;
+    static int wait_iterations = 0;
     uint32_t bytes_in_chunk = 0;
     uint32_t write_size = 0;
 
@@ -81,7 +81,7 @@ void ps2_mmce_fs_run(void)
 
             mmce_fs_operation = MMCE_FS_NONE;
         break;
-        
+
         case MMCE_FS_CLOSE:
             m_data.rv = sd_close(m_data.fd);
 
@@ -96,14 +96,16 @@ void ps2_mmce_fs_run(void)
 
         //Read async continuous until bytes_read == length
         case MMCE_FS_READ:
-
             log(LOG_INFO, "Entering read loop, bytes read: %u len: %u\n", m_data.bytes_read, m_data.length);
+            int retry_cnt = 0;
 
             //Read requested length
             while (m_data.bytes_read < m_data.length)
             {
                 //Wait for chunk at head to be consumed
                 if (m_data.chunk_state[m_data.head_idx] != CHUNK_STATE_READY) {
+                    // Reset Retry Counter
+                    retry_cnt = wait_iterations = 0;
 
                     //Get number of bytes to try reading
                     bytes_in_chunk = (m_data.length - m_data.bytes_read);
@@ -143,19 +145,34 @@ void ps2_mmce_fs_run(void)
                         m_data.head_idx = 0;
 
                     sleep_us(1);
+                } else if ((m_data.head_idx == m_data.tail_idx) && (m_data.bytes_read < m_data.length)){
+                    // Queue is full - retry 30 times at max
+                    log(LOG_TRACE, "%s ringbuffer full...\n", __func__);
+                    if (wait_iterations > 1000) {
+                        log(LOG_ERROR, "%s Waiting for buffer to be consumed took too long. Abort.\n", __func__);
+                        m_data.transfer_failed = 1;
+                        m_data.head_idx = m_data.tail_idx = 0;
+                        memset((void*)m_data.chunk_state, CHUNK_STATE_INVALID, sizeof(m_data.chunk_state));
+                        break; // Step out of while loop
+                    } else if (retry_cnt++ > 30) {
+                        wait_iterations++;
+                        log(LOG_WARN, "%s Returning early to prevent deadlock\n", __func__);
+                        return; // Early return to make sure we don't deadlock
+                    }
+                    sleep_us(5);
                 }
             }
 
-            log(LOG_INFO, "Exit read loop\n");            
+            log(LOG_INFO, "Exit read loop\n");
             mmce_fs_operation = MMCE_FS_NONE;
         break;
-    
+
         /* Try to read a single chunk ahead into a separate buffer */
         case MMCE_FS_READ_AHEAD:
             m_data.filesize = sd_filesize_new(m_data.fd);
 
             log(LOG_INFO, "Entering read ahead\n");
-            
+
             //Check if reading beyond file size
             if (sd_tell_new(m_data.fd) + CHUNK_SIZE <= m_data.filesize) {
                 m_data.read_ahead.pos = sd_tell_new(m_data.fd);
@@ -189,13 +206,13 @@ void ps2_mmce_fs_run(void)
 
             mmce_fs_operation = MMCE_FS_NONE;
         break;
-        
+
         //TODO: combine lseek and lseek64, check casting
         case MMCE_FS_LSEEK:
             //If we're seeking on a file that has data read ahead
             if ((m_data.fd == m_data.read_ahead.fd) && (m_data.read_ahead.valid == 1)) {
 
-                //SEEK_CUR - adjust offset 
+                //SEEK_CUR - adjust offset
                 if (m_data.whence == 1) {
                     DPRINTF("C1: Correcting SEEK_CUR offset: %i\n", m_data.offset);
                     m_data.offset -= CHUNK_SIZE;
@@ -211,12 +228,12 @@ void ps2_mmce_fs_run(void)
 
             mmce_fs_operation = MMCE_FS_NONE;
         break;
-        
+
         case MMCE_FS_LSEEK64:
             //If we're seeking on a file that has data read ahead
             if ((m_data.fd == m_data.read_ahead.fd) && (m_data.read_ahead.valid == 1)) {
 
-                //SEEK_CUR - adjust offset 
+                //SEEK_CUR - adjust offset
                 if (m_data.whence64 == 1) {
                     DPRINTF("C1: Correcting SEEK_CUR offset: %lli\n", m_data.offset64);
                     m_data.offset64 -= CHUNK_SIZE;
@@ -247,13 +264,13 @@ void ps2_mmce_fs_run(void)
             m_data.rv = sd_rmdir((const char*)m_data.buffer[0]);
             mmce_fs_operation = MMCE_FS_NONE;
         break;
-        
+
         case MMCE_FS_DOPEN:
             m_data.fd = sd_open((const char*)m_data.buffer[0], 0x0);
             m_data.it_fd = -1; //clear itr stat
             mmce_fs_operation = MMCE_FS_NONE;
         break;
-        
+
         case MMCE_FS_DCLOSE:
             if (m_data.it_fd > 0) {
                 sd_close(m_data.it_fd); //if iterated on
