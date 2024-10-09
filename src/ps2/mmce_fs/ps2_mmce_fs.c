@@ -146,15 +146,15 @@ void ps2_mmce_fs_run(void)
 
                     sleep_us(1);
                 } else if ((m_data.head_idx == m_data.tail_idx) && (m_data.bytes_read < m_data.length)){
-                    // Queue is full - retry 30 times at max
+
                     log(LOG_TRACE, "%s ringbuffer full...\n", __func__);
                     if (wait_iterations > 1000) {
-                        log(LOG_ERROR, "%s Waiting for buffer to be consumed took too long. Abort.\n", __func__);
                         m_data.transfer_failed = 1;
                         m_data.head_idx = m_data.tail_idx = 0;
                         memset((void*)m_data.chunk_state, CHUNK_STATE_INVALID, sizeof(m_data.chunk_state));
+                        log(LOG_ERROR, "%s Waiting for buffer to be consumed took too long. Abort.\n", __func__);
                         break; // Step out of while loop
-                    } else if (retry_cnt++ > 30) {
+                    } else if (retry_cnt++ > 100) { // Queue is full - retry 100 times at max
                         wait_iterations++;
                         log(LOG_WARN, "%s Returning early to prevent deadlock\n", __func__);
                         return; // Early return to make sure we don't deadlock

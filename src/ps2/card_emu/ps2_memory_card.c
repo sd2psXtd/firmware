@@ -135,11 +135,11 @@ uint8_t __time_critical_func(receive)(uint8_t *cmd) {
 
 uint8_t __time_critical_func(receiveFirst)(uint8_t *cmd) {
     do {
-        while (pio_sm_is_rx_fifo_empty(pio0, cmd_reader.sm) 
-                && pio_sm_is_rx_fifo_empty(pio0, cmd_reader.sm) 
-                && pio_sm_is_rx_fifo_empty(pio0, cmd_reader.sm) 
-                && pio_sm_is_rx_fifo_empty(pio0, cmd_reader.sm) 
-                && pio_sm_is_rx_fifo_empty(pio0, cmd_reader.sm) 
+        while (pio_sm_is_rx_fifo_empty(pio0, cmd_reader.sm)
+                && pio_sm_is_rx_fifo_empty(pio0, cmd_reader.sm)
+                && pio_sm_is_rx_fifo_empty(pio0, cmd_reader.sm)
+                && pio_sm_is_rx_fifo_empty(pio0, cmd_reader.sm)
+                && pio_sm_is_rx_fifo_empty(pio0, cmd_reader.sm)
                 && 1) {
             if (reset)
                 return RECEIVE_RESET;
@@ -205,7 +205,7 @@ static void __time_critical_func(mc_main_loop)(void) {
                 return;
             }
         }
-        
+
         reset = 0;
         if (mc_callback != NULL) {
             mc_callback();
@@ -239,17 +239,17 @@ static void __time_critical_func(mc_main_loop)(void) {
                 case PS2_SIO2_CMD_SET_TERMINATOR: ps2_mc_cmd_setTerminator(); break;
                 case PS2_SIO2_CMD_GET_TERMINATOR: ps2_mc_cmd_getTerminator(); break;
                 case PS2_SIO2_CMD_WRITE_DATA: ps2_mc_cmd_writeData(); break;
-                case PS2_SIO2_CMD_READ_DATA: 
+                case PS2_SIO2_CMD_READ_DATA:
                     if (ps2_cardman_is_accessible())
-                        ps2_mc_cmd_readData(); 
+                        ps2_mc_cmd_readData();
                     break;
-                case PS2_SIO2_CMD_COMMIT_DATA: 
+                case PS2_SIO2_CMD_COMMIT_DATA:
                     if (ps2_cardman_is_accessible())
-                        ps2_mc_cmd_commitData(); 
+                        ps2_mc_cmd_commitData();
                     break;
-                case PS2_SIO2_CMD_ERASE: 
+                case PS2_SIO2_CMD_ERASE:
                     if (ps2_cardman_is_accessible())
-                        ps2_mc_cmd_erase(); 
+                        ps2_mc_cmd_erase();
                     break;
                 case PS2_SIO2_CMD_BF: ps2_mc_cmd_0xBF(); break;
                 case PS2_SIO2_CMD_F3: ps2_mc_cmd_0xF3(); break;
@@ -304,7 +304,7 @@ static void __time_critical_func(mc_main_loop)(void) {
         } else {
             // not for us
             continue;
-        } 
+        }
     }
 }
 
@@ -312,12 +312,12 @@ static void __no_inline_not_in_flash_func(mc_main)(void) {
     while (1) {
         while (!mc_enter_request) {}
         mc_enter_response = 1;
-        
+
         ps2_history_tracker_card_changed();
         memcard_running = 1;
         transfer_stage = 0;
         mc_callback = NULL;
-        
+
         reset_pio();
         mc_main_loop();
         log(LOG_TRACE, "%s exit\n", __func__);
@@ -380,7 +380,7 @@ void ps2_memory_card_main(void) {
     log(LOG_TRACE, "Secondary core!\n");
 
     my_gpio_set_irq_enabled_with_callback(PIN_PSX_SEL, GPIO_IRQ_EDGE_RISE, 1, card_deselected);
-    
+
     gpio_set_slew_rate(PIN_PSX_DAT, GPIO_SLEW_RATE_FAST);
     gpio_set_drive_strength(PIN_PSX_DAT, GPIO_DRIVE_STRENGTH_12MA);
 
@@ -389,12 +389,17 @@ void ps2_memory_card_main(void) {
 
 
 void ps2_memory_card_exit(void) {
-    //log(LOG_TRACE, "MEMCARD EXIT!\n");
+    uint64_t exit_timeout = time_us_64() + (1000 * 1000);
     if (!memcard_running)
         return;
 
     mc_exit_request = 1;
-    while (!mc_exit_response) { };
+    while (!mc_exit_response) {
+        if (time_us_64() > exit_timeout) {
+            multicore_reset_core1();
+            multicore_launch_core1(ps2_memory_card_main);
+        }
+    };
     mc_exit_request = mc_exit_response = 0;
     memcard_running = 0;
     log(LOG_TRACE, "MEMCARD EXIT END!\n");
