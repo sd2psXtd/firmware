@@ -32,36 +32,31 @@ bool try_set_named_card_folder(const char *cards_dir, int it_idx, char *folder_n
 
     it_fd = sd_iterate_dir(dir_fd, it_fd);
     while (it_fd != -1) {
-        if (!sd_is_dir(it_fd))
-            goto next;
-
-        if (!sd_get_name(it_fd, filename, sizeof(filename)))
-            break;
-
-        // skip boot card
-        if (strcmp(filename, "BOOT") == 0)
-            goto next;
-
-        // skip normal cards
-        if (strncmp(filename, "Card", 4) == 0 && str_is_integer(filename + 4))
-            goto next;
-
-        // skip cards with names longer than 15 characters
-        if (strlen(filename) >= MAX_GAME_ID_LENGTH)
-            goto next;
-
-        if (it_idx) {
-            it_idx--;
-            goto next;
+        if (!sd_is_dir(it_fd) || !sd_get_name(it_fd, filename, sizeof(filename))) {
+            it_fd = sd_iterate_dir(dir_fd, it_fd);
+            continue;
         }
 
+        // Skip boot card, normal cards, and cards with names longer than 15 characters
+        if (strcmp(filename, "BOOT") == 0 ||
+            (strncmp(filename, "Card", 4) == 0 && str_is_integer(filename + 4)) ||
+            (strlen(filename) >= MAX_GAME_ID_LENGTH)) {
+            it_fd = sd_iterate_dir(dir_fd, it_fd);
+            continue;
+        }
+
+        if (it_idx > 0) {
+            it_idx--;
+            it_fd = sd_iterate_dir(dir_fd, it_fd);
+            continue;
+        }
+
+        // This is the valid folder name
         snprintf(folder_name, folder_name_size, "%s", filename);
         ret = true;
         break;
-
-    next:
-        it_fd = sd_iterate_dir(dir_fd, it_fd);
     }
+
 
     if (it_fd != -1)
         sd_close(it_fd);
