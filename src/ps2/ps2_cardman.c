@@ -473,10 +473,10 @@ void ps2_cardman_open(void) {
                 if (!sd_exists(path)) {
                     // before boot card channels, boot card was located at BOOT/BootCard.mcd, for backwards compatibility check if it exists
                     snprintf(path, sizeof(path), "MemoryCards/PS2/%s/BootCard.mcd", folder_name);
-                    if (!sd_exists(path)) {
-                        // go back to BootCard-1.mcd if it doesn't
-                        snprintf(path, sizeof(path), "MemoryCards/PS2/%s/BootCard-%d.mcd", folder_name, card_chan);
-                    }
+                }
+                if (!sd_exists(path)) {
+                    // go back to BootCard-1.mcd if it doesn't
+                    snprintf(path, sizeof(path), "MemoryCards/PS2/%s/BootCard-%d.mcd", folder_name, card_chan);
                 }
             } else {
                 snprintf(path, sizeof(path), "MemoryCards/PS2/%s/BootCard-%d.mcd", folder_name, card_chan);
@@ -625,10 +625,8 @@ void ps2_cardman_set_idx(uint16_t idx_num) {
 void ps2_cardman_next_idx(void) {
     switch (cardman_state) {
         case PS2_CM_STATE_NAMED:
-            if (!try_set_prev_named_card())
-                if (!try_set_boot_card())
-                    if (!try_set_game_id_card())
-                        set_default_card();
+            if (!try_set_prev_named_card() && !try_set_boot_card() && !try_set_game_id_card())
+                set_default_card();
             break;
         case PS2_CM_STATE_BOOT:
             if (!try_set_game_id_card())
@@ -665,10 +663,8 @@ void ps2_cardman_prev_idx(void) {
             card_idx -= 1;
             card_chan = CHAN_MIN;
             if (card_idx <= PS2_CARD_IDX_SPECIAL) {
-                if (!try_set_game_id_card())
-                    if (!try_set_boot_card())
-                        if (!try_set_next_named_card())
-                            set_default_card();
+                if (!try_set_game_id_card() && !try_set_boot_card() && !try_set_next_named_card())
+                    set_default_card();
             } else {
                 snprintf(folder_name, sizeof(folder_name), "Card%d", card_idx);
             }
