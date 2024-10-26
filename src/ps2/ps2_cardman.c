@@ -50,7 +50,7 @@ static cardman_cb_t cardman_cb;
 static char folder_name[MAX_GAME_ID_LENGTH];
 static uint64_t cardprog_start;
 static int cardman_sectors_done;
-static size_t cardprog_pos;
+static uint32_t cardprog_pos;
 
 static ps2_cardman_state_t cardman_state;
 
@@ -405,7 +405,7 @@ static void ps2_cardman_continue(void) {
                 cardprog_pos = cardman_sectors_done * BLOCK_SIZE;
 
                 if (cardman_cb)
-                    cardman_cb(100 * cardprog_pos / card_size, false);
+                    cardman_cb(100U * (uint64_t)cardprog_pos / (uint64_t)card_size, false);
 
                 cardman_sectors_done++;
             }
@@ -451,7 +451,7 @@ static void ps2_cardman_continue(void) {
             }
 
             if (cardman_cb)
-                cardman_cb(100 * cardprog_pos / card_size, cardman_operation == CARDMAN_IDLE);
+                cardman_cb(100U * (uint64_t)cardprog_pos / (uint64_t)card_size, cardman_operation == CARDMAN_IDLE);
 
             cardman_sectors_done++;
         }
