@@ -521,7 +521,7 @@ void ps2_cardman_open(void) {
         if (cardman_cb)
             cardman_cb(0, false);
 #if WITH_PSRAM
-        if (!settings_get_sd_mode() || card_size <= PS2_CARD_SIZE_8M) {
+        if (card_size <= PS2_CARD_SIZE_8M) {
             // quickly generate and write an empty card into PSRAM so that it's immediately available, takes about ~0.6s
             for (size_t pos = 0; pos < card_size; pos += BLOCK_SIZE) {
                 if (card_size == PS2_CARD_SIZE_8M)
@@ -535,6 +535,7 @@ void ps2_cardman_open(void) {
                 ps2_cardman_mark_sector_available(pos / BLOCK_SIZE);
                 ps2_dirty_unlock();
             }
+            log(LOG_TRACE, "%s created empty PSRAM image... \n", __func__);
         }
 #endif
         cardprog_start = time_us_64();
