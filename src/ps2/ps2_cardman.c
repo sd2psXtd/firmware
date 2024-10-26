@@ -432,15 +432,8 @@ static void ps2_cardman_continue(void) {
                 break;
             }
             if (settings_get_sd_mode() || (settings_get_ps2_cardsize() > 8)) {
-                // if (settings_get_ps2_cardsize() == 8)
                 genblock(cardprog_pos, flushbuf);
-                // else
-                //     memset(flushbuf, 0xFF, BLOCK_SIZE);
-                //                genblock(cardprog_pos, flushbuf);
                 sd_write(fd, flushbuf, BLOCK_SIZE);
-                // QPRINTF("%s writing pos %u\n", __func__, cardprog_pos);
-
-                // ps2_cardman_write_sector(cardman_sectors_done, flushbuf);
             } else {
 #if WITH_PSRAM
                 ps2_dirty_lock();
