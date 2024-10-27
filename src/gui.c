@@ -226,7 +226,7 @@ static void create_nav(void) {
 static void gui_tick(void) {
     static uint64_t prev_time;
     static uint32_t delay = 0;
-    
+
     if (!prev_time)
         prev_time = time_us_64();
     uint64_t now_time = time_us_64();
@@ -237,7 +237,7 @@ static void gui_tick(void) {
         lv_tick_inc(diff_ms);
         delay = lv_timer_handler();
     } else {
-        log(LOG_TRACE, "%s delay %u not reached\n", __func__, delay);
+        //log(LOG_TRACE, "%s delay %u not reached\n", __func__, delay);
     }
 }
 
@@ -601,7 +601,7 @@ static void create_main_screen(void) {
         lv_anim_init(&src_main_animation_template);
         lv_anim_set_delay(&src_main_animation_template, 1000);           /*Wait 1 second to start the first scroll*/
         lv_anim_set_repeat_count(&src_main_animation_template, 0);
-        
+
         /*Initialize the label style with the animation template*/
         lv_style_init(&src_main_label_style);
         lv_style_set_anim(&src_main_label_style, &src_main_animation_template);
@@ -864,7 +864,7 @@ static void create_menu_screen(void) {
             if (settings_get_ps2_cardsize() <= 8)
                 snprintf(text, ARRAY_SIZE(text), "%u MB>", settings_get_ps2_cardsize());
             else
-                snprintf(text, ARRAY_SIZE(text), "%u MB*>", settings_get_ps2_cardsize());            
+                snprintf(text, ARRAY_SIZE(text), "%u MB*>", settings_get_ps2_cardsize());
             cont = ui_menu_cont_create_nav(ps2_page);
             ui_label_create_grow(cont, "Size");
             lbl_ps2_cardsize = ui_label_create(cont, text);
@@ -970,7 +970,7 @@ static void update_activity(void) {
 void gui_init(void) {
     if (!lv_is_initialized())
     {
-            
+
         if ((have_oled = oled_init())) {
             oled_clear();
             oled_show();
@@ -1169,7 +1169,7 @@ void gui_task(void) {
                 lv_obj_remove_style(src_main_title_lbl, &src_main_label_style, LV_STATE_DEFAULT);
                 lv_style_init(&src_main_label_style);
                 lv_style_set_anim(&src_main_label_style, &src_main_animation_template);
-                
+
                 lv_obj_add_style(src_main_title_lbl, &src_main_label_style, LV_STATE_DEFAULT);
             } else {
                 lv_label_set_text(src_main_title_lbl, "");
@@ -1187,7 +1187,7 @@ void gui_task(void) {
     }
 
     gui_tick();
-                    log(LOG_TRACE, "repeat count %u, time %u\n", src_main_animation_template.repeat_cnt, src_main_animation_template.playback_time);
+                    //log(LOG_TRACE, "repeat count %u, time %u\n", src_main_animation_template.repeat_cnt, src_main_animation_template.playback_time);
 
 
 }
