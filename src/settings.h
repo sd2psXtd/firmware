@@ -50,4 +50,3 @@ bool settings_get_sd_mode();
 void settings_set_display_timeout(uint8_t display_timeout);
 void settings_set_display_contrast(uint8_t display_contrast);
 void settings_set_display_vcomh(uint8_t display_vcomh);
-void settings_set_sd_mode(bool mode);

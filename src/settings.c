@@ -176,7 +176,6 @@ void settings_set_ps1_boot_channel(int chan) {
 }
 
 int settings_get_mode(void) {
-    return MODE_PS2;
     if ((settings.sys_flags & SETTINGS_SYS_FLAGS_PS2_MODE) != tempmode)
         return MODE_PS1;
     else
@@ -221,8 +220,7 @@ void settings_set_ps1_game_id(bool enabled) {
 }
 
 bool settings_get_ps2_autoboot(void) {
-    return true;
-//    return (settings.ps2_flags & SETTINGS_PS2_FLAGS_AUTOBOOT);
+    return (settings.ps2_flags & SETTINGS_PS2_FLAGS_AUTOBOOT);
 }
 
 void settings_set_ps2_autoboot(bool autoboot) {
@@ -274,8 +272,4 @@ void settings_set_display_contrast(uint8_t display_contrast) {
 void settings_set_display_vcomh(uint8_t display_vcomh) {
     settings.display_vcomh = display_vcomh;
     SETTINGS_UPDATE_FIELD(display_vcomh);
-}
-
-void settings_set_sd_mode(bool mode) {
-    (void)mode;
 }
