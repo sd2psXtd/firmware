@@ -299,7 +299,15 @@ static void genblock(size_t pos, void *vbuf) {
         (*(uint32_t *)&buf[0x44]) = (uint32_t)(((card_size / 8) / 1024) - 2);  // BB2
         buf[0x150] = 0x02;                                                     // Card Type
         buf[0x151] = 0x2B;                                                     // Card Features
-        buf[0x152] = 0xFF;                                                     // Card Features
+        buf[0x152] = 0x00;                                                     // Card Features
+        (*(uint32_t *)&buf[0x154]) = (uint32_t)(2 * PS2_PAGE_SIZE);            // ClusterSize
+        (*(uint32_t *)&buf[0x158]) = (uint32_t)(256);                          // FAT Entries per Cluster
+        (*(uint32_t *)&buf[0x15C]) = (uint32_t)(8);                            // Clusters per Block
+        (*(uint32_t *)&buf[0x160]) = (uint32_t)(0xFFFFFFFF);                   // CardForm
+        // Note: for whatever weird reason, the max alloc cluster cnt needs to be calculated this way.
+        (*(uint32_t *)&buf[0x170]) = (uint32_t)(((CARD_CLUST_CNT/1000) * 1000) + 1); // Max Alloc Cluster
+
+
     } else if (pos == CARD_OFFS_IND_FAT_0) {
         // Indirect FAT
         uint8_t byte = 0x11;
