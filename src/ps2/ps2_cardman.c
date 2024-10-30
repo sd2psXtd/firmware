@@ -29,10 +29,11 @@
 #endif
 
 #define BLOCK_SIZE   (512)
-#define SECTOR_COUNT (PS2_CARD_SIZE_8M / BLOCK_SIZE)
+static int sector_count = -1;
 
 #if WITH_PSRAM
-uint8_t available_sectors[SECTOR_COUNT / 8];  // bitmap
+#define SECTOR_COUNT_8MB (PS2_CARD_SIZE_8M / BLOCK_SIZE)
+uint8_t available_sectors[SECTOR_COUNT_8MB / 8];  // bitmap
 #endif
 static uint8_t flushbuf[BLOCK_SIZE];
 static int fd = -1;
@@ -357,7 +358,7 @@ static int next_sector_to_load() {
             return priority_sector;
     }
 
-    while (current_read_sector < SECTOR_COUNT) {
+    while (current_read_sector < sector_count) {
         if (!ps2_cardman_is_sector_available(current_read_sector))
             return current_read_sector++;
         else
@@ -576,6 +577,9 @@ void ps2_cardman_open(void) {
         if (cardman_cb)
             cardman_cb(0, false);
     }
+
+    sector_count = card_size / BLOCK_SIZE;
+
     QPRINTF("Open Finished!\n");
 }
 
