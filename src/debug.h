@@ -4,16 +4,16 @@
 #include <inttypes.h>
 #include <stdio.h>
 
-#define LOG_LEVEL_MC_DATA   3
+#define LOG_LEVEL_MC_DATA   2
 #define LOG_LEVEL_MMCEMAN   2
 #define LOG_LEVEL_MMCE_FS   2
 #define LOG_LEVEL_MC_AUTH   2
 #define LOG_LEVEL_PS2_CM    2
 #define LOG_LEVEL_PS2_MAIN  2
-#define LOG_LEVEL_PS2_MC    4
-#define LOG_LEVEL_PS2_HT    3
-#define LOG_LEVEL_PS2_S2M   4
-#define LOG_LEVEL_GUI       3
+#define LOG_LEVEL_PS2_MC    2
+#define LOG_LEVEL_PS2_HT    2
+#define LOG_LEVEL_PS2_S2M   2
+#define LOG_LEVEL_GUI       2
 
 #define LOG_ERROR 1
 #define LOG_WARN 2
@@ -44,7 +44,7 @@ extern const char *log_level_str[];
     #define DPRINTF(fmt, x...) buffered_printf(fmt, ##x)
     #define QPRINTF(fmt, x...) printf(fmt, ##x)
 #else
-    #define DPRINTF(fmt, x...) 
+    #define DPRINTF(fmt, x...)
     #define QPRINTF(fmt, x...)
 #endif
 
