@@ -33,9 +33,9 @@ bool ps2_mc_data_interface_write_busy(void);
 void ps2_mc_data_interface_invalidate_readahead(void);
 void ps2_mc_data_interface_invalidate_read(uint32_t page);
 void ps2_mc_data_interface_wait_for_byte(uint32_t offset);
+bool ps2_mc_data_interface_queue_full();
 
 // Core 0
-
 void ps2_mc_data_interface_card_changed(void);
 void ps2_mc_data_interface_read_core0(uint32_t page, void* buff512);
 bool ps2_mc_data_interface_write_occured(void);
