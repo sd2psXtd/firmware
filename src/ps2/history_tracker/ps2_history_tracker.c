@@ -81,8 +81,8 @@ int __time_critical_func(page_read)(mcfat_cardspecs_t* info, uint32_t page, uint
         ps2_mc_data_interface_wait_for_byte(count);
 
         memcpy(buff, read_page->data, count);
-
-        ps2_mc_data_interface_invalidate_read(page);
+        read_page->page_state = PAGE_EMPTY;
+        read_page->page = 0;
     } else {
         return sceMcResFailReadCluster;
     }
