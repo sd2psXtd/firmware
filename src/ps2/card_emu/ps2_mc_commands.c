@@ -384,7 +384,13 @@ inline __attribute__((always_inline)) void __time_critical_func(ps2_mc_cmd_0xF3)
     receiveOrNextCmd(&_);
     mc_respond(term);
 }
-
+/**
+  * Official retail memory cards use both developer and retail keys.
+  * they use developer keys untill 0xF7 command (this function) is called. then they switch to retail keys
+  * the ideal approach is just to respond to this command, but never expect it.
+  * retail SECRMAN expects an answer to this, but the others wont. 
+  * arcade cards support this command but dont perform a key change bc they were not intended to do so.
+  */
 inline __attribute__((always_inline)) void __time_critical_func(ps2_mc_cmd_keySelect)(
     void) {  // TODO: it fails to get detected at all when ps2_magicgate==0, check if it's intentional
     uint8_t _ = 0U;
