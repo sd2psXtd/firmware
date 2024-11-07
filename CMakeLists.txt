@@ -84,7 +84,7 @@ set_target_properties(${TARGET_NAME} PROPERTIES PICO_TARGET_LINKER_SCRIPT ${CMAK
 
 # Common Lib
 
-add_library(sd2psx_common STATIC     
+add_library(sd2psx_common STATIC
                 ${CMAKE_CURRENT_SOURCE_DIR}/src/util.c
                 ${CMAKE_CURRENT_SOURCE_DIR}/src/debug.c
                 ${CMAKE_CURRENT_SOURCE_DIR}/src/input.c
@@ -93,13 +93,13 @@ add_library(sd2psx_common STATIC
                 ${CMAKE_CURRENT_SOURCE_DIR}/src/settings.c
                 ${CMAKE_CURRENT_SOURCE_DIR}/src/bigmem.c)
 
-target_include_directories(sd2psx_common 
-                PUBLIC 
+target_include_directories(sd2psx_common
+                PUBLIC
                     ${CMAKE_CURRENT_SOURCE_DIR}/src
                 PRIVATE )
 
-target_link_libraries(sd2psx_common 
-                    PRIVATE 
+target_link_libraries(sd2psx_common
+                    PRIVATE
                         sd_fat
                         pico_platform_headers
                         hardware_flash
@@ -112,23 +112,25 @@ target_compile_options(sd2psx_common
                             -Wall -Wextra
                             -fno-jump-tables)
 
-target_compile_definitions(sd2psx_common PUBLIC 
-                            USE_SPI_ARRAY_TRANSFER=1)
+target_compile_definitions(sd2psx_common PUBLIC
+                            USE_SPI_ARRAY_TRANSFER=1
+                            -DFEAT_PS2_CARDSIZE=1
+                            -DFEAT_PS2_MMCE=1)
 if (SD2PSX_WITH_PSRAM)
     target_compile_definitions(sd2psx_common PUBLIC "WITH_PSRAM=1")
 endif()
 
-if (SD2PSX_WITH_GUI)    
+if (SD2PSX_WITH_GUI)
     target_compile_definitions(sd2psx_common PUBLIC "WITH_GUI=1")
     target_sources(sd2psx_common PRIVATE
                 ${CMAKE_CURRENT_SOURCE_DIR}/src/gui.c
                 ${CMAKE_CURRENT_SOURCE_DIR}/src/oled.c
                 ${CMAKE_CURRENT_SOURCE_DIR}/src/ui_menu.c
                 ${CMAKE_CURRENT_SOURCE_DIR}/src/ui_theme_mono.c)
-    target_link_libraries(sd2psx_common 
+    target_link_libraries(sd2psx_common
                 PUBLIC
                     lvgl::lvgl
-                PRIVATE 
+                PRIVATE
                     ssd1306)
 endif()
 

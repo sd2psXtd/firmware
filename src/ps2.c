@@ -26,7 +26,7 @@ void ps2_init(void) {
     log(LOG_INFO, "starting in PS2 mode\n");
 
     keystore_init();
-    
+
     multicore_launch_core1(ps2_memory_card_main);
 
     ps2_history_tracker_init();
@@ -34,13 +34,15 @@ void ps2_init(void) {
     ps2_memory_card_enter();
 
     ps2_mc_data_interface_init();
-    
+
     ps2_cardman_init();
 
     log(LOG_INFO, "Starting memory card... ");
     ps2_cardman_open();
 
+#ifdef FEAT_PS2_MMCE
     ps2_mmce_fs_init();
+#endif
 
     uint64_t start = time_us_64();
 
@@ -62,8 +64,10 @@ bool ps2_task(void) {
     oled_task();
 #endif
     log(LOG_TRACE, "%s after GUI\n", __func__);
+#ifdef FEAT_PS2_MMCE
     ps2_mmce_fs_run();
     log(LOG_TRACE, "%s mmcefs\n", __func__);
+#endif
 
     if (ps2_cardman_is_accessible()) {
         ps2_history_tracker_task();

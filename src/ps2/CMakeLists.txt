@@ -17,7 +17,7 @@ target_include_directories(ps2_card
                                 ${CMAKE_CURRENT_SOURCE_DIR}
 )
 
-target_link_libraries(ps2_card PRIVATE 
+target_link_libraries(ps2_card PRIVATE
             sd2psx_common
             pico_stdlib
             pico_multicore
@@ -30,7 +30,7 @@ target_link_libraries(ps2_card PRIVATE
             )
 
 if (SD2PSX_WITH_PSRAM)
-    target_link_libraries(ps2_card PRIVATE 
+    target_link_libraries(ps2_card PRIVATE
             psram)
     target_sources(ps2_card PRIVATE
         ${CMAKE_CURRENT_SOURCE_DIR}/ps2_dirty.c)

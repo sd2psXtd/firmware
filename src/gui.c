@@ -16,15 +16,16 @@
 #include <stdint.h>
 #include <stdio.h>
 
+#include "card_config.h"
 #include "config.h"
+#include "debug.h"
 #include "hardware/timer.h"
 #include "input.h"
 #include "keystore.h"
-#include "debug.h"
 #include "oled.h"
 #include "ps1/ps1_cardman.h"
-#include "ps1/ps1_memory_card.h"
 #include "ps1/ps1_dirty.h"
+#include "ps1/ps1_memory_card.h"
 #include "ps2/card_emu/ps2_memory_card.h"
 #include "ps2/ps2_cardman.h"
 #include "ps2/ps2_dirty.h"
@@ -32,12 +33,11 @@
 #include "ui_menu.h"
 #include "ui_theme_mono.h"
 #include "version/version.h"
-#include "card_config.h"
 
 #if LOG_LEVEL_GUI == 0
-#define log(x...)
+    #define log(x...)
 #else
-#define log(level, fmt, x...) LOG_PRINT(LOG_LEVEL_GUI, level, fmt, ##x)
+    #define log(level, fmt, x...) LOG_PRINT(LOG_LEVEL_GUI, level, fmt, ##x)
 #endif
 
 /* Displays the line at the bottom for long pressing buttons */
@@ -46,7 +46,8 @@ static lv_obj_t *g_navbar, *g_progress_bar, *g_progress_text, *g_activity_frame;
 static lv_obj_t *scr_switch_nag, *scr_card_switch, *scr_main, *scr_menu, *menu, *main_page, *main_header;
 static lv_style_t style_inv, src_main_label_style;
 static lv_anim_t src_main_animation_template;
-static lv_obj_t *scr_main_idx_lbl, *scr_main_channel_lbl, *src_main_title_lbl, *lbl_channel, *lbl_ps1_autoboot, *lbl_ps1_game_id, *lbl_ps2_autoboot, *lbl_ps2_cardsize, *lbl_ps2_game_id, *lbl_civ_err, *auto_off_lbl, *contrast_lbl, *vcomh_lbl, *lbl_mode;
+static lv_obj_t *scr_main_idx_lbl, *scr_main_channel_lbl, *src_main_title_lbl, *lbl_channel, *lbl_ps1_autoboot, *lbl_ps1_game_id, *lbl_ps2_autoboot,
+    *lbl_ps2_cardsize, *lbl_ps2_game_id, *lbl_civ_err, *auto_off_lbl, *contrast_lbl, *vcomh_lbl, *lbl_mode;
 
 static struct {
     uint8_t value;
@@ -102,7 +103,7 @@ static lv_obj_t *ui_menu_cont_create_nav(lv_obj_t *parent) {
 static lv_obj_t *ui_menu_subpage_create(lv_obj_t *menu, const char *title) {
     lv_obj_t *page = ui_menu_page_create(menu, title);
     lv_obj_add_flag(page, LV_OBJ_FLAG_EVENT_BUBBLE);
-    lv_obj_clear_flag(page, LV_OBJ_FLAG_SCROLLABLE); // handled ourselves in `evt_menu_page`
+    lv_obj_clear_flag(page, LV_OBJ_FLAG_SCROLLABLE);  // handled ourselves in `evt_menu_page`
     lv_group_add_obj(lv_group_get_default(), page);
     lv_obj_add_event_cb(page, evt_menu_page, LV_EVENT_ALL, page);
     return page;
@@ -237,7 +238,7 @@ static void gui_tick(void) {
         lv_tick_inc(diff_ms);
         delay = lv_timer_handler();
     } else {
-        //log(LOG_TRACE, "%s delay %u not reached\n", __func__, delay);
+        // log(LOG_TRACE, "%s delay %u not reached\n", __func__, delay);
     }
 }
 
@@ -255,26 +256,20 @@ static void ui_set_display_timeout(uint8_t display_timeout) {
     char text[8];
 
     if (auto_off_options[0].value == display_timeout) {
-        sprintf(text, "Off >"),
-        lv_label_set_text(auto_off_lbl, text);
+        sprintf(text, "Off >"), lv_label_set_text(auto_off_lbl, text);
 
-        sprintf(text, "> Off"),
-        lv_label_set_text(auto_off_options[0].selection_lbl, text);
+        sprintf(text, "> Off"), lv_label_set_text(auto_off_options[0].selection_lbl, text);
     } else {
-        sprintf(text, "  Off"),
-        lv_label_set_text(auto_off_options[0].selection_lbl, text);
+        sprintf(text, "  Off"), lv_label_set_text(auto_off_options[0].selection_lbl, text);
     }
 
     for (size_t i = 1; i < ARRAY_SIZE(auto_off_options); i++) {
         if (auto_off_options[i].value == display_timeout) {
-            sprintf(text, "%hhus >", auto_off_options[i].value),
-            lv_label_set_text(auto_off_lbl, text);
+            sprintf(text, "%hhus >", auto_off_options[i].value), lv_label_set_text(auto_off_lbl, text);
 
-            sprintf(text, "> %hhus", auto_off_options[i].value),
-            lv_label_set_text(auto_off_options[i].selection_lbl, text);
+            sprintf(text, "> %hhus", auto_off_options[i].value), lv_label_set_text(auto_off_options[i].selection_lbl, text);
         } else {
-            sprintf(text, "  %hhus", auto_off_options[i].value),
-            lv_label_set_text(auto_off_options[i].selection_lbl, text);
+            sprintf(text, "  %hhus", auto_off_options[i].value), lv_label_set_text(auto_off_options[i].selection_lbl, text);
         }
     }
 }
@@ -284,18 +279,14 @@ static void ui_set_display_contrast(uint8_t display_contrast) {
 
     for (size_t i = 0; i < ARRAY_SIZE(contrast_options); i++) {
         if (contrast_options[i].value == display_contrast) {
-            sprintf(text, "%hhu%% >", contrast_options[i].label_value),
-            lv_label_set_text(contrast_lbl, text);
+            sprintf(text, "%hhu%% >", contrast_options[i].label_value), lv_label_set_text(contrast_lbl, text);
 
-            sprintf(text, "> %hhu%%", contrast_options[i].label_value),
-            lv_label_set_text(contrast_options[i].selection_lbl, text);
+            sprintf(text, "> %hhu%%", contrast_options[i].label_value), lv_label_set_text(contrast_options[i].selection_lbl, text);
         } else {
-            sprintf(text, "  %hhu%%", contrast_options[i].label_value),
-            lv_label_set_text(contrast_options[i].selection_lbl, text);
+            sprintf(text, "  %hhu%%", contrast_options[i].label_value), lv_label_set_text(contrast_options[i].selection_lbl, text);
         }
     }
 }
-
 
 static void ui_set_cardsize(uint8_t cardsize) {
     for (size_t i = 0; i < ARRAY_SIZE(cardsize_options); i++) {
@@ -314,14 +305,11 @@ static void ui_set_display_vcomh(uint8_t display_vcomh) {
 
     for (size_t i = 0; i < ARRAY_SIZE(vcomh_options); i++) {
         if (vcomh_options[i].value == display_vcomh) {
-            sprintf(text, "%s >", vcomh_options[i].label_text),
-            lv_label_set_text(vcomh_lbl, text);
+            sprintf(text, "%s >", vcomh_options[i].label_text), lv_label_set_text(vcomh_lbl, text);
 
-            sprintf(text, "> %s", vcomh_options[i].selection_text),
-            lv_label_set_text(vcomh_options[i].selection_lbl, text);
+            sprintf(text, "> %s", vcomh_options[i].selection_text), lv_label_set_text(vcomh_options[i].selection_lbl, text);
         } else {
-            sprintf(text, "  %s", vcomh_options[i].selection_text),
-            lv_label_set_text(vcomh_options[i].selection_lbl, text);
+            sprintf(text, "  %s", vcomh_options[i].selection_text), lv_label_set_text(vcomh_options[i].selection_lbl, text);
         }
     }
 }
@@ -410,9 +398,9 @@ void evt_menu_page(lv_event_t *event) {
             lv_coord_t obj_y1 = obj_h * (next_idx);
             lv_coord_t obj_y2 = obj_y1 + obj_h;
             if (obj_y2 > view_y2)
-                lv_obj_scroll_to_y(page, obj_y2 - page_h, false); // scroll down
+                lv_obj_scroll_to_y(page, obj_y2 - page_h, false);  // scroll down
             else if (view_y1 > obj_y1)
-                lv_obj_scroll_to_y(page, obj_y1, false); // wrap around
+                lv_obj_scroll_to_y(page, obj_y1, false);  // wrap around
         } else if (key == INPUT_KEY_PREV) {
             int prev_idx = (idx + count - 1) % count;
             lv_obj_t *prev = ui_menu_find_prev_focusable(page, prev_idx);
@@ -426,9 +414,9 @@ void evt_menu_page(lv_event_t *event) {
             lv_coord_t obj_y1 = obj_h * (prev_idx);
             lv_coord_t obj_y2 = obj_y1 + obj_h;
             if (obj_y1 < view_y1)
-                lv_obj_scroll_to_y(page, obj_y1, false); // scroll up
+                lv_obj_scroll_to_y(page, obj_y1, false);  // scroll up
             else if (obj_y2 > view_y2)
-                lv_obj_scroll_to_y(page, obj_y2 - page_h, false); // wrap around
+                lv_obj_scroll_to_y(page, obj_y2 - page_h, false);  // wrap around
         } else if (key == INPUT_KEY_ENTER) {
             lv_event_send(cur, LV_EVENT_CLICKED, NULL);
             lv_event_stop_bubbling(event);
@@ -437,10 +425,10 @@ void evt_menu_page(lv_event_t *event) {
             if (ui_menu_get_cur_main_page(menu) == main_page)
                 return;
             ui_menu_go_back(menu);
-            lv_obj_scroll_to_y(page, 0, false); // reset scroll on the way out
+            lv_obj_scroll_to_y(page, 0, false);  // reset scroll on the way out
             lv_event_stop_bubbling(event);
         } else if (key == INPUT_KEY_MENU) {
-            lv_obj_scroll_to_y(page, 0, false); // reset scroll on the way out
+            lv_obj_scroll_to_y(page, 0, false);  // reset scroll on the way out
         }
     }
 }
@@ -521,12 +509,10 @@ static void evt_switch_to_ps2(lv_event_t *event) {
     lv_label_set_text(lbl_mode, "PS2");
     gui_request_refresh();
 
-
     if (!ps2_magicgate)
         lv_label_set_text(main_header, "PS2: No CIV!");
     else
         lv_label_set_text(main_header, "PS2 Memory Card");
-
 
     /* start at the main screen */
     UI_GOTO_SCREEN(scr_main);
@@ -572,17 +558,17 @@ static void create_main_screen(void) {
 
     scr_main_idx_lbl = ui_label_create_at(scr_main, 0, 24, "");
     lv_obj_set_align(scr_main_idx_lbl, LV_ALIGN_TOP_RIGHT);
-    lv_obj_set_width(scr_main_idx_lbl, 11 * 8); // 11 characters, assuming 8px monospace font
+    lv_obj_set_width(scr_main_idx_lbl, 11 * 8);  // 11 characters, assuming 8px monospace font
     lv_obj_set_style_text_align(scr_main_idx_lbl, LV_TEXT_ALIGN_RIGHT, LV_PART_MAIN);
     lv_label_set_long_mode(scr_main_idx_lbl, LV_LABEL_LONG_SCROLL_CIRCULAR);
 
     lv_anim_init(&src_main_animation_template);
-    lv_anim_set_delay(&src_main_animation_template, 1000);           /*Wait 1 second to start the first scroll*/
+    lv_anim_set_delay(&src_main_animation_template, 1000); /*Wait 1 second to start the first scroll*/
     lv_anim_set_repeat_count(&src_main_animation_template, 0);
 
     lv_obj_remove_style(scr_main_idx_lbl, &src_main_label_style, LV_STATE_DEFAULT);
     lv_style_init(&src_main_label_style);
-    lv_style_set_anim(&src_main_label_style, &src_main_animation_template); //<
+    lv_style_set_anim(&src_main_label_style, &src_main_animation_template);  //<
     lv_obj_add_style(scr_main_idx_lbl, &src_main_label_style, LV_STATE_DEFAULT);
 
     lbl_channel = ui_label_create_at(scr_main, 0, 32, "Channel");
@@ -599,7 +585,7 @@ static void create_main_screen(void) {
 
     {
         lv_anim_init(&src_main_animation_template);
-        lv_anim_set_delay(&src_main_animation_template, 1000);           /*Wait 1 second to start the first scroll*/
+        lv_anim_set_delay(&src_main_animation_template, 1000); /*Wait 1 second to start the first scroll*/
         lv_anim_set_repeat_count(&src_main_animation_template, 0);
 
         /*Initialize the label style with the animation template*/
@@ -608,7 +594,6 @@ static void create_main_screen(void) {
 
         lv_obj_add_style(src_main_title_lbl, &src_main_label_style, LV_STATE_DEFAULT);
     }
-
 
     lbl = lv_label_create(scr_main);
     lv_obj_set_align(lbl, LV_ALIGN_BOTTOM_LEFT);
@@ -706,7 +691,6 @@ static void create_menu_screen(void) {
         ui_menu_set_load_page_event(menu, cont, ps2_switch_warn);
     }
 
-
     /* display / auto off submenu */
     lv_obj_t *auto_off_page = ui_menu_subpage_create(menu, "Auto off");
     {
@@ -722,7 +706,7 @@ static void create_menu_screen(void) {
 
             cont = ui_menu_cont_create_nav(auto_off_page);
             auto_off_options[i].selection_lbl = ui_label_create_grow(cont, NULL);
-            lv_obj_add_event_cb(cont, evt_set_display_timeout, LV_EVENT_CLICKED, (void*)(intptr_t)value);
+            lv_obj_add_event_cb(cont, evt_set_display_timeout, LV_EVENT_CLICKED, (void *)(intptr_t)value);
         }
     }
 
@@ -740,7 +724,7 @@ static void create_menu_screen(void) {
 
             cont = ui_menu_cont_create_nav(contrast_page);
             contrast_options[i].selection_lbl = ui_label_create_grow(cont, text);
-            lv_obj_add_event_cb(cont, evt_set_display_contrast, LV_EVENT_CLICKED, (void*)(intptr_t)value);
+            lv_obj_add_event_cb(cont, evt_set_display_contrast, LV_EVENT_CLICKED, (void *)(intptr_t)value);
         }
     }
 
@@ -762,7 +746,7 @@ static void create_menu_screen(void) {
         for (size_t i = 0; i < ARRAY_SIZE(vcomh_options); i++) {
             cont = ui_menu_cont_create_nav(vcomh_page);
             vcomh_options[i].selection_lbl = ui_label_create_grow(cont, vcomh_options[i].label_text);
-            lv_obj_add_event_cb(cont, evt_set_display_vcomh, LV_EVENT_CLICKED, (void*)(intptr_t)vcomh_options[i].value);
+            lv_obj_add_event_cb(cont, evt_set_display_vcomh, LV_EVENT_CLICKED, (void *)(intptr_t)vcomh_options[i].value);
         }
     }
 
@@ -818,6 +802,7 @@ static void create_menu_screen(void) {
             lv_obj_add_event_cb(cont, evt_go_back, LV_EVENT_CLICKED, NULL);
         }
 
+#ifdef FEAT_PS2_CARDSIZE
         /* cardsize submenu */
         lv_obj_t *cardsize_page = ui_menu_subpage_create(menu, "Default Size");
         {
@@ -839,9 +824,10 @@ static void create_menu_screen(void) {
 
                 cont = ui_menu_cont_create_nav(cardsize_page);
                 cardsize_options[i].selection_lbl = ui_label_create_grow(cont, text);
-                lv_obj_add_event_cb(cont, evt_set_ps2_cardsize, LV_EVENT_CLICKED, (void*)(intptr_t)value);
+                lv_obj_add_event_cb(cont, evt_set_ps2_cardsize, LV_EVENT_CLICKED, (void *)(intptr_t)value);
             }
         }
+#endif
 
         cont = ui_menu_cont_create_nav(ps2_page);
         ui_label_create_grow_scroll(cont, "Autoboot");
@@ -859,6 +845,7 @@ static void create_menu_screen(void) {
         ui_menu_set_load_page_event(menu, cont, civ_page);
         lv_obj_add_event_cb(cont, evt_do_civ_deploy, LV_EVENT_CLICKED, NULL);
 
+#ifdef FEAT_PS2_CARDSIZE
         {
             char text[8] = {};
             if (settings_get_ps2_cardsize() <= 8)
@@ -869,9 +856,9 @@ static void create_menu_screen(void) {
             ui_label_create_grow(cont, "Size");
             lbl_ps2_cardsize = ui_label_create(cont, text);
             ui_menu_set_load_page_event(menu, cont, cardsize_page);
-
         }
-//        lv_obj_add_event_cb(cont, evt_do_civ_deploy, LV_EVENT_CLICKED, NULL);
+#endif
+        //        lv_obj_add_event_cb(cont, evt_do_civ_deploy, LV_EVENT_CLICKED, NULL);
     }
 
     /* Info submenu */
@@ -951,16 +938,16 @@ static void update_activity(void) {
     static bool visible = false;
     uint64_t time = time_us_64();
     if ((time - last_update) > 500 * 1000) {
-        //TODO: Causes a 31ms delay that causes issues with mmce fs
+        // TODO: Causes a 31ms delay that causes issues with mmce fs
         if (ps1_dirty_activity || ps2_mc_data_interface_write_occured()) {
-            //printf("ps2_dirty_activity\n");
+            // printf("ps2_dirty_activity\n");
             input_flush();
             if (!visible) {
                 lv_obj_clear_flag(g_activity_frame, LV_OBJ_FLAG_HIDDEN);
                 visible = true;
             }
             last_update = time;
-        } else if (visible){
+        } else if (visible) {
             lv_obj_add_flag(g_activity_frame, LV_OBJ_FLAG_HIDDEN);
             last_update = time;
         }
@@ -968,9 +955,7 @@ static void update_activity(void) {
 }
 
 void gui_init(void) {
-    if (!lv_is_initialized())
-    {
-
+    if (!lv_is_initialized()) {
         if ((have_oled = oled_init())) {
             oled_clear();
             oled_show();
@@ -1016,7 +1001,6 @@ void gui_init(void) {
     }
 }
 
-
 void gui_request_refresh(void) {
     refresh_gui = true;
     oled_update_last_action_time();
@@ -1035,7 +1019,6 @@ void gui_do_ps1_card_switch(void) {
 }
 
 void gui_do_ps2_card_switch(void) {
-
     current_progress = 0;
 
     update_bar();
@@ -1068,7 +1051,8 @@ void gui_task(void) {
 
         lv_label_set_text(main_header, "PS1 Memory Card");
 
-        if (displayed_card_idx != ps1_cardman_get_idx() || displayed_card_channel != ps1_cardman_get_channel() || cardman_state != ps1_cardman_get_state() || refresh_gui) {
+        if (displayed_card_idx != ps1_cardman_get_idx() || displayed_card_channel != ps1_cardman_get_channel() || cardman_state != ps1_cardman_get_state() ||
+            refresh_gui) {
             displayed_card_idx = ps1_cardman_get_idx();
             displayed_card_channel = ps1_cardman_get_channel();
             folder_name = ps1_cardman_get_folder_name();
@@ -1076,13 +1060,9 @@ void gui_task(void) {
             memset(card_name, 0, sizeof(card_name));
 
             switch (cardman_state) {
-                case PS1_CM_STATE_BOOT:
-                    lv_label_set_text(scr_main_idx_lbl, "BOOT");
-                    break;
+                case PS1_CM_STATE_BOOT: lv_label_set_text(scr_main_idx_lbl, "BOOT"); break;
                 case PS1_CM_STATE_NAMED:
-                case PS1_CM_STATE_GAMEID:
-                    lv_label_set_text(scr_main_idx_lbl, folder_name);
-                    break;
+                case PS1_CM_STATE_GAMEID: lv_label_set_text(scr_main_idx_lbl, folder_name); break;
                 case PS1_CM_STATE_NORMAL:
                 default:
                     snprintf(card_idx_s, sizeof(card_idx_s), "%d", displayed_card_idx);
@@ -1093,10 +1073,8 @@ void gui_task(void) {
             snprintf(card_channel_s, sizeof(card_channel_s), "%d", displayed_card_channel);
             lv_label_set_text(scr_main_channel_lbl, card_channel_s);
 
-            card_config_read_channel_name(
-                folder_name, cardman_state == PS1_CM_STATE_BOOT ? "BootCard" : folder_name,
-                card_channel_s, card_name, sizeof(card_name)
-            );
+            card_config_read_channel_name(folder_name, cardman_state == PS1_CM_STATE_BOOT ? "BootCard" : folder_name, card_channel_s, card_name,
+                                          sizeof(card_name));
             if (!card_name[0] && cardman_state == PS1_CM_STATE_GAMEID) {
                 game_db_get_current_name(card_name);
             }
@@ -1132,13 +1110,9 @@ void gui_task(void) {
             memset(card_name, 0, sizeof(card_name));
 
             switch (cardman_state) {
-                case PS2_CM_STATE_BOOT:
-                    lv_label_set_text(scr_main_idx_lbl, "BOOT");
-                    break;
+                case PS2_CM_STATE_BOOT: lv_label_set_text(scr_main_idx_lbl, "BOOT"); break;
                 case PS2_CM_STATE_NAMED:
-                case PS2_CM_STATE_GAMEID:
-                    lv_label_set_text(scr_main_idx_lbl, folder_name);
-                    break;
+                case PS2_CM_STATE_GAMEID: lv_label_set_text(scr_main_idx_lbl, folder_name); break;
                 case PS2_CM_STATE_NORMAL:
                 default:
                     snprintf(card_idx_s, sizeof(card_idx_s), "%d", displayed_card_idx);
@@ -1149,10 +1123,8 @@ void gui_task(void) {
             snprintf(card_channel_s, sizeof(card_channel_s), "%d", displayed_card_channel);
             lv_label_set_text(scr_main_channel_lbl, card_channel_s);
 
-            card_config_read_channel_name(
-                folder_name, cardman_state == PS2_CM_STATE_BOOT ? "BootCard" : folder_name,
-                card_channel_s, card_name, sizeof(card_name)
-            );
+            card_config_read_channel_name(folder_name, cardman_state == PS2_CM_STATE_BOOT ? "BootCard" : folder_name, card_channel_s, card_name,
+                                          sizeof(card_name));
             if (!card_name[0] && cardman_state == PS2_CM_STATE_GAMEID) {
                 game_db_get_current_name(card_name);
             }
@@ -1163,7 +1135,7 @@ void gui_task(void) {
             if (card_name[0]) {
                 lv_label_set_text(src_main_title_lbl, card_name);
                 lv_anim_init(&src_main_animation_template);
-                lv_anim_set_delay(&src_main_animation_template, 1000);           /*Wait 1 second to start the first scroll*/
+                lv_anim_set_delay(&src_main_animation_template, 1000); /*Wait 1 second to start the first scroll*/
                 lv_anim_set_repeat_count(&src_main_animation_template, 0);
 
                 lv_obj_remove_style(src_main_title_lbl, &src_main_label_style, LV_STATE_DEFAULT);
@@ -1187,7 +1159,5 @@ void gui_task(void) {
     }
 
     gui_tick();
-                    //log(LOG_TRACE, "repeat count %u, time %u\n", src_main_animation_template.repeat_cnt, src_main_animation_template.playback_time);
-
-
+    // log(LOG_TRACE, "repeat count %u, time %u\n", src_main_animation_template.repeat_cnt, src_main_animation_template.playback_time);
 }

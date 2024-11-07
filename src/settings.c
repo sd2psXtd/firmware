@@ -103,9 +103,11 @@ int settings_get_ps2_boot_channel(void) {
 }
 
 uint8_t settings_get_ps2_cardsize(void) {
-    if (settings.ps2_cardsize < 1 || settings.ps2_channel > 32)
-        return 1;
+#ifdef FEAT_PS2_CARDSIZE
     return settings.ps2_cardsize;
+#else
+    return 8;
+#endif
 }
 
 void settings_set_ps2_card(int card) {
@@ -176,10 +178,14 @@ void settings_set_ps1_boot_channel(int chan) {
 }
 
 int settings_get_mode(void) {
+#ifdef WITH_GUI
     if ((settings.sys_flags & SETTINGS_SYS_FLAGS_PS2_MODE) != tempmode)
         return MODE_PS1;
     else
         return settings.sys_flags & SETTINGS_SYS_FLAGS_PS2_MODE;
+#else
+    return MODE_PS2;
+#endif
 }
 
 void settings_set_mode(int mode) {
@@ -220,7 +226,11 @@ void settings_set_ps1_game_id(bool enabled) {
 }
 
 bool settings_get_ps2_autoboot(void) {
+#ifdef WITH_GUI
     return (settings.ps2_flags & SETTINGS_PS2_FLAGS_AUTOBOOT);
+#else
+    return true;
+#endif
 }
 
 void settings_set_ps2_autoboot(bool autoboot) {

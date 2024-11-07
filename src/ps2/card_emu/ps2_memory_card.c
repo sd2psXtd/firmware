@@ -19,10 +19,10 @@
 
 #include "ps2_sd2psxman_commands.h"
 
-#if LOG_LEVEL_PS2_CM == 0
+#if LOG_LEVEL_PS2_MC == 0
 #define log(x...)
 #else
-#define log(level, fmt, x...) LOG_PRINT(LOG_LEVEL_PS2_CM, level, fmt, ##x)
+#define log(level, fmt, x...) LOG_PRINT(LOG_LEVEL_PS2_MC, level, fmt, ##x)
 #endif
 
 uint64_t us_startup;
@@ -229,6 +229,7 @@ static void __time_critical_func(mc_main_loop)(void) {
             if (receive(&cmd) == RECEIVE_RESET)
                 continue;
 
+            log(LOG_TRACE, "%s: 0x81 %.02x\n", __func__, cmd);
             switch (cmd) {
                 case PS2_SIO2_CMD_0x11: ps2_mc_cmd_0x11(); break;
                 case PS2_SIO2_CMD_0x12: ps2_mc_cmd_0x12(); break;
@@ -280,7 +281,7 @@ static void __time_critical_func(mc_main_loop)(void) {
                 case SD2PSXMAN_GET_GAMEID: ps2_sd2psxman_cmds_get_gameid(); break;
                 case SD2PSXMAN_SET_GAMEID: ps2_sd2psxman_cmds_set_gameid(); break;
                 case SD2PSXMAN_UNMOUNT_BOOTCARD: ps2_sd2psxman_cmds_unmount_bootcard(); break;
-
+#ifdef FEAT_PS2_MMCE
                 case MMCEMAN_CMD_FS_OPEN: ps2_mmceman_cmd_fs_open(); break;
                 case MMCEMAN_CMD_FS_CLOSE: ps2_mmceman_cmd_fs_close(); break;
                 case MMCEMAN_CMD_FS_READ: ps2_mmceman_cmd_fs_read(); break;
@@ -296,6 +297,7 @@ static void __time_critical_func(mc_main_loop)(void) {
 
                 case MMCEMAN_CMD_FS_LSEEK64: ps2_mmceman_cmd_fs_lseek64(); break;
                 case MMCEMAN_CMD_FS_READ_SECTOR: ps2_mmceman_cmd_fs_read_sector(); break;
+#endif
                 default: log(LOG_WARN, "Unknown Subcommand: %02x\n", cmd); break;
             }
         } else if (cmd == PS1_SIO2_CMD_IDENTIFIER) {
