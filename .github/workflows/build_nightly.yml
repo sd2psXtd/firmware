@@ -5,8 +5,8 @@ on:
     tags:
       - '*'
     branches:
-      - '*'
-      - '*/*'
+      - 'develop'
+      - 'main'
 
 env:
   # Customize the CMake build type here (Release, Debug, RelWithDebInfo, etc.)
@@ -111,7 +111,7 @@ jobs:
       uses: mathieucarbou/marvinpinto-action-automatic-releases@latest
       with:
         repo_token: "${{ secrets.GITHUB_TOKEN }}"
-        prerelease: "${{ contains(github.ref, '.rc') || contains(github.ref, '.beta')}}"
+        prerelease: "${{ contains(github.ref, '-rc') || contains(github.ref, '-beta')}}"
         title: "${{ env.SD2PSX_VERSION }}"
         files: |
           */*.uf2
