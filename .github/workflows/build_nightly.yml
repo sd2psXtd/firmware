@@ -107,11 +107,11 @@ jobs:
           */*.uf2
 
     - name: Create release
-      if: startsWith(github.ref, 'refs/tags/v')
+      if: startsWith(github.ref, 'refs/tags/')
       uses: mathieucarbou/marvinpinto-action-automatic-releases@latest
       with:
         repo_token: "${{ secrets.GITHUB_TOKEN }}"
-        prerelease: "${{ contains(github.ref, '-rc') }}"
+        prerelease: "${{ contains(github.ref, '.rc') || contains(github.ref, '.beta')}}"
         title: "${{ env.SD2PSX_VERSION }}"
         files: |
           */*.uf2
