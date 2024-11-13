@@ -30,10 +30,9 @@ void ps2_mc_data_interface_erase(uint32_t page);
 volatile ps2_mcdi_page_t* ps2_mc_data_interface_get_page(uint32_t page);
 void ps2_mc_data_interface_commit_write(uint32_t page, uint8_t *buf);
 bool ps2_mc_data_interface_write_busy(void);
-void ps2_mc_data_interface_invalidate_readahead(void);
-void ps2_mc_data_interface_invalidate_read(uint32_t page);
 void ps2_mc_data_interface_wait_for_byte(uint32_t offset);
-bool ps2_mc_data_interface_queue_full();
+bool ps2_mc_data_interface_delay_required(void);
+
 
 // Core 0
 void ps2_mc_data_interface_card_changed(void);

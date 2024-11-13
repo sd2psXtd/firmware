@@ -317,9 +317,9 @@ static void ui_set_display_vcomh(uint8_t display_vcomh) {
 static void evt_scr_main(lv_event_t *event) {
     if (event->code == LV_EVENT_KEY) {
         uint32_t key = lv_indev_get_key(lv_indev_get_act());
-        printf("main screen got key %d\n", (int)key);
+        log(LOG_INFO, "main screen got key %d\n", (int)key);
         if (key == INPUT_KEY_MENU) {
-            printf("activate menu!\n");
+            log(LOG_INFO, "activate menu!\n");
             lv_scr_load(scr_menu);
             ui_menu_set_page(menu, NULL);
             ui_menu_set_page(menu, main_page);
@@ -347,7 +347,7 @@ static void evt_scr_main(lv_event_t *event) {
                     ps1_memory_card_exit();
                     ps1_cardman_close();
                     switching_card = 1;
-                    printf("new PS1 card=%d chan=%d\n", ps1_cardman_get_idx(), ps1_cardman_get_channel());
+                    log(LOG_INFO, "new PS1 card=%d chan=%d\n", ps1_cardman_get_idx(), ps1_cardman_get_channel());
                 }
             } else {
                 switch (key) {
@@ -368,7 +368,7 @@ static void evt_scr_main(lv_event_t *event) {
 static void evt_scr_menu(lv_event_t *event) {
     if (event->code == LV_EVENT_KEY) {
         uint32_t key = lv_indev_get_key(lv_indev_get_act());
-        printf("menu screen got key %d\n", (int)key);
+        log(LOG_INFO, "menu screen got key %d\n", (int)key);
         if (key == INPUT_KEY_BACK || key == INPUT_KEY_MENU) {
             UI_GOTO_SCREEN(scr_main);
             lv_event_stop_bubbling(event);
@@ -940,7 +940,7 @@ static void update_activity(void) {
     if ((time - last_update) > 500 * 1000) {
         // TODO: Causes a 31ms delay that causes issues with mmce fs
         if (ps1_dirty_activity || ps2_mc_data_interface_write_occured()) {
-            // printf("ps2_dirty_activity\n");
+            // log(LOG_INFO, "ps2_dirty_activity\n");
             input_flush();
             if (!visible) {
                 lv_obj_clear_flag(g_activity_frame, LV_OBJ_FLAG_HIDDEN);
@@ -963,7 +963,7 @@ void gui_init(void) {
 
         lv_init();
 
-        printf("lv_init done \n");
+        log(LOG_INFO, "lv_init done \n");
 
         static lv_disp_draw_buf_t disp_buf;
         static lv_color_t buf_1[DISPLAY_WIDTH * DISPLAY_HEIGHT];
@@ -1007,7 +1007,7 @@ void gui_request_refresh(void) {
 }
 
 void gui_do_ps1_card_switch(void) {
-    printf("switching the card now!\n");
+    log(LOG_INFO, "switching the card now!\n");
 
     oled_update_last_action_time();
 
@@ -1015,7 +1015,7 @@ void gui_do_ps1_card_switch(void) {
     ps1_cardman_open();
     ps1_memory_card_enter();
     uint64_t end = time_us_64();
-    printf("full card switch took = %.2f s\n", (end - start) / 1e6);
+    log(LOG_INFO, "full card switch took = %.2f s\n", (end - start) / 1e6);
 }
 
 void gui_do_ps2_card_switch(void) {

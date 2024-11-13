@@ -13,12 +13,11 @@
 #include "ps2_mc_data_interface.h"
 #include "debug.h"
 
-//#define DEBUG_MC_PROTOCOL
 
-#if LOG_LEVEL_MC_DATA == 0
+#if LOG_LEVEL_PS2_MC == 0
 #define log(x...)
 #else
-#define log(level, fmt, x...) LOG_PRINT(LOG_LEVEL_MC_DATA, level, fmt, ##x)
+#define log(level, fmt, x...) LOG_PRINT(LOG_LEVEL_PS2_MC, level, fmt, ##x)
 #endif
 
 
@@ -66,9 +65,11 @@ inline __attribute__((always_inline)) void __time_critical_func(ps2_mc_cmd_setEr
     mc_respond(0x2B);
     receiveOrNextCmd(&_);
     (void)ck;  // TODO: validate checksum
+    mc_respond(term);
+
     erase_sector = raw.addr;
     ps2_mc_data_interface_erase(erase_sector);
-    mc_respond(term);
+    log(LOG_TRACE, "> EA %u\n", raw.addr);
 }
 
 inline __attribute__((always_inline)) void __time_critical_func(ps2_mc_cmd_setWriteAddress)(void) {
@@ -96,6 +97,7 @@ inline __attribute__((always_inline)) void __time_critical_func(ps2_mc_cmd_setWr
     is_write = 1;
     writeptr = 0;
     mc_respond(term);
+    log(LOG_TRACE, "> WA %u\n", raw.addr);
 }
 
 inline __attribute__((always_inline)) void __time_critical_func(ps2_mc_cmd_setReadAddress)(void) {
@@ -106,23 +108,25 @@ inline __attribute__((always_inline)) void __time_critical_func(ps2_mc_cmd_setRe
         uint32_t addr;
     } raw;
     uint8_t ck;
+    if (ps2_mc_data_interface_delay_required()) sleep_us(1500);
     mc_respond(0xFF);
     receiveOrNextCmd(&raw.a[0]);
+    if (ps2_mc_data_interface_delay_required()) sleep_us(1500);
     mc_respond(0xFF);
     receiveOrNextCmd(&raw.a[1]);
+    if (ps2_mc_data_interface_delay_required()) sleep_us(1500);
     mc_respond(0xFF);
     receiveOrNextCmd(&raw.a[2]);
+    if (ps2_mc_data_interface_delay_required()) sleep_us(1500);
     mc_respond(0xFF);
     receiveOrNextCmd(&raw.a[3]);
+    if (ps2_mc_data_interface_delay_required()) sleep_us(1500);
     mc_respond(0xFF);
     receiveOrNextCmd(&ck);
+    if (ps2_mc_data_interface_delay_required()) sleep_us(1500);
     mc_respond(0x2B);
     receiveOrNextCmd(&_);
     (void)ck;  // TODO: validate checksum
-    if (raw.addr != read_sector) {
-        ps2_mc_data_interface_invalidate_read(read_sector);
-        ps2_mc_data_interface_invalidate_readahead();
-    }
 
     read_sector = raw.addr;
     ps2_mc_data_interface_setup_read_page(read_sector, true, true);
@@ -133,6 +137,7 @@ inline __attribute__((always_inline)) void __time_critical_func(ps2_mc_cmd_setRe
     memset(eccptr, 0, 16);
 
     mc_respond(term);
+    log(LOG_TRACE, "> RA %u\n", raw.addr);
 }
 
 inline __attribute__((always_inline)) void __time_critical_func(ps2_mc_cmd_getSpecs)(void) {
@@ -194,13 +199,12 @@ inline __attribute__((always_inline)) void __time_critical_func(ps2_mc_cmd_write
     uint8_t _ = 0U;
     /* write data */
     uint8_t sz;
+
+    log(LOG_TRACE, "> WD\n");
+
     mc_respond(0xFF);
     receiveOrNextCmd(&sz);
     mc_respond(0xFF);
-
-#ifdef DEBUG_MC_PROTOCOL
-    debug_printf("> %02X %02X\n", _, sz);
-#endif
 
     uint8_t ck = 0;
     uint8_t b;
@@ -218,8 +222,8 @@ inline __attribute__((always_inline)) void __time_critical_func(ps2_mc_cmd_write
     // this should be checksum?
     receiveOrNextCmd(&ck2);
     (void)ck2;  // TODO: validate checksum
-    if (ck == ck2)
-        log(LOG_TRACE, "%s Checksum match\n", __func__);
+    if (ck != ck2)
+        log(LOG_WARN, "%s Checksum mismatch\n", __func__);
 
     mc_respond(0x2B);
     receiveOrNextCmd(&_);
@@ -227,7 +231,7 @@ inline __attribute__((always_inline)) void __time_critical_func(ps2_mc_cmd_write
 }
 
 inline __attribute__((always_inline)) void __time_critical_func(ps2_mc_cmd_readData)(void) {
-
+    bool ecc_delay = false;
     uint8_t _ = 0U;
     /* read data */
     uint8_t sz;
@@ -237,42 +241,24 @@ inline __attribute__((always_inline)) void __time_critical_func(ps2_mc_cmd_readD
     mc_respond(0x2B);
     receiveOrNextCmd(&_);
 
-#ifdef DEBUG_MC_PROTOCOL
-    debug_printf("> %02X %02X\n", _, sz);
-#endif
+    log(LOG_TRACE, "> RD %u readptr %u sz %u\n", read_sector, readptr, sz);
 
     uint8_t ck = 0;
     uint8_t b = 0xFF;
 
-    page = ps2_mc_data_interface_get_page(read_sector);
-
-    if (!page) {
-        ps2_mc_data_interface_setup_read_page(read_sector, false, true);
+    if (readptr < PS2_PAGE_SIZE)
         page = ps2_mc_data_interface_get_page(read_sector);
-    } else {
-        uint32_t timeout = 1000;
-        if ((page->page_state != PAGE_DATA_AVAILABLE) && (page->page_state != PAGE_READ_AHEAD_AVAILABLE)) {
-            log(LOG_WARN, "%s Page %u not read - state: %u\n", __func__, page->page, page->page_state);
-        }
-        while ((page->page_state != PAGE_DATA_AVAILABLE) && (page->page_state != PAGE_READ_AHEAD_AVAILABLE) && (timeout-- > 0)) {sleep_us(10);printf(".");};
-        if (timeout == 0) {
-            log(LOG_ERROR, "%s timeout reading for %u - state: %u\n", __func__, page->page, page->page_state);
-        }
-    }
-    if (!page) {
-        log(LOG_ERROR, "%s Didn't get page %u\n", __func__, read_sector);
-        return;
-    }
 
     for (int i = 0; i < sz; ++i) {
         if (readptr < PS2_PAGE_SIZE + 16) {
-            // ensure the requested byte is available
-            ps2_mc_data_interface_wait_for_byte(readptr);
 
-            if (readptr < PS2_PAGE_SIZE)
+            if (readptr < PS2_PAGE_SIZE) {
+                // ensure the requested byte is available
+                ps2_mc_data_interface_wait_for_byte(readptr);
                 b = page->data[readptr];
-            else
+            } else {
                 b = readecc[readptr - PS2_PAGE_SIZE];
+            }
 
             mc_respond(b);
 
@@ -300,24 +286,36 @@ inline __attribute__((always_inline)) void __time_critical_func(ps2_mc_cmd_readD
                 }
             } else {
                 ++readptr;
+                if (ecc_delay)
+                    sleep_us(1500);
             }
         } else
             mc_respond(b);
+
         ck ^= b;
         receiveOrNextCmd(&_);
+
+        if (readptr == PS2_PAGE_SIZE) {
+            /* a game may read more than one 528-byte sector in a sequence of read ops, e.g. re4 */
+            ps2_mc_data_interface_setup_read_page(read_sector + 1, true, false);
+            if (sz - i > 16) {
+                log(LOG_TRACE, "> read beyond page\n");
+                ecc_delay = true;
+            }
+        } else if (readptr == PS2_PAGE_SIZE + 16) {
+            readptr = 0;
+            ++read_sector;
+
+            eccptr = readecc;
+            memset(readecc, 0, 16);
+            ecc_delay = false;
+            if (sz - i > 1) {
+                log(LOG_TRACE, "> increasing page to %u (sz %u i %u)\n", read_sector, sz, i);
+                page = ps2_mc_data_interface_get_page(read_sector);
+            }
+        }
     }
-    if (readptr == PS2_PAGE_SIZE + 16) {
-        /* a game may read more than one 528-byte sector in a sequence of read ops, e.g. re4 */
-        ps2_mc_data_interface_invalidate_read(read_sector);
-        ++read_sector;
 
-        ps2_mc_data_interface_setup_read_page(read_sector, true, false);
-
-        readptr = 0;
-
-        eccptr = readecc;
-        memset(readecc, 0, 16);
-    }
 
     mc_respond(ck);
     receiveOrNextCmd(&_);
@@ -332,19 +330,9 @@ inline __attribute__((always_inline)) void __time_critical_func(ps2_mc_cmd_commi
     if (is_write) {
 
         is_write = 0;
-        log(LOG_INFO, "%sWrite Sector %u\n", __func__, write_sector);
-        //while (ps2_mc_data_interface_write_busy()) {};
+        log(LOG_TRACE, "> C %u\n", write_sector);
         ps2_mc_data_interface_write_mc(write_sector, writetmp);
-#ifdef DEBUG_MC_PROTOCOL
-            debug_printf("WR 0x%08X : %02X %02X .. %08X %08X %08X\n", write_sector * 512, writetmp[0], writetmp[1], *(uint32_t *)&writetmp[512],
-                         *(uint32_t *)&writetmp[516], *(uint32_t *)&writetmp[520]);
-#endif
 
-    } else {
-#ifdef DEBUG_MC_PROTOCOL
-        debug_printf("RD 0x%08X : %02X %02X .. %08X %08X %08X\n", read_sector * 512, readtmp[0], readtmp[1], *(uint32_t *)&readtmp[512],
-                     *(uint32_t *)&readtmp[516], *(uint32_t *)&readtmp[520]);
-#endif
     }
 
     mc_respond(0x2B);
@@ -356,10 +344,7 @@ inline __attribute__((always_inline)) void __time_critical_func(ps2_mc_cmd_erase
     uint8_t _ = 0U;
 
     /* do erase */
-    //ps2_mc_data_interface_erase(erase_sector);
-#ifdef DEBUG_MC_PROTOCOL
-        debug_printf("ER 0x%08X\n", erase_sector * 512);
-#endif
+    log(LOG_TRACE, "> E %u\n", erase_sector);
 
     mc_respond(0x2B);
     receiveOrNextCmd(&_);
@@ -388,7 +373,7 @@ inline __attribute__((always_inline)) void __time_critical_func(ps2_mc_cmd_0xF3)
   * Official retail memory cards use both developer and retail keys.
   * they use developer keys untill 0xF7 command (this function) is called. then they switch to retail keys
   * the ideal approach is just to respond to this command, but never expect it.
-  * retail SECRMAN expects an answer to this, but the others wont. 
+  * retail SECRMAN expects an answer to this, but the others wont.
   * arcade cards support this command but dont perform a key change bc they were not intended to do so.
   */
 inline __attribute__((always_inline)) void __time_critical_func(ps2_mc_cmd_keySelect)(

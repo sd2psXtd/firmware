@@ -580,7 +580,7 @@ void ps2_cardman_open(void) {
 
     sector_count = card_size / BLOCK_SIZE;
 
-    QPRINTF("Open Finished!\n");
+    log(LOG_INFO, "Open Finished!\n");
 }
 
 void ps2_cardman_close(void) {

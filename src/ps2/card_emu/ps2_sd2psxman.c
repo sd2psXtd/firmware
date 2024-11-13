@@ -94,6 +94,7 @@ void ps2_sd2psxman_task(void) {
         && !input_is_any_down()
         && !op_in_progress) {
         log(LOG_INFO, "%s Switching card now\n", __func__);
+        uint32_t switching_time = time_us_32();
 
         ps2_history_tracker_init();
         // close old card
@@ -113,6 +114,7 @@ void ps2_sd2psxman_task(void) {
         // open new card
         ps2_cardman_open();
         ps2_memory_card_enter();
+        log(LOG_INFO, "%s Card switch took %u ms\n", __func__, (time_us_32() - switching_time)/1000U);
     }
 }
 
