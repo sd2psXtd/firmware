@@ -184,7 +184,10 @@ int settings_get_mode(void) {
     else
         return settings.sys_flags & SETTINGS_SYS_FLAGS_PS2_MODE;
 #else
-    return MODE_PS2;
+    if (MODE_PS2 != tempmode)
+        return MODE_PS1;
+    else
+        return MODE_PS2;
 #endif
 }
 
