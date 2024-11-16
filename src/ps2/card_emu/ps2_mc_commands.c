@@ -286,7 +286,7 @@ inline __attribute__((always_inline)) void __time_critical_func(ps2_mc_cmd_readD
                 }
             } else {
                 ++readptr;
-                if (ecc_delay)
+                if (ecc_delay && !ps2_mc_data_interface_data_available())
                     sleep_us(1500);
             }
         } else
