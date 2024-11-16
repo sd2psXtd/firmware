@@ -508,6 +508,7 @@ static void evt_switch_to_ps2(lv_event_t *event) {
     settings_set_mode(MODE_PS2);
     lv_label_set_text(lbl_mode, "PS2");
     gui_request_refresh();
+    keystore_init();
 
     if (!ps2_magicgate)
         lv_label_set_text(main_header, "PS2: No CIV!");
