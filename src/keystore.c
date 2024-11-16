@@ -80,18 +80,23 @@ int __not_in_flash_func(keystore_deploy)(void) {
         chkbuf[i + 8] = ~chkbuf[i];
 
     if (memcmp(chkbuf, (uint8_t*)XIP_BASE + FLASH_OFF_CIV, sizeof(chkbuf)) != 0) {
-        #if WITH_GUI
-        multicore_lockout_start_blocking();
-        #endif
+        if (multicore_lockout_victim_is_initialized(1))
+            multicore_lockout_start_blocking();
         uint32_t ints = save_and_disable_interrupts();
         flash_range_erase(FLASH_OFF_CIV, 4096);
         flash_range_program(FLASH_OFF_CIV, chkbuf, sizeof(chkbuf));
         restore_interrupts (ints);
-        #if WITH_GUI
-        multicore_lockout_end_blocking();
-        #endif
+        if (multicore_lockout_victim_is_initialized(1))
+            multicore_lockout_end_blocking();
     } else {
         printf("keystore - skipping CIV flash because data is unchanged\n");
+    }
+
+    if (!sd_exists(".sd2psx/civ.bin")) {
+        fd = sd_open(".sd2psx/civ.bin", O_CREAT | O_WRONLY);
+        sd_write(fd, civbuf, 8);
+        sd_close(fd);
+        sd_remove("civ.bin");
     }
 
     keystore_read();
