@@ -12,7 +12,7 @@
 #if LOG_LEVEL_MC_AUTH == 0
 #define log(x...)
 #else
-#define log(level, fmt, x...) LOG_PRINT(LOG_LEVEL_MMCE_FS, level, fmt, ##x)
+#define log(level, fmt, x...) LOG_PRINT(LOG_LEVEL_MC_AUTH, level, fmt, ##x)
 #endif
 
 // keysource and key are self generated values
