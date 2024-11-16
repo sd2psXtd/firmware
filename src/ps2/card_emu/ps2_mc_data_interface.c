@@ -355,6 +355,15 @@ void __time_critical_func(ps2_mc_data_interface_erase)(uint32_t page) {
     }
 }
 
+bool __time_critical_func(ps2_mc_data_interface_data_available)(void) {
+    if (sdmode) {
+        return (curr_read->page_state == PAGE_DATA_AVAILABLE) || (curr_read->page_state == PAGE_READ_AHEAD_AVAILABLE);
+    } else {
+        return true;
+    }
+}
+
+
 inline void __time_critical_func(ps2_mc_data_interface_wait_for_byte)(uint32_t offset) {
 #if WITH_PSRAM
     if (!sdmode) {
@@ -438,16 +447,6 @@ void ps2_mc_data_interface_init(void) {
 
 bool ps2_mc_data_interface_write_occured(void) {
     return write_occured;
-}
-
-bool ps2_mc_data_interface_busy(void) {
-    if (sdmode) {
-        return busy_cycle;
-    } else {
-#if WITH_PSRAM
-        return (ps2_dirty_activity > 0);
-#endif
-    }
 }
 
 void ps2_mc_data_interface_set_sdmode(bool mode) {
