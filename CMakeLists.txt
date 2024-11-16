@@ -47,7 +47,6 @@ add_executable(${TARGET_NAME}
     src/ps1.c
 
     src/game_db/game_db.c
-    src/card_config.c
     src/wear_leveling/wear_leveling.c
     src/wear_leveling/wear_leveling_rp2040_flash.c
 
@@ -76,7 +75,6 @@ target_link_libraries(${TARGET_NAME}
         ps1_card
         ps2_card
         sd_fat
-        inih
 )
 
 add_dependencies(${TARGET_NAME} gamedb)
@@ -91,7 +89,8 @@ add_library(sd2psx_common STATIC
                 ${CMAKE_CURRENT_SOURCE_DIR}/src/des.c
                 ${CMAKE_CURRENT_SOURCE_DIR}/src/keystore.c
                 ${CMAKE_CURRENT_SOURCE_DIR}/src/settings.c
-                ${CMAKE_CURRENT_SOURCE_DIR}/src/bigmem.c)
+                ${CMAKE_CURRENT_SOURCE_DIR}/src/bigmem.c
+                ${CMAKE_CURRENT_SOURCE_DIR}/src/card_config.c)
 
 target_include_directories(sd2psx_common
                 PUBLIC
@@ -105,7 +104,8 @@ target_link_libraries(sd2psx_common
                         hardware_flash
                         hardware_gpio
                         hardware_watchdog
-                        pico_multicore)
+                        pico_multicore
+                        inih)
 
 target_compile_options(sd2psx_common
                         PUBLIC
