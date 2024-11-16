@@ -125,7 +125,7 @@ void ps2_dirty_task(void) {
             ps2_dirty_mark(sector);
             ps2_dirty_unlock();
         }
-        DPRINTF("Writing %u\n", sector);
+        //DPRINTF("Writing %u\n", sector);
         ps2_history_tracker_registerPageWrite(sector);
     }
     /* to make sure writes hit the storage medium */
