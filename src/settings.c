@@ -5,7 +5,10 @@
 
 #include "debug.h"
 #include "pico/multicore.h"
+#include "sd.h"
 #include "wear_leveling/wear_leveling.h"
+
+#include "ini.h"
 
 /* NOTE: for any change to the layout/size of this structure (that gets shipped to users),
    ensure to increase the version magic below -- this will trigger setting reset on next boot */
@@ -29,6 +32,8 @@ typedef struct {
     uint8_t padding[1];
 } settings_t;
 
+#define SETTINGS_UPDATE_FIELD(field) settings_update_part(&settings.field, sizeof(settings.field))
+
 #define SETTINGS_VERSION_MAGIC (0xAACD0005)
 #define SETTINGS_PS1_FLAGS_AUTOBOOT (0b0000001)
 #define SETTINGS_PS1_FLAGS_GAME_ID  (0b0000010)
@@ -40,6 +45,86 @@ _Static_assert(sizeof(settings_t) == 20, "unexpected padding in the settings str
 
 static settings_t settings;
 static int tempmode;
+static const char settings_path[] = "/.sd2psx/settings.ini";
+
+static void settings_update(void);
+static void settings_update_part(void *settings_ptr, uint32_t sz);
+static void settings_serialize(void);
+
+static int parse_card_configuration(void *user, const char *section, const char *name, const char *value) {
+    settings_t* _s = user;
+
+    #define MATCH(s, n) strcmp(section, s) == 0 && strcmp(name, n) == 0
+    #define DIFFERS(v, s) ((strcmp(v, "ON") == 0) != s)
+    if (MATCH("PS1", "Autoboot")
+        && DIFFERS(value, (_s->ps1_flags & SETTINGS_PS1_FLAGS_AUTOBOOT))) {
+        _s->ps1_flags ^= SETTINGS_PS1_FLAGS_AUTOBOOT;
+    } else if (MATCH("PS1", "GameID")
+        && DIFFERS(value, (_s->ps1_flags & SETTINGS_PS1_FLAGS_GAME_ID))) {
+        _s->ps1_flags ^= SETTINGS_PS1_FLAGS_GAME_ID;
+    } else if (MATCH("PS2", "Autoboot")
+        && DIFFERS(value, (_s->ps2_flags & SETTINGS_PS2_FLAGS_AUTOBOOT))) {
+        _s->ps2_flags ^= SETTINGS_PS2_FLAGS_AUTOBOOT;
+    } else if (MATCH("PS2", "GameID")
+        && DIFFERS(value, (_s->ps2_flags & SETTINGS_PS2_FLAGS_GAME_ID))) {
+        _s->ps1_flags ^= SETTINGS_PS2_FLAGS_GAME_ID;
+    } else if (MATCH("PS2", "CardSize")) {
+        _s->ps2_cardsize = atoi(value);;
+    } else if (MATCH("General", "Mode")
+        && (strcmp(value, "PS2") == 0) != (_s->sys_flags & SETTINGS_SYS_FLAGS_PS2_MODE)) {
+        _s->sys_flags ^= SETTINGS_SYS_FLAGS_PS2_MODE;
+    }
+    #undef MATCH
+    return 1;
+}
+
+static void settings_deserialize(void) {
+    int fd;
+
+    fd = sd_open(settings_path, O_RDONLY);
+    if (fd >= 0) {
+        settings_t newSettings = settings;
+        ini_parse_sd_file(fd, parse_card_configuration, &newSettings);
+        sd_close(fd);
+        if (memcmp(&newSettings, &settings, sizeof(settings))) {
+            settings = newSettings;
+            wear_leveling_write(0, &settings, sizeof(settings));
+        }
+    }
+}
+
+static void settings_serialize(void) {
+    int fd;
+
+    if (!sd_exists("/.sd2psx/")) {
+        sd_mkdir("/.sd2psx/");
+    }
+    fd = sd_open(settings_path, O_RDWR | O_CREAT);
+    if (fd >= 0) {
+        printf("Serializing Settings\n");
+        char line_buffer[256] = { 0x0 };
+        int written = snprintf(line_buffer, 256, "[General]\n");
+        sd_write(fd, line_buffer, written);
+        written = snprintf(line_buffer, 256, "Mode=%s\n", ((settings.sys_flags & SETTINGS_SYS_FLAGS_PS2_MODE) > 0) ? "PS2" : "PS1");
+        sd_write(fd, line_buffer, written);
+        written = snprintf(line_buffer, 256, "[PS1]\n");
+        sd_write(fd, line_buffer, written);
+        written = snprintf(line_buffer, 256, "Autoboot=%s\n", ((settings.ps1_flags & SETTINGS_PS1_FLAGS_AUTOBOOT) > 0) ? "ON" : "OFF");
+        sd_write(fd, line_buffer, written);
+        written = snprintf(line_buffer, 256, "GameID=%s\n", ((settings.ps1_flags & SETTINGS_PS1_FLAGS_GAME_ID) > 0) ? "ON" : "OFF");
+        sd_write(fd, line_buffer, written);
+        written = snprintf(line_buffer, 256, "[PS2]\n");
+        sd_write(fd, line_buffer, written);
+        written = snprintf(line_buffer, 256, "Autoboot=%s\n", ((settings.ps2_flags & SETTINGS_PS2_FLAGS_AUTOBOOT) > 0) ? "ON" : "OFF");
+        sd_write(fd, line_buffer, written);
+        written = snprintf(line_buffer, 256, "GameID=%s\n", ((settings.ps2_flags & SETTINGS_PS2_FLAGS_GAME_ID) > 0) ? "ON" : "OFF");
+        sd_write(fd, line_buffer, written);
+        written = snprintf(line_buffer, 256, "CardSize=%u\n", settings.ps2_cardsize);
+        sd_write(fd, line_buffer, written);
+
+        sd_close(fd);
+    }
+}
 
 static void settings_reset(void) {
     memset(&settings, 0, sizeof(settings));
@@ -65,24 +150,36 @@ void settings_init(void) {
     }
 
     wear_leveling_read(0, &settings, sizeof(settings));
-    tempmode = settings.sys_flags & SETTINGS_SYS_FLAGS_PS2_MODE;
+
     if (settings.version_magic != SETTINGS_VERSION_MAGIC) {
         printf("version magic mismatch, reset settings\n");
         settings_reset();
     }
+
+    sd_init();
+    if (sd_exists(settings_path)) {
+        printf("Reading settings from %s\n", settings_path);
+        settings_deserialize();
+    } else {
+        settings_serialize();
+    }
+
+    tempmode = settings.sys_flags & SETTINGS_SYS_FLAGS_PS2_MODE;
 }
 
-void settings_update(void) {
+static void settings_update(void) {
     wear_leveling_write(0, &settings, sizeof(settings));
 }
 
-void settings_update_part(void *settings_ptr, uint32_t sz) {
-    multicore_lockout_start_blocking();
+static void settings_update_part(void *settings_ptr, uint32_t sz) {
+    if (multicore_lockout_victim_is_initialized(1))
+       multicore_lockout_start_blocking();
     wear_leveling_write((uint8_t*)settings_ptr - (uint8_t*)&settings, settings_ptr, sz);
-    multicore_lockout_end_blocking();
+    if (multicore_lockout_victim_is_initialized(1))
+        multicore_lockout_end_blocking();
+    settings_serialize();
 }
 
-#define SETTINGS_UPDATE_FIELD(field) settings_update_part(&settings.field, sizeof(settings.field))
 
 int settings_get_ps2_card(void) {
     if (settings.ps2_card < IDX_MIN)
@@ -178,17 +275,10 @@ void settings_set_ps1_boot_channel(int chan) {
 }
 
 int settings_get_mode(void) {
-#ifdef WITH_GUI
     if ((settings.sys_flags & SETTINGS_SYS_FLAGS_PS2_MODE) != tempmode)
         return MODE_PS1;
     else
         return settings.sys_flags & SETTINGS_SYS_FLAGS_PS2_MODE;
-#else
-    if (MODE_PS2 != tempmode)
-        return MODE_PS1;
-    else
-        return MODE_PS2;
-#endif
 }
 
 void settings_set_mode(int mode) {
