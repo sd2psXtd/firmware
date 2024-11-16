@@ -69,7 +69,20 @@ static int parse_card_configuration(void *user, const char *section, const char 
         && DIFFERS(value, (_s->ps2_flags & SETTINGS_PS2_FLAGS_GAME_ID))) {
         _s->ps1_flags ^= SETTINGS_PS2_FLAGS_GAME_ID;
     } else if (MATCH("PS2", "CardSize")) {
-        _s->ps2_cardsize = atoi(value);;
+        int size = atoi(value);
+        switch (size) {
+            case 1:
+            case 2:
+            case 4:
+            case 8:
+            case 16:
+            case 32:
+            case 64:
+                _s->ps2_cardsize = size;
+                break;
+            default:
+                break;
+        }
     } else if (MATCH("General", "Mode")
         && (strcmp(value, "PS2") == 0) != (_s->sys_flags & SETTINGS_SYS_FLAGS_PS2_MODE)) {
         _s->sys_flags ^= SETTINGS_SYS_FLAGS_PS2_MODE;
