@@ -13,6 +13,8 @@
 #include "settings.h"
 
 uint8_t ps2_civ[8];
+const char civ_path[]           = "civ.bin";
+const char civ_path_backup[]    = ".sd2psx/civ.bin";
 int ps2_magicgate;
 
 void keystore_init(void) {
@@ -59,13 +61,18 @@ char *keystore_error(int rc) {
 int __not_in_flash_func(keystore_deploy)(void) {
     uint8_t civbuf[8] = { 0 };
     uint8_t chkbuf[256] = { 0 };
+    const char* path;
 
     sd_init();
 
-    if (!sd_exists("civ.bin"))
+    if (sd_exists(civ_path))
+        path = civ_path;
+    else if (sd_exists(civ_path_backup))
+        path = civ_path_backup;
+    else
         return KEYSTORE_DEPLOY_NOFILE;
 
-    int fd = sd_open("civ.bin", O_RDONLY);
+    int fd = sd_open(path, O_RDONLY);
     if (fd < 0)
         return KEYSTORE_DEPLOY_OPEN;
 
@@ -92,11 +99,11 @@ int __not_in_flash_func(keystore_deploy)(void) {
         printf("keystore - skipping CIV flash because data is unchanged\n");
     }
 
-    if (!sd_exists(".sd2psx/civ.bin")) {
-        fd = sd_open(".sd2psx/civ.bin", O_CREAT | O_WRONLY);
+    if (!sd_exists(civ_path_backup)) {
+        fd = sd_open(civ_path_backup, O_CREAT | O_WRONLY);
         sd_write(fd, civbuf, 8);
         sd_close(fd);
-        sd_remove("civ.bin");
+        sd_remove(path);
     }
 
     keystore_read();
