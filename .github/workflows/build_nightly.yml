@@ -13,22 +13,6 @@ env:
   BUILD_TYPE: Release
 
 jobs:
-  #create_release:
-  #  name: Create release
-  #  runs-on: ubuntu-latest
-  #  outputs:
-  #    upload_url: ${{ steps.create_release.outputs.upload_url }}
-  #  steps:
-  #    - name: Create release
-  #      id: create_release
-  #      uses: viperproject/create-nightly-release@v1
-  #      env:
-  #        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-  #      with:
-  #        tag_name: nigthly
-  #        release_name: nightly-${{ github.sha }}
-  #        keep_num: 0
-  #        keep_tags: false
   build:
     # The CMake configure and build commands are platform agnostic and should work equally well on Windows or Mac.
     # You can convert this to a matrix build if you need cross-platform coverage.
@@ -97,6 +81,7 @@ jobs:
       uses: actions/download-artifact@v4
 
     - name: Create Nightly
+      if: (!startsWith(github.ref, 'refs/tags/'))
       uses: mathieucarbou/marvinpinto-action-automatic-releases@latest
       with:
         repo_token: "${{ secrets.GITHUB_TOKEN }}"
