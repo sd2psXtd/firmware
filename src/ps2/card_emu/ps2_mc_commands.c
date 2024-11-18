@@ -20,6 +20,7 @@
 #define log(level, fmt, x...) LOG_PRINT(LOG_LEVEL_PS2_MC, level, fmt, ##x)
 #endif
 
+#define PS2_READ_ARB_DELAY      ( 1000 )
 
 uint32_t read_sector, write_sector, erase_sector;
 uint8_t readecc[16];
@@ -108,22 +109,22 @@ inline __attribute__((always_inline)) void __time_critical_func(ps2_mc_cmd_setRe
         uint32_t addr;
     } raw;
     uint8_t ck;
-    if (ps2_mc_data_interface_delay_required()) sleep_us(1500);
+    if (ps2_mc_data_interface_delay_required()) sleep_us(PS2_READ_ARB_DELAY);
     mc_respond(0xFF);
     receiveOrNextCmd(&raw.a[0]);
-    if (ps2_mc_data_interface_delay_required()) sleep_us(1500);
+    if (ps2_mc_data_interface_delay_required()) sleep_us(PS2_READ_ARB_DELAY);
     mc_respond(0xFF);
     receiveOrNextCmd(&raw.a[1]);
-    if (ps2_mc_data_interface_delay_required()) sleep_us(1500);
+    if (ps2_mc_data_interface_delay_required()) sleep_us(PS2_READ_ARB_DELAY);
     mc_respond(0xFF);
     receiveOrNextCmd(&raw.a[2]);
-    if (ps2_mc_data_interface_delay_required()) sleep_us(1500);
+    if (ps2_mc_data_interface_delay_required()) sleep_us(PS2_READ_ARB_DELAY);
     mc_respond(0xFF);
     receiveOrNextCmd(&raw.a[3]);
-    if (ps2_mc_data_interface_delay_required()) sleep_us(1500);
+    if (ps2_mc_data_interface_delay_required()) sleep_us(PS2_READ_ARB_DELAY);
     mc_respond(0xFF);
     receiveOrNextCmd(&ck);
-    if (ps2_mc_data_interface_delay_required()) sleep_us(1500);
+    if (ps2_mc_data_interface_delay_required()) sleep_us(PS2_READ_ARB_DELAY);
     mc_respond(0x2B);
     receiveOrNextCmd(&_);
     (void)ck;  // TODO: validate checksum
@@ -287,7 +288,7 @@ inline __attribute__((always_inline)) void __time_critical_func(ps2_mc_cmd_readD
             } else {
                 ++readptr;
                 if (ecc_delay && !ps2_mc_data_interface_data_available())
-                    sleep_us(1500);
+                    sleep_us(PS2_READ_ARB_DELAY);
             }
         } else
             mc_respond(b);
