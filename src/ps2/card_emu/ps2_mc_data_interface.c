@@ -55,6 +55,7 @@ static volatile ps2_mcdi_page_t*     c0_read;
 static volatile bool                 sdmode;
 static volatile bool                 write_occured;
 static volatile bool                 busy_cycle;
+static volatile bool                 delay_reuired;
 static critical_section_t            crit;
 
 static volatile uint8_t erase_count = 0;
@@ -84,6 +85,7 @@ static inline void __time_critical_func(push_op)(volatile ps2_mcdi_page_t* op) {
     ops[ops_head] = op;
     ops_head = ( ops_head + 1 ) % PAGE_CACHE_SIZE;
     queue_full = (ops_head == ops_tail);
+    delay_reuired = true;
     critical_section_exit(&crit);
 }
 
@@ -187,6 +189,7 @@ void __time_critical_func(ps2_mc_data_interface_setup_read_page)(uint32_t page, 
                         readahead_read->page_state = PAGE_EMPTY;
                         critical_section_exit(&crit);
                     } else {
+                        while (curr_read->page_state == PAGE_READ_REQ) {tight_loop_contents();}
                         log(LOG_TRACE, "%s setting up read for %u\n", __func__, page);
                         critical_section_enter_blocking(&crit);
                         curr_read->page = page;
@@ -317,10 +320,7 @@ bool __time_critical_func(ps2_mc_data_interface_write_busy)(void) {
 }
 
 bool __time_critical_func(ps2_mc_data_interface_delay_required)(void) {
-    if (sdmode)
-        return write_occured;
-    else
-        return false;
+    return delay_reuired;
 }
 
 
@@ -376,9 +376,9 @@ inline void __time_critical_func(ps2_mc_data_interface_wait_for_byte)(uint32_t o
             if (curr_read == NULL) {
                 log(LOG_ERROR, "%s: No read was set up : %u\n", __func__, offset);
             } else if (!PAGE_IS_READ(curr_read)) {
-                log(LOG_ERROR, "%s: Not read page for offs: %u\n", __func__, offset);
+                log(LOG_ERROR, "%s: Not read page for offs: %u state: %u\n", __func__, offset, curr_read->page_state);
             } else {
-                while ((curr_read->page_state != PAGE_DATA_AVAILABLE) && (curr_read->page_state != PAGE_READ_AHEAD_AVAILABLE) ) {sleep_us(10); /*log(LOG_INFO, "-\n");*/}
+                while ((curr_read->page_state != PAGE_DATA_AVAILABLE) && (curr_read->page_state != PAGE_READ_AHEAD_AVAILABLE) ) {/*log(LOG_WARN, "%s:WC:%u,EC:%u\n", __func__,write_count, erase_count);*/sleep_us(50); /*log(LOG_INFO, "-\n");*/}
             }
         }
     }
@@ -433,6 +433,7 @@ void ps2_mc_data_interface_card_changed(void) {
     write_count = 0;
     erase_count = 0;
     write_occured = false;
+    delay_reuired = false;
 
     log(LOG_INFO, "%s Done\n", __func__);
 }
@@ -512,6 +513,7 @@ void ps2_mc_data_interface_task(void) {
             ps2_cardman_flush();
             flush_req = false;
         }
+        delay_reuired = op_fill_status() > 0;
     } else {
 #if WITH_PSRAM
     ps2_dirty_task();

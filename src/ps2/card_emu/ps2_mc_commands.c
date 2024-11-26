@@ -5,6 +5,7 @@
 #include <string.h>
 
 #include "hardware/dma.h"
+#include "hardware/timer.h"
 #include "history_tracker/ps2_history_tracker.h"
 #include "pico/platform.h"
 #include "pico/time.h"
@@ -20,7 +21,7 @@
 #define log(level, fmt, x...) LOG_PRINT(LOG_LEVEL_PS2_MC, level, fmt, ##x)
 #endif
 
-#define PS2_READ_ARB_DELAY      ( 1000 )
+#define PS2_READ_ARB_DELAY      ( 1500 )
 
 uint32_t read_sector, write_sector, erase_sector;
 uint8_t readecc[16];
@@ -28,7 +29,22 @@ uint8_t writetmp[528];
 int is_write;
 uint32_t readptr, writeptr;
 uint8_t *eccptr;
+uint64_t last_response;
 
+static void __time_critical_func(delayed_response)(char ch, uint32_t delay, const char* func) {
+#ifdef DEBUG_USB_UART
+    if (!card_active) {log(LOG_ERROR, "%s Card already deselected - byte %02x after %u \n", func, ch, (uint32_t)(time_us_64() - last_response));}
+#endif
+
+    while ((ps2_mc_data_interface_delay_required()) && (time_us_64() - last_response < delay)) {
+        sleep_us(10);
+#ifdef DEBUG_USB_UART
+        if (!card_active) {log(LOG_ERROR, "%s Card deselected at byte %02x after %u \n", func, ch, (uint32_t)(time_us_64() - last_response)); break;}
+#endif
+    }
+    mc_respond(ch);
+    last_response = time_us_64();
+}
 
 
 inline __attribute__((always_inline)) void __time_critical_func(ps2_mc_cmd_0x11)(void) {
@@ -53,23 +69,26 @@ inline __attribute__((always_inline)) void __time_critical_func(ps2_mc_cmd_setEr
         uint32_t addr;
     } raw;
     uint8_t ck;
-    mc_respond(0xFF);
+    last_response = time_us_64();
+    delayed_response(0xFF, 2000, __func__);
     receiveOrNextCmd(&raw.a[0]);
-    mc_respond(0xFF);
+    delayed_response(0xFF, 2000, __func__);
     receiveOrNextCmd(&raw.a[1]);
-    mc_respond(0xFF);
+    delayed_response(0xFF, 2000, __func__);
     receiveOrNextCmd(&raw.a[2]);
-    mc_respond(0xFF);
+    delayed_response(0xFF, 2000, __func__);
     receiveOrNextCmd(&raw.a[3]);
-    mc_respond(0xFF);
-    receiveOrNextCmd(&ck);
-    mc_respond(0x2B);
-    receiveOrNextCmd(&_);
-    (void)ck;  // TODO: validate checksum
-    mc_respond(term);
-
     erase_sector = raw.addr;
     ps2_mc_data_interface_erase(erase_sector);
+
+    delayed_response(0xFF, 2000, __func__);
+    receiveOrNextCmd(&ck);
+
+    delayed_response(0x2B, 2000, __func__);
+    receiveOrNextCmd(&_);
+    (void)ck;  // TODO: validate checksum
+    delayed_response(term, 2000, __func__);
+
     log(LOG_TRACE, "> EA %u\n", raw.addr);
 }
 
@@ -81,23 +100,24 @@ inline __attribute__((always_inline)) void __time_critical_func(ps2_mc_cmd_setWr
         uint32_t addr;
     } raw;
     uint8_t ck;
-    mc_respond(0xFF);
+    last_response = time_us_64();
+    delayed_response(0xFF, PS2_READ_ARB_DELAY, __func__);
     receiveOrNextCmd(&raw.a[0]);
-    mc_respond(0xFF);
+    delayed_response(0xFF, PS2_READ_ARB_DELAY, __func__);
     receiveOrNextCmd(&raw.a[1]);
-    mc_respond(0xFF);
+    delayed_response(0xFF, PS2_READ_ARB_DELAY, __func__);
     receiveOrNextCmd(&raw.a[2]);
-    mc_respond(0xFF);
+    delayed_response(0xFF, PS2_READ_ARB_DELAY, __func__);
     receiveOrNextCmd(&raw.a[3]);
-    mc_respond(0xFF);
+    delayed_response(0xFF, PS2_READ_ARB_DELAY, __func__);
     receiveOrNextCmd(&ck);
-    mc_respond(0x2B);
+    delayed_response(0x2B, PS2_READ_ARB_DELAY, __func__);
     receiveOrNextCmd(&_);
     (void)ck;  // TODO: validate checksum
     write_sector = raw.addr;
     is_write = 1;
     writeptr = 0;
-    mc_respond(term);
+    delayed_response(term, PS2_READ_ARB_DELAY, __func__);
     log(LOG_TRACE, "> WA %u\n", raw.addr);
 }
 
@@ -109,35 +129,29 @@ inline __attribute__((always_inline)) void __time_critical_func(ps2_mc_cmd_setRe
         uint32_t addr;
     } raw;
     uint8_t ck;
-    if (ps2_mc_data_interface_delay_required()) sleep_us(PS2_READ_ARB_DELAY);
-    mc_respond(0xFF);
+    last_response = time_us_64();
+    delayed_response(0xFF, 1300, __func__);
     receiveOrNextCmd(&raw.a[0]);
-    if (ps2_mc_data_interface_delay_required()) sleep_us(PS2_READ_ARB_DELAY);
-    mc_respond(0xFF);
+    delayed_response(0xFF, 1300, __func__);
     receiveOrNextCmd(&raw.a[1]);
-    if (ps2_mc_data_interface_delay_required()) sleep_us(PS2_READ_ARB_DELAY);
-    mc_respond(0xFF);
+    delayed_response(0xFF, 1300, __func__);
     receiveOrNextCmd(&raw.a[2]);
-    if (ps2_mc_data_interface_delay_required()) sleep_us(PS2_READ_ARB_DELAY);
-    mc_respond(0xFF);
+    delayed_response(0xFF, 1300, __func__);
     receiveOrNextCmd(&raw.a[3]);
-    if (ps2_mc_data_interface_delay_required()) sleep_us(PS2_READ_ARB_DELAY);
-    mc_respond(0xFF);
+    read_sector = raw.addr;
+    ps2_mc_data_interface_setup_read_page(read_sector, true, false);
+    delayed_response(0xFF, 1300, __func__);
     receiveOrNextCmd(&ck);
-    if (ps2_mc_data_interface_delay_required()) sleep_us(PS2_READ_ARB_DELAY);
-    mc_respond(0x2B);
+    delayed_response(0x2B, 1300, __func__);
     receiveOrNextCmd(&_);
     (void)ck;  // TODO: validate checksum
-
-    read_sector = raw.addr;
-    ps2_mc_data_interface_setup_read_page(read_sector, true, true);
 
     readptr = 0;
 
     eccptr = readecc;
     memset(eccptr, 0, 16);
 
-    mc_respond(term);
+    delayed_response(term, 1300, __func__);
     log(LOG_TRACE, "> RA %u\n", raw.addr);
 }
 
@@ -206,6 +220,7 @@ inline __attribute__((always_inline)) void __time_critical_func(ps2_mc_cmd_write
     mc_respond(0xFF);
     receiveOrNextCmd(&sz);
     mc_respond(0xFF);
+    last_response = time_us_64();
 
     uint8_t ck = 0;
     uint8_t b;
@@ -217,7 +232,7 @@ inline __attribute__((always_inline)) void __time_critical_func(ps2_mc_cmd_write
             ++writeptr;
         }
         ck ^= b;
-        mc_respond(0xFF);
+        delayed_response(0xFF, PS2_READ_ARB_DELAY, __func__);
     }
 
     // this should be checksum?
@@ -226,9 +241,10 @@ inline __attribute__((always_inline)) void __time_critical_func(ps2_mc_cmd_write
     if (ck != ck2)
         log(LOG_WARN, "%s Checksum mismatch\n", __func__);
 
-    mc_respond(0x2B);
+    delayed_response(0x2B, 1300, __func__);
     receiveOrNextCmd(&_);
-    mc_respond(term);
+    delayed_response(term, 1500, __func__);
+
 }
 
 inline __attribute__((always_inline)) void __time_critical_func(ps2_mc_cmd_readData)(void) {
@@ -237,18 +253,20 @@ inline __attribute__((always_inline)) void __time_critical_func(ps2_mc_cmd_readD
     /* read data */
     uint8_t sz;
     volatile ps2_mcdi_page_t* page;
-    mc_respond(0xFF);
-    receiveOrNextCmd(&sz);
-    mc_respond(0x2B);
-    receiveOrNextCmd(&_);
-
-    log(LOG_TRACE, "> RD %u readptr %u sz %u\n", read_sector, readptr, sz);
-
     uint8_t ck = 0;
     uint8_t b = 0xFF;
-
+    last_response = time_us_64();
     if (readptr < PS2_PAGE_SIZE)
         page = ps2_mc_data_interface_get_page(read_sector);
+    delayed_response(0xFF, 1300, __func__);
+    receiveOrNextCmd(&sz);
+    log(LOG_TRACE, "> RD %u readptr %u sz %u\n", read_sector, readptr, sz);
+    delayed_response(0x2B, 1300, __func__);
+    receiveOrNextCmd(&_);
+
+#ifdef DEBUG_USB_UART
+    if (!card_active) {log(LOG_ERROR, "%s Card already deselected - pre\n", __func__);}
+#endif
 
     for (int i = 0; i < sz; ++i) {
         if (readptr < PS2_PAGE_SIZE + 16) {
@@ -261,7 +279,7 @@ inline __attribute__((always_inline)) void __time_critical_func(ps2_mc_cmd_readD
                 b = readecc[readptr - PS2_PAGE_SIZE];
             }
 
-            mc_respond(b);
+            delayed_response(b, PS2_READ_ARB_DELAY, __func__);
 
             if (readptr <= PS2_PAGE_SIZE) {
                 uint8_t c = EccTable[b];
@@ -287,11 +305,12 @@ inline __attribute__((always_inline)) void __time_critical_func(ps2_mc_cmd_readD
                 }
             } else {
                 ++readptr;
-                if (ecc_delay && !ps2_mc_data_interface_data_available())
-                    sleep_us(PS2_READ_ARB_DELAY);
+                if (ecc_delay && !ps2_mc_data_interface_data_available()) sleep_us(PS2_READ_ARB_DELAY * 2);
             }
         } else
-            mc_respond(b);
+            delayed_response(b, PS2_READ_ARB_DELAY, __func__);
+
+        if (!card_active) log(LOG_ERROR, "%s Card already deselected %i\n", __func__, i);
 
         ck ^= b;
         receiveOrNextCmd(&_);
@@ -316,40 +335,41 @@ inline __attribute__((always_inline)) void __time_critical_func(ps2_mc_cmd_readD
             }
         }
     }
+#ifdef DEBUG_USB_UART
+    if (!card_active) log(LOG_ERROR, "%s Card already deselected end\n", __func__);
+#endif
 
-
-    mc_respond(ck);
+    delayed_response(ck, PS2_READ_ARB_DELAY, __func__);
     receiveOrNextCmd(&_);
-    mc_respond(term);
-
-
+    delayed_response(term, PS2_READ_ARB_DELAY, __func__);
 }
 
 inline __attribute__((always_inline)) void __time_critical_func(ps2_mc_cmd_commitData)(void) {
     uint8_t _ = 0;
     /* commit for read/write? */
+    last_response = time_us_64();
     if (is_write) {
-
         is_write = 0;
         log(LOG_TRACE, "> C %u\n", write_sector);
         ps2_mc_data_interface_write_mc(write_sector, writetmp);
-
     }
 
-    mc_respond(0x2B);
+    delayed_response(0x2B, 2000, __func__);
     receiveOrNextCmd(&_);
-    mc_respond(term);
+    delayed_response(term, 1700, __func__);
 }
 
 inline __attribute__((always_inline)) void __time_critical_func(ps2_mc_cmd_erase(void)) {
     uint8_t _ = 0U;
+    last_response = time_us_64();
 
     /* do erase */
     log(LOG_TRACE, "> E %u\n", erase_sector);
 
-    mc_respond(0x2B);
+    delayed_response(0x2B, 2000, __func__);
     receiveOrNextCmd(&_);
-    mc_respond(term);
+    delayed_response(term, 2000, __func__);
+
     erase_sector = UINT32_MAX;
 }
 

@@ -40,6 +40,7 @@ uint8_t term = 0xFF;
 static volatile uint8_t reset_tx_byte;
 static volatile uint8_t reset_place_tx_byte;
 static int memcard_running;
+volatile bool card_active;
 
 static volatile int mc_exit_request, mc_exit_response, mc_enter_request, mc_enter_response;
 
@@ -115,9 +116,11 @@ static void __time_critical_func(init_pio)(void) {
 
 static void __time_critical_func(card_deselected)(uint gpio, uint32_t event_mask) {
     if (gpio == PIN_PSX_SEL && (event_mask & GPIO_IRQ_EDGE_RISE)) {
+        card_active = false;
         reset_pio();
     }
 }
+
 
 uint8_t __time_critical_func(receive)(uint8_t *cmd) {
     do {
@@ -147,6 +150,7 @@ uint8_t __time_critical_func(receiveFirst)(uint8_t *cmd) {
                 return RECEIVE_EXIT;
         }
         (*cmd) = (pio_sm_get(pio0, cmd_reader.sm) >> 24);
+        card_active = true;
         return RECEIVE_OK;
     }
     while (0);
@@ -229,7 +233,7 @@ static void __time_critical_func(mc_main_loop)(void) {
             if (receive(&cmd) == RECEIVE_RESET)
                 continue;
 
-            log(LOG_TRACE, "%s: 0x81 %.02x\n", __func__, cmd);
+            //log(LOG_TRACE, "%s: 0x81 %.02x\n", __func__, cmd);
             switch (cmd) {
                 case PS2_SIO2_CMD_0x11: ps2_mc_cmd_0x11(); break;
                 case PS2_SIO2_CMD_0x12: ps2_mc_cmd_0x12(); break;

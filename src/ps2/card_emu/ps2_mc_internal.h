@@ -25,6 +25,7 @@ extern uint32_t readptr, writeptr;
 extern uint8_t *eccptr;
 extern int transfer_stage;
 extern volatile bool op_in_progress;
+extern volatile bool card_active;
 
 extern const uint8_t EccTable[];
 
