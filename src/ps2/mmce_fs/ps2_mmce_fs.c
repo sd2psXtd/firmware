@@ -154,7 +154,7 @@ void ps2_mmce_fs_run(void)
                         memset((void*)m_data.chunk_state, CHUNK_STATE_INVALID, sizeof(m_data.chunk_state));
                         log(LOG_ERROR, "%s Waiting for buffer to be consumed took too long. Abort.\n", __func__);
                         break; // Step out of while loop
-                    } else if (retry_cnt++ > 100) { // Queue is full - retry 100 times at max
+                    } else if (retry_cnt++ > 200) { // Queue is full - retry 200 times at max
                         wait_iterations++;
                         log(LOG_WARN, "%s Returning early to prevent deadlock\n", __func__);
                         return; // Early return to make sure we don't deadlock
