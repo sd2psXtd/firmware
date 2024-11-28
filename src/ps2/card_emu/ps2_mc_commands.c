@@ -21,7 +21,9 @@
 #define log(level, fmt, x...) LOG_PRINT(LOG_LEVEL_PS2_MC, level, fmt, ##x)
 #endif
 
-#define PS2_READ_ARB_DELAY      ( 1500 )
+#define PS2_MAX_ACK_DELAY_SHORT         ( 1300 )
+#define PS2_MAX_ACK_DELAY_MID           ( 1500 )
+#define PS2_MAX_ACK_DELAY_LONG          ( 2000 )
 
 uint32_t read_sector, write_sector, erase_sector;
 uint8_t readecc[16];
@@ -70,24 +72,24 @@ inline __attribute__((always_inline)) void __time_critical_func(ps2_mc_cmd_setEr
     } raw;
     uint8_t ck;
     last_response = time_us_64();
-    delayed_response(0xFF, 2000, __func__);
+    delayed_response(0xFF, PS2_MAX_ACK_DELAY_LONG, __func__);
     receiveOrNextCmd(&raw.a[0]);
-    delayed_response(0xFF, 2000, __func__);
+    delayed_response(0xFF, PS2_MAX_ACK_DELAY_LONG, __func__);
     receiveOrNextCmd(&raw.a[1]);
-    delayed_response(0xFF, 2000, __func__);
+    delayed_response(0xFF, PS2_MAX_ACK_DELAY_LONG, __func__);
     receiveOrNextCmd(&raw.a[2]);
-    delayed_response(0xFF, 2000, __func__);
+    delayed_response(0xFF, PS2_MAX_ACK_DELAY_LONG, __func__);
     receiveOrNextCmd(&raw.a[3]);
     erase_sector = raw.addr;
     ps2_mc_data_interface_erase(erase_sector);
 
-    delayed_response(0xFF, 2000, __func__);
+    delayed_response(0xFF, PS2_MAX_ACK_DELAY_LONG, __func__);
     receiveOrNextCmd(&ck);
 
-    delayed_response(0x2B, 2000, __func__);
+    delayed_response(0x2B, PS2_MAX_ACK_DELAY_LONG, __func__);
     receiveOrNextCmd(&_);
     (void)ck;  // TODO: validate checksum
-    delayed_response(term, 2000, __func__);
+    delayed_response(term, PS2_MAX_ACK_DELAY_LONG, __func__);
 
     log(LOG_TRACE, "> EA %u\n", raw.addr);
 }
@@ -101,23 +103,23 @@ inline __attribute__((always_inline)) void __time_critical_func(ps2_mc_cmd_setWr
     } raw;
     uint8_t ck;
     last_response = time_us_64();
-    delayed_response(0xFF, PS2_READ_ARB_DELAY, __func__);
+    delayed_response(0xFF, PS2_MAX_ACK_DELAY_MID, __func__);
     receiveOrNextCmd(&raw.a[0]);
-    delayed_response(0xFF, PS2_READ_ARB_DELAY, __func__);
+    delayed_response(0xFF, PS2_MAX_ACK_DELAY_MID, __func__);
     receiveOrNextCmd(&raw.a[1]);
-    delayed_response(0xFF, PS2_READ_ARB_DELAY, __func__);
+    delayed_response(0xFF, PS2_MAX_ACK_DELAY_MID, __func__);
     receiveOrNextCmd(&raw.a[2]);
-    delayed_response(0xFF, PS2_READ_ARB_DELAY, __func__);
+    delayed_response(0xFF, PS2_MAX_ACK_DELAY_MID, __func__);
     receiveOrNextCmd(&raw.a[3]);
-    delayed_response(0xFF, PS2_READ_ARB_DELAY, __func__);
+    delayed_response(0xFF, PS2_MAX_ACK_DELAY_MID, __func__);
     receiveOrNextCmd(&ck);
-    delayed_response(0x2B, PS2_READ_ARB_DELAY, __func__);
+    delayed_response(0x2B, PS2_MAX_ACK_DELAY_MID, __func__);
     receiveOrNextCmd(&_);
     (void)ck;  // TODO: validate checksum
     write_sector = raw.addr;
     is_write = 1;
     writeptr = 0;
-    delayed_response(term, PS2_READ_ARB_DELAY, __func__);
+    delayed_response(term, PS2_MAX_ACK_DELAY_MID, __func__);
     log(LOG_TRACE, "> WA %u\n", raw.addr);
 }
 
@@ -130,19 +132,19 @@ inline __attribute__((always_inline)) void __time_critical_func(ps2_mc_cmd_setRe
     } raw;
     uint8_t ck;
     last_response = time_us_64();
-    delayed_response(0xFF, 1300, __func__);
+    delayed_response(0xFF, PS2_MAX_ACK_DELAY_SHORT, __func__);
     receiveOrNextCmd(&raw.a[0]);
-    delayed_response(0xFF, 1300, __func__);
+    delayed_response(0xFF, PS2_MAX_ACK_DELAY_SHORT, __func__);
     receiveOrNextCmd(&raw.a[1]);
-    delayed_response(0xFF, 1300, __func__);
+    delayed_response(0xFF, PS2_MAX_ACK_DELAY_SHORT, __func__);
     receiveOrNextCmd(&raw.a[2]);
-    delayed_response(0xFF, 1300, __func__);
+    delayed_response(0xFF, PS2_MAX_ACK_DELAY_SHORT, __func__);
     receiveOrNextCmd(&raw.a[3]);
     read_sector = raw.addr;
     ps2_mc_data_interface_setup_read_page(read_sector, true, false);
-    delayed_response(0xFF, 1300, __func__);
+    delayed_response(0xFF, PS2_MAX_ACK_DELAY_SHORT, __func__);
     receiveOrNextCmd(&ck);
-    delayed_response(0x2B, 1300, __func__);
+    delayed_response(0x2B, PS2_MAX_ACK_DELAY_SHORT, __func__);
     receiveOrNextCmd(&_);
     (void)ck;  // TODO: validate checksum
 
@@ -151,7 +153,7 @@ inline __attribute__((always_inline)) void __time_critical_func(ps2_mc_cmd_setRe
     eccptr = readecc;
     memset(eccptr, 0, 16);
 
-    delayed_response(term, 1300, __func__);
+    delayed_response(term, PS2_MAX_ACK_DELAY_SHORT, __func__);
     log(LOG_TRACE, "> RA %u\n", raw.addr);
 }
 
@@ -232,7 +234,7 @@ inline __attribute__((always_inline)) void __time_critical_func(ps2_mc_cmd_write
             ++writeptr;
         }
         ck ^= b;
-        delayed_response(0xFF, PS2_READ_ARB_DELAY, __func__);
+        delayed_response(0xFF, PS2_MAX_ACK_DELAY_MID, __func__);
     }
 
     // this should be checksum?
@@ -241,9 +243,9 @@ inline __attribute__((always_inline)) void __time_critical_func(ps2_mc_cmd_write
     if (ck != ck2)
         log(LOG_WARN, "%s Checksum mismatch\n", __func__);
 
-    delayed_response(0x2B, 1300, __func__);
+    delayed_response(0x2B, PS2_MAX_ACK_DELAY_SHORT, __func__);
     receiveOrNextCmd(&_);
-    delayed_response(term, 1500, __func__);
+    delayed_response(term, PS2_MAX_ACK_DELAY_MID, __func__);
 
 }
 
@@ -258,10 +260,10 @@ inline __attribute__((always_inline)) void __time_critical_func(ps2_mc_cmd_readD
     last_response = time_us_64();
     if (readptr < PS2_PAGE_SIZE)
         page = ps2_mc_data_interface_get_page(read_sector);
-    delayed_response(0xFF, 1300, __func__);
+    delayed_response(0xFF, PS2_MAX_ACK_DELAY_SHORT, __func__);
     receiveOrNextCmd(&sz);
     log(LOG_TRACE, "> RD %u readptr %u sz %u\n", read_sector, readptr, sz);
-    delayed_response(0x2B, 1300, __func__);
+    delayed_response(0x2B, PS2_MAX_ACK_DELAY_SHORT, __func__);
     receiveOrNextCmd(&_);
 
 #ifdef DEBUG_USB_UART
@@ -279,7 +281,7 @@ inline __attribute__((always_inline)) void __time_critical_func(ps2_mc_cmd_readD
                 b = readecc[readptr - PS2_PAGE_SIZE];
             }
 
-            delayed_response(b, PS2_READ_ARB_DELAY, __func__);
+            delayed_response(b, PS2_MAX_ACK_DELAY_MID, __func__);
 
             if (readptr <= PS2_PAGE_SIZE) {
                 uint8_t c = EccTable[b];
@@ -305,10 +307,10 @@ inline __attribute__((always_inline)) void __time_critical_func(ps2_mc_cmd_readD
                 }
             } else {
                 ++readptr;
-                if (ecc_delay && !ps2_mc_data_interface_data_available()) sleep_us(PS2_READ_ARB_DELAY * 2);
+                if (ecc_delay && !ps2_mc_data_interface_data_available()) sleep_us(PS2_MAX_ACK_DELAY_MID * 2);
             }
         } else
-            delayed_response(b, PS2_READ_ARB_DELAY, __func__);
+            delayed_response(b, PS2_MAX_ACK_DELAY_MID, __func__);
 
         if (!card_active) log(LOG_ERROR, "%s Card already deselected %i\n", __func__, i);
 
@@ -339,9 +341,9 @@ inline __attribute__((always_inline)) void __time_critical_func(ps2_mc_cmd_readD
     if (!card_active) log(LOG_ERROR, "%s Card already deselected end\n", __func__);
 #endif
 
-    delayed_response(ck, PS2_READ_ARB_DELAY, __func__);
+    delayed_response(ck, PS2_MAX_ACK_DELAY_MID, __func__);
     receiveOrNextCmd(&_);
-    delayed_response(term, PS2_READ_ARB_DELAY, __func__);
+    delayed_response(term, PS2_MAX_ACK_DELAY_MID, __func__);
 }
 
 inline __attribute__((always_inline)) void __time_critical_func(ps2_mc_cmd_commitData)(void) {
@@ -354,7 +356,7 @@ inline __attribute__((always_inline)) void __time_critical_func(ps2_mc_cmd_commi
         ps2_mc_data_interface_write_mc(write_sector, writetmp);
     }
 
-    delayed_response(0x2B, 2000, __func__);
+    delayed_response(0x2B, PS2_MAX_ACK_DELAY_LONG, __func__);
     receiveOrNextCmd(&_);
     delayed_response(term, 1700, __func__);
 }
@@ -366,9 +368,9 @@ inline __attribute__((always_inline)) void __time_critical_func(ps2_mc_cmd_erase
     /* do erase */
     log(LOG_TRACE, "> E %u\n", erase_sector);
 
-    delayed_response(0x2B, 2000, __func__);
+    delayed_response(0x2B, PS2_MAX_ACK_DELAY_LONG, __func__);
     receiveOrNextCmd(&_);
-    delayed_response(term, 2000, __func__);
+    delayed_response(term, PS2_MAX_ACK_DELAY_LONG, __func__);
 
     erase_sector = UINT32_MAX;
 }
