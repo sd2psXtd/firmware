@@ -133,7 +133,10 @@ bool __time_critical_func(ps2_sd2psxman_set_gameid)(const uint8_t* const game_id
 }
 
 const char* ps2_sd2psxman_get_gameid(void) {
-    return sd2psxman_gameid;
+    if (ps2_cardman_is_accessible())
+        return sd2psxman_gameid;
+    else
+        return NULL;
 }
 
 void ps2_sd2psxman_next_ch(bool delay) {

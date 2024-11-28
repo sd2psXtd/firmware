@@ -125,19 +125,24 @@ inline __attribute__((always_inline)) void __time_critical_func(ps2_sd2psxman_cm
 inline __attribute__((always_inline)) void __time_critical_func(ps2_sd2psxman_cmds_get_gameid)(void)
 {
     uint8_t cmd;
-    uint8_t gameid_len = strlen(sd2psxman_gameid) + 1; //+1 null terminator
-    mc_respond(0x0);        receiveOrNextCmd(&cmd);    //reserved byte
-    mc_respond(gameid_len); receiveOrNextCmd(&cmd);    //gameid length
+    const char* gameId = ps2_sd2psxman_get_gameid();
+    if (gameId == NULL) {
+        return;
+    } else {
+        uint8_t gameid_len = strlen(gameId) + 1; //+1 null terminator
+        mc_respond(0x0);        receiveOrNextCmd(&cmd);    //reserved byte
+        mc_respond(gameid_len); receiveOrNextCmd(&cmd);    //gameid length
 
-    for (int i = 0; i < gameid_len; i++) {
-        mc_respond(sd2psxman_gameid[i]); receiveOrNextCmd(&cmd); //gameid
+        for (int i = 0; i < gameid_len; i++) {
+            mc_respond(gameId[i]); receiveOrNextCmd(&cmd); //gameid
+        }
+
+        for (int i = 0; i < (250 - gameid_len); i++) {
+            mc_respond(0x0); receiveOrNextCmd(&cmd); //padding
+        }
+
+        mc_respond(term);
     }
-
-    for (int i = 0; i < (250 - gameid_len); i++) {
-        mc_respond(0x0); receiveOrNextCmd(&cmd); //padding
-    }
-
-    mc_respond(term);
 
 #ifdef DEBUG_SD2PSXMAN_PROTOCOL
     debug_printf("received SD2PSXMAN_GET_GAMEID\n");
@@ -450,12 +455,12 @@ inline __attribute__((always_inline)) void __time_critical_func(ps2_mmceman_cmd_
             ps2_memory_card_set_cmd_callback(NULL);
 
             log(LOG_INFO, "%s: read: %u\n", __func__, data->bytes_read);
-        
+
             transfer_stage = 0;
             mc_respond(term);
             op_in_progress = false;
             MP_CMD_END();
-            
+
 
             break;
     }
@@ -484,7 +489,7 @@ inline __attribute__((always_inline)) void __time_critical_func(ps2_mmceman_cmd_
             op_in_progress = true;
             ps2_mmce_fs_wait_ready();          //Wait for file handling to be ready
             data = ps2_mmce_fs_get_data();     //Get pointer to data
-            
+
             data->bytes_transferred = 0x0;
             data->tail_idx = 0;
             data->bytes_read = 0;
@@ -1218,7 +1223,7 @@ inline __attribute__((always_inline)) void __time_critical_func(ps2_mmceman_cmd_
             op_in_progress = true;
             ps2_mmce_fs_wait_ready();
             data = ps2_mmce_fs_get_data();
-            
+
             //Clear values used in this transfer
             data->bytes_transferred = 0x0;
             data->bytes_read = 0;
@@ -1426,7 +1431,7 @@ inline __attribute__((always_inline)) void __time_critical_func(ps2_mmceman_cmd_
             mc_respond(term);
             op_in_progress = false;
             MP_CMD_END();
-            
+
         break;
     }
 }
