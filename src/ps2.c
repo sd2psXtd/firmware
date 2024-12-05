@@ -74,7 +74,7 @@ bool ps2_task(void) {
         ps2_mc_data_interface_task();
     }
 
-    if ((settings_get_mode() == MODE_PS1) && (ps2_cardman_is_accessible()))
+    if ((settings_get_mode() == MODE_PS1) && (ps2_cardman_is_idle()))
         return false;
 
     return true;
