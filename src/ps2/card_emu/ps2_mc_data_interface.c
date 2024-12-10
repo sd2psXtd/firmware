@@ -323,6 +323,11 @@ bool __time_critical_func(ps2_mc_data_interface_delay_required)(void) {
     return delay_reuired;
 }
 
+void ps2_mc_data_interface_flush(void) {
+    while ((sdmode && (op_fill_status() > 0)) || ps2_dirty_activity > 0) {
+        ps2_mc_data_interface_task();
+    }
+}
 
 void __time_critical_func(ps2_mc_data_interface_erase)(uint32_t page) {
     if ((page + ERASE_SECTORS) * PS2_PAGE_SIZE <= ps2_cardman_get_card_size()) {

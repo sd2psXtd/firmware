@@ -100,6 +100,7 @@ void ps2_sd2psxman_task(void) {
         // close old card
         ps2_memory_card_exit();
         log(LOG_TRACE, "%s After Exit\n", __func__);
+        ps2_mc_data_interface_flush();
         ps2_cardman_close();
         log(LOG_TRACE, "%s After Close\n", __func__);
         ps2_mmce_fs_init();
