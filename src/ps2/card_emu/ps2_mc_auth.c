@@ -72,8 +72,8 @@ void __time_critical_func(xor_bit)(const void *a, const void *b, void *Result, s
 void __time_critical_func(generateIvSeedNonce)() {
     switch (settings_get_ps2_variant()) {
         case PS2_VARIANT_COH:
-            key = coh_key;
             keysource = coh_keysource;
+            key = coh_key;
             break;
         case PS2_VARIANT_PROTO:
             keysource = ps2_keysource;
