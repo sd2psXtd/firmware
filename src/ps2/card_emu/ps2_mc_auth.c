@@ -1,6 +1,7 @@
 
 #include "ps2_mc_auth.h"
 
+#include <settings.h>
 #include <stdint.h>
 
 #include "debug.h"
@@ -16,10 +17,15 @@
 #endif
 
 // keysource and key are self generated values
-uint8_t keysource[] = {0xf5, 0x80, 0x95, 0x3c, 0x4c, 0x84, 0xa9, 0xc0};
-uint8_t dex_key[16] = {0x17, 0x39, 0xd3, 0xbc, 0xd0, 0x2c, 0x18, 0x07, 0x4b, 0x17, 0xf0, 0xea, 0xc4, 0x66, 0x30, 0xf9};
+uint8_t ps2_keysource[] = {0xf5, 0x80, 0x95, 0x3c, 0x4c, 0x84, 0xa9, 0xc0};
+uint8_t coh_keysource[] = {0x03, 0x14, 0x93, 0x16, 0x27, 0x02, 0x9D, 0xA2};
 uint8_t cex_key[16] = {0x06, 0x46, 0x7a, 0x6c, 0x5b, 0x9b, 0x82, 0x77, 0x0d, 0xdf, 0xe9, 0x7e, 0x24, 0x5b, 0x9f, 0xca};
-uint8_t *key = cex_key;
+uint8_t dex_key[16] = {0x17, 0x39, 0xD3, 0xBC, 0xD0, 0x2C, 0x18, 0x07, 0x0F, 0x7A, 0xF3, 0xB7, 0x9E, 0x73, 0x03, 0x1C};
+uint8_t coh_key[16] = {0x05, 0x3D, 0x59, 0x77, 0xC4, 0xF7, 0xB0, 0xD4, 0x37, 0xAE, 0x66, 0xA5, 0x17, 0x71, 0xB8, 0xC0};
+uint8_t prt_key[16] = {0x8C, 0x4B, 0xEF, 0xA6, 0xF4, 0x9A, 0x23, 0xA0, 0x9C, 0xF1, 0x46, 0xAA, 0x17, 0x1C, 0xFE, 0x75};
+
+uint8_t *key = dex_key;
+uint8_t *keysource = ps2_keysource;
 
 uint8_t iv[8];
 uint8_t seed[8];
@@ -64,6 +70,22 @@ void __time_critical_func(xor_bit)(const void *a, const void *b, void *Result, s
 }
 
 void __time_critical_func(generateIvSeedNonce)() {
+    switch (settings_get_ps2_variant()) {
+        case PS2_VARIANT_COH:
+            key = coh_key;
+            keysource = coh_keysource;
+            break;
+        case PS2_VARIANT_PROTO:
+            keysource = ps2_keysource;
+            key = prt_key;
+            break;
+        case PS2_VARIANT_RETAIL:
+        default:
+            keysource = ps2_keysource;
+            key = dex_key;
+            break;
+        break;
+    }
     for (int i = 0; i < 8; i++) {
         iv[i] = 0x42;
         seed[i] = keysource[i] ^ iv[i];
@@ -510,4 +532,25 @@ inline __attribute__((always_inline)) void __time_critical_func(ps2_mc_auth)(voi
             // log("unknown %02X -> %02X\n", ch, subcmd);
             break;
     }
+}
+
+/**
+  * Official retail memory cards use both developer and retail keys.
+  * they use developer keys untill 0xF7 command (this function) is called. then they switch to retail keys
+  * the ideal approach is just to respond to this command, but never expect it.
+  * retail SECRMAN expects an answer to this, but the others wont.
+  * arcade cards support this command but dont perform a key change bc they were not intended to do so.
+  */
+inline __attribute__((always_inline)) void __time_critical_func(ps2_mc_auth_keySelect)(void) {
+    // TODO: it fails to get detected at all when ps2_magicgate==0, check if it's intentional
+    uint8_t _ = 0U;
+    /* SIO_MEMCARD_KEY_SELECT */
+    mc_respond(0xFF);
+    receiveOrNextCmd(&_);
+    mc_respond(0x2B);
+    receiveOrNextCmd(&_);
+    mc_respond(term);
+    log(LOG_TRACE, "Switching to CEX\n");
+    if (PS2_VARIANT_RETAIL == settings_get_ps2_variant())
+        key = cex_key;
 }

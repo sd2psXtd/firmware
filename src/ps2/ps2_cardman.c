@@ -29,6 +29,12 @@
 #endif
 
 #define BLOCK_SIZE   (512)
+
+#define CARD_HOME_ARCADE     "MemoryCards/COH"
+#define CARD_HOME_PS2        "MemoryCards/PS2"
+#define CARD_HOME_PROTO      "MemoryCards/PROT"
+#define CARD_HOME_LENGTH    (17)
+
 static int sector_count = -1;
 
 #if WITH_PSRAM
@@ -43,12 +49,14 @@ int current_read_sector = 0, priority_sector = -1;
 #define MAX_PREFIX_LENGTH    (4)
 #define MAX_SLICE_LENGTH     (30 * 1000)
 
+static int card_variant;
 static int card_idx;
 static int card_chan;
 static bool needs_update;
 static uint32_t card_size;
 static cardman_cb_t cardman_cb;
 static char folder_name[MAX_GAME_ID_LENGTH];
+static char cardhome[CARD_HOME_LENGTH];
 static uint64_t cardprog_start;
 static int cardman_sectors_done;
 static uint32_t cardprog_pos;
@@ -110,11 +118,11 @@ int ps2_cardman_read_sector(int sector, void *buf512) {
 static bool try_set_next_named_card() {
     bool ret = false;
     if (cardman_state != PS2_CM_STATE_NAMED) {
-        ret = try_set_named_card_folder("MemoryCards/PS2", 0, folder_name, sizeof(folder_name));
+        ret = try_set_named_card_folder(cardhome, 0, folder_name, sizeof(folder_name));
         if (ret)
             card_idx = 1;
     } else {
-        ret = try_set_named_card_folder("MemoryCards/PS2", card_idx, folder_name, sizeof(folder_name));
+        ret = try_set_named_card_folder(cardhome, card_idx, folder_name, sizeof(folder_name));
         if (ret)
             card_idx++;
     }
@@ -130,7 +138,7 @@ static bool try_set_next_named_card() {
 static bool try_set_prev_named_card() {
     bool ret = false;
     if (card_idx > 1) {
-        ret = try_set_named_card_folder("MemoryCards/PS2", card_idx - 2, folder_name, sizeof(folder_name));
+        ret = try_set_named_card_folder(cardhome, card_idx - 2, folder_name, sizeof(folder_name));
         if (ret) {
             card_idx--;
             card_chan = CHAN_MIN;
@@ -179,13 +187,26 @@ void ps2_cardman_flush(void) {
 static void ensuredirs(void) {
     char cardpath[32];
 
-    snprintf(cardpath, sizeof(cardpath), "MemoryCards/PS2/%s", folder_name);
+    switch (settings_get_ps2_variant()) {
+        case PS2_VARIANT_COH:
+            snprintf(cardhome, sizeof(cardhome), CARD_HOME_ARCADE);
+            break;
+        case PS2_VARIANT_PROTO:
+            snprintf(cardhome, sizeof(cardhome), CARD_HOME_PROTO);
+            break;
+        case PS2_VARIANT_RETAIL:
+        default:
+            snprintf(cardhome, sizeof(cardhome), CARD_HOME_PS2);
+            break;
+    }
+
+    snprintf(cardpath, sizeof(cardpath), "%s/%s", cardhome, folder_name);
 
     sd_mkdir("MemoryCards");
-    sd_mkdir("MemoryCards/PS2");
+    sd_mkdir(cardhome);
     sd_mkdir(cardpath);
 
-    if (!sd_exists("MemoryCards") || !sd_exists("MemoryCards/PS2") || !sd_exists(cardpath))
+    if (!sd_exists("MemoryCards") || !sd_exists(cardhome) || !sd_exists(cardpath))
         fatal("error creating directories");
 }
 #define CARD_OFFS_SUPERBLOCK (0)
@@ -481,25 +502,25 @@ void ps2_cardman_open(void) {
     switch (cardman_state) {
         case PS2_CM_STATE_BOOT:
             if (card_chan == 1) {
-                snprintf(path, sizeof(path), "MemoryCards/PS2/%s/BootCard-%d.mcd", folder_name, card_chan);
+                snprintf(path, sizeof(path), "%s/%s/BootCard-%d.mcd", cardhome, folder_name, card_chan);
                 if (!sd_exists(path)) {
                     // before boot card channels, boot card was located at BOOT/BootCard.mcd, for backwards compatibility check if it exists
-                    snprintf(path, sizeof(path), "MemoryCards/PS2/%s/BootCard.mcd", folder_name);
+                    snprintf(path, sizeof(path), "%s/%s/BootCard.mcd", cardhome, folder_name);
                 }
                 if (!sd_exists(path)) {
                     // go back to BootCard-1.mcd if it doesn't
-                    snprintf(path, sizeof(path), "MemoryCards/PS2/%s/BootCard-%d.mcd", folder_name, card_chan);
+                    snprintf(path, sizeof(path), "%s/%s/BootCard-%d.mcd", cardhome, folder_name, card_chan);
                 }
             } else {
-                snprintf(path, sizeof(path), "MemoryCards/PS2/%s/BootCard-%d.mcd", folder_name, card_chan);
+                snprintf(path, sizeof(path), "%s/%s/BootCard-%d.mcd", cardhome, folder_name, card_chan);
             }
 
             settings_set_ps2_boot_channel(card_chan);
             break;
         case PS2_CM_STATE_NAMED:
-        case PS2_CM_STATE_GAMEID: snprintf(path, sizeof(path), "MemoryCards/PS2/%s/%s-%d.mcd", folder_name, folder_name, card_chan); break;
+        case PS2_CM_STATE_GAMEID: snprintf(path, sizeof(path), "%s/%s/%s-%d.mcd", cardhome, folder_name, folder_name, card_chan); break;
         case PS2_CM_STATE_NORMAL:
-            snprintf(path, sizeof(path), "MemoryCards/PS2/%s/%s-%d.mcd", folder_name, folder_name, card_chan);
+            snprintf(path, sizeof(path), "%s/%s/%s-%d.mcd", cardhome, folder_name, folder_name, card_chan);
 
             /* this is ok to do on every boot because it wouldn't update if the value is the same as currently stored */
             settings_set_ps2_card(card_idx);
@@ -730,6 +751,24 @@ const char *ps2_cardman_get_folder_name(void) {
 
 ps2_cardman_state_t ps2_cardman_get_state(void) {
     return cardman_state;
+}
+
+void ps2_cardman_force_update(void) {
+    needs_update = true;
+}
+
+void ps2_cardman_set_variant(int variant) {
+    if (variant != card_variant) {
+        settings_set_ps2_variant(variant);
+        if (!try_set_boot_card()) {
+            card_idx = 1;
+            card_chan = 1;
+            cardman_state = PS2_CM_STATE_NORMAL;
+            snprintf(folder_name, sizeof(folder_name), "Card%d", card_idx);
+        }
+        card_variant = variant;
+    }
+    needs_update = true;
 }
 
 bool ps2_cardman_needs_update(void) {

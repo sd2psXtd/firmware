@@ -47,7 +47,7 @@ static lv_obj_t *scr_switch_nag, *scr_card_switch, *scr_main, *scr_menu, *menu, 
 static lv_style_t style_inv, src_main_label_style;
 static lv_anim_t src_main_animation_template;
 static lv_obj_t *scr_main_idx_lbl, *scr_main_channel_lbl, *src_main_title_lbl, *lbl_channel, *lbl_ps1_autoboot, *lbl_ps1_game_id, *lbl_ps2_autoboot,
-    *lbl_ps2_cardsize, *lbl_ps2_game_id, *lbl_civ_err, *auto_off_lbl, *contrast_lbl, *vcomh_lbl, *lbl_mode;
+    *lbl_ps2_cardsize, *lbl_ps2_variant, *lbl_ps2_game_id, *lbl_civ_err, *auto_off_lbl, *contrast_lbl, *vcomh_lbl, *lbl_mode;
 
 static struct {
     uint8_t value;
@@ -288,7 +288,7 @@ static void ui_set_display_contrast(uint8_t display_contrast) {
     }
 }
 
-static void ui_set_cardsize(uint8_t cardsize) {
+static void ui_set_cardsize(void) {
     for (size_t i = 0; i < ARRAY_SIZE(cardsize_options); i++) {
         uint8_t value = cardsize_options[i].value;
         char text[10] = {};
@@ -433,6 +433,17 @@ void evt_menu_page(lv_event_t *event) {
     }
 }
 
+static void update_ps2_main_header(void) {
+    if (!ps2_magicgate)
+        lv_label_set_text(main_header, "PS2: No CIV!");
+    else if (PS2_VARIANT_RETAIL == settings_get_ps2_variant())
+        lv_label_set_text(main_header, "PS2 Memory Card");
+    else if (PS2_VARIANT_PROTO == settings_get_ps2_variant())
+        lv_label_set_text(main_header, "PROT Memory Card");
+    else if (PS2_VARIANT_COH == settings_get_ps2_variant())
+        lv_label_set_text(main_header, "COH Dongle");
+}
+
 static void evt_go_back(lv_event_t *event) {
     ui_menu_go_back(menu);
     lv_event_stop_bubbling(event);
@@ -470,13 +481,13 @@ static void evt_set_ps2_cardsize(lv_event_t *event) {
     uint8_t cardsize = (intptr_t)event->user_data;
     settings_set_ps2_cardsize(cardsize);
 
-    char text[8] = {};
+    char text[9] = {};
     if (cardsize <= 8)
         snprintf(text, ARRAY_SIZE(text), "%u MB>", cardsize);
     else
         snprintf(text, ARRAY_SIZE(text), "%u MB*>", cardsize);
     lv_label_set_text(lbl_ps2_cardsize, text);
-    ui_set_cardsize(cardsize);
+    ui_set_cardsize();
     ui_menu_go_back(menu);
 }
 
@@ -502,6 +513,30 @@ static void evt_switch_to_ps1(lv_event_t *event) {
     UI_GOTO_SCREEN(scr_main);
 }
 
+static void evt_switch_variant(lv_event_t *event) {
+    (void)event;
+    int variant = (intptr_t)event->user_data;
+
+    ps2_cardman_set_variant(variant);
+
+    update_ps2_main_header();
+
+    {
+        if (settings_get_ps2_variant() == PS2_VARIANT_RETAIL)
+            lv_label_set_text(lbl_ps2_variant, "Retail>");
+        else if (settings_get_ps2_variant() == PS2_VARIANT_PROTO)
+            lv_label_set_text(lbl_ps2_variant, "Proto>");
+        else if (settings_get_ps2_variant() == PS2_VARIANT_COH)
+            lv_label_set_text(lbl_ps2_variant, "COH>");
+    }
+
+    gui_request_refresh();
+
+
+    /* start at the main screen */
+    UI_GOTO_SCREEN(scr_main);
+}
+
 static void evt_switch_to_ps2(lv_event_t *event) {
     (void)event;
 
@@ -510,10 +545,7 @@ static void evt_switch_to_ps2(lv_event_t *event) {
     gui_request_refresh();
     keystore_init();
 
-    if (!ps2_magicgate)
-        lv_label_set_text(main_header, "PS2: No CIV!");
-    else
-        lv_label_set_text(main_header, "PS2 Memory Card");
+    update_ps2_main_header();
 
     /* start at the main screen */
     UI_GOTO_SCREEN(scr_main);
@@ -551,8 +583,12 @@ static void create_main_screen(void) {
     } else {
         if (!ps2_magicgate)
             main_header = ui_header_create(scr_main, "PS2: No CIV!");
-        else
+        else if (PS2_VARIANT_RETAIL == settings_get_ps2_variant())
             main_header = ui_header_create(scr_main, "PS2 Memory Card");
+        else if (PS2_VARIANT_PROTO == settings_get_ps2_variant())
+            main_header = ui_header_create(scr_main, "PROT Memory Card");
+        else if (PS2_VARIANT_COH == settings_get_ps2_variant())
+            main_header = ui_header_create(scr_main, "COH Dongle");
     }
 
     ui_label_create_at(scr_main, 0, 24, "Card");
@@ -830,6 +866,36 @@ static void create_menu_screen(void) {
         }
 #endif
 
+        /* Variant submenu */
+        lv_obj_t *variant_page = ui_menu_subpage_create(menu, "Variant");
+        {
+            cont = ui_menu_cont_create_nav(variant_page);
+            ui_label_create(cont, "Retail");
+            lv_obj_add_event_cb(cont, evt_switch_variant, LV_EVENT_CLICKED, (void*)(intptr_t)PS2_VARIANT_RETAIL);
+
+            cont = ui_menu_cont_create_nav(variant_page);
+            ui_label_create(cont, "Proto");
+            lv_obj_add_event_cb(cont, evt_switch_variant, LV_EVENT_CLICKED, (void*)(intptr_t)PS2_VARIANT_PROTO);
+
+            cont = ui_menu_cont_create_nav(variant_page);
+            ui_label_create(cont, "COH");
+            lv_obj_add_event_cb(cont, evt_switch_variant, LV_EVENT_CLICKED, (void*)(intptr_t)PS2_VARIANT_COH);
+        }
+        {
+            char text[9] = {};
+            if (settings_get_ps2_variant() == PS2_VARIANT_RETAIL)
+                snprintf(text, ARRAY_SIZE(text), "Retail>");
+            else if (settings_get_ps2_variant() == PS2_VARIANT_PROTO)
+                snprintf(text, ARRAY_SIZE(text), "Proto>");
+            else if (settings_get_ps2_variant() == PS2_VARIANT_COH)
+                snprintf(text, ARRAY_SIZE(text), "COH>");
+            cont = ui_menu_cont_create_nav(ps2_page);
+            ui_label_create_grow(cont, "Variant");
+            lbl_ps2_variant = ui_label_create(cont, text);
+            ui_menu_set_load_page_event(menu, cont, variant_page);
+        }
+
+
         cont = ui_menu_cont_create_nav(ps2_page);
         ui_label_create_grow_scroll(cont, "Autoboot");
         lbl_ps2_autoboot = ui_label_create(cont, settings_get_ps2_autoboot() ? " Yes" : " No");
@@ -848,7 +914,7 @@ static void create_menu_screen(void) {
 
 #ifdef FEAT_PS2_CARDSIZE
         {
-            char text[8] = {};
+            char text[9] = {};
             if (settings_get_ps2_cardsize() <= 8)
                 snprintf(text, ARRAY_SIZE(text), "%u MB>", settings_get_ps2_cardsize());
             else
@@ -859,7 +925,6 @@ static void create_menu_screen(void) {
             ui_menu_set_load_page_event(menu, cont, cardsize_page);
         }
 #endif
-        //        lv_obj_add_event_cb(cont, evt_do_civ_deploy, LV_EVENT_CLICKED, NULL);
     }
 
     /* Info submenu */

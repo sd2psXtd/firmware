@@ -258,7 +258,7 @@ static void __time_critical_func(mc_main_loop)(void) {
                     break;
                 case PS2_SIO2_CMD_BF: ps2_mc_cmd_0xBF(); break;
                 case PS2_SIO2_CMD_F3: ps2_mc_cmd_0xF3(); break;
-                case PS2_SIO2_CMD_KEY_SELECT: ps2_mc_cmd_keySelect(); break;
+                case PS2_SIO2_CMD_KEY_SELECT: ps2_mc_auth_keySelect(); break;
                 case PS2_SIO2_CMD_AUTH:
                     if (ps2_magicgate)
                         ps2_mc_auth();
@@ -380,7 +380,7 @@ static void my_gpio_set_irq_enabled_with_callback(uint gpio, uint32_t events, bo
 void ps2_memory_card_main(void) {
     multicore_lockout_victim_init();
     init_pio();
-    generateIvSeedNonce();
+
 
     us_startup = time_us_64();
     log(LOG_TRACE, "Secondary core!\n");
@@ -415,6 +415,7 @@ void ps2_memory_card_enter(void) {
     if (memcard_running)
         return;
 
+    generateIvSeedNonce();
     mc_enter_request = 1;
     while (!mc_enter_response) {}
     mc_enter_request = mc_enter_response = 0;
