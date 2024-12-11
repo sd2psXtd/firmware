@@ -793,6 +793,7 @@ bool ps2_cardman_is_idle(void) {
 }
 
 void ps2_cardman_init(void) {
+    card_variant = settings_get_ps2_variant();
     if (!try_set_boot_card())
         set_default_card();
 
