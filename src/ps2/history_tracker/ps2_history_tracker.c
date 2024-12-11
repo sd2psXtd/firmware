@@ -34,7 +34,6 @@
 #define HISTORY_ENTRY_SIZE        22
 #define HISTORY_ENTRY_POS_LAUNCH  16
 #define HISTORY_WRITE_HYST_US     2 * 1000 * 1000
-#define HISTORY_CARD_CH_HYST_US   2 * 1000 * 1000
 #define HISTORY_BOOTUP_DEL        5 * 1000 * 1000
 #define HISTORY_NUMBER_OF_REGIONS 4
 
@@ -221,7 +220,7 @@ void ps2_history_tracker_task() {
             || !ps2_cardman_is_idle()) {
             lastAccess = micros;
     } else if ((status == HISTORY_STATUS_CARD_CHANGED)
-        && (micros - lastAccess) > HISTORY_CARD_CH_HYST_US) {
+        && (micros - lastAccess) > HISTORY_WRITE_HYST_US) {
         log(LOG_TRACE, "%s:%u\n", __func__, __LINE__);
         ps2_history_tracker_readClusters();
         status = HISTORY_STATUS_WAITING_WRITE;
