@@ -185,7 +185,7 @@ void ps2_cardman_flush(void) {
 }
 
 static void ensuredirs(void) {
-    char cardpath[32];
+    char cardpath[33];
 
     switch (settings_get_ps2_variant()) {
         case PS2_VARIANT_COH:
