@@ -208,7 +208,7 @@ static void __time_critical_func(mc_main_loop)(void) {
         }
 
         if (mmceman_timeout_detected) {
-            log(LOG_WARN, "Timeout dected during MMCEMAN OP, PS2 likely reset\n");
+            log(LOG_WARN, "Timeout detected during MMCEMAN OP, PS2 likely reset\n");
             mmceman_callback = NULL;
             mmceman_transfer_stage = 0;
 
