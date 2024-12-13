@@ -6,11 +6,11 @@
 #endif
 #include "settings.h"
 #include "card_emu/ps2_mc_data_interface.h"
-#include "card_emu/ps2_sd2psxman.h"
+#include "mmceman/ps2_mmceman.h"
+#include "mmceman/ps2_mmceman_fs.h"
 #include "card_emu/ps2_memory_card.h"
 #include "ps2_dirty.h"
 #include "history_tracker/ps2_history_tracker.h"
-#include "mmce_fs/ps2_mmce_fs.h"
 #include "ps2_cardman.h"
 #include "debug.h"
 
@@ -24,7 +24,7 @@
 
 void ps2_init(void) {
     log(LOG_INFO, "starting in PS2 mode\n");
-
+    mmceman_mcman_retry_counter = 0;
     keystore_init();
 
     multicore_launch_core1(ps2_memory_card_main);
@@ -41,7 +41,7 @@ void ps2_init(void) {
     ps2_cardman_open();
 
 #ifdef FEAT_PS2_MMCE
-    ps2_mmce_fs_init();
+    ps2_mmceman_fs_init();
 #endif
 
     uint64_t start = time_us_64();
@@ -56,7 +56,7 @@ void ps2_init(void) {
 }
 
 bool ps2_task(void) {
-    ps2_sd2psxman_task();
+    ps2_mmceman_task();
     ps2_cardman_task();
 #if WITH_GUI
     gui_task();
@@ -65,7 +65,7 @@ bool ps2_task(void) {
 #endif
     log(LOG_TRACE, "%s after GUI\n", __func__);
 #ifdef FEAT_PS2_MMCE
-    ps2_mmce_fs_run();
+    ps2_mmceman_fs_run();
     log(LOG_TRACE, "%s mmcefs\n", __func__);
 #endif
 

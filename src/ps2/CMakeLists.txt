@@ -1,14 +1,15 @@
 
 add_library(ps2_card STATIC
-                ${CMAKE_CURRENT_SOURCE_DIR}/card_emu/ps2_mmceman_debug.c
-                ${CMAKE_CURRENT_SOURCE_DIR}/card_emu/ps2_sd2psxman.c
-                ${CMAKE_CURRENT_SOURCE_DIR}/card_emu/ps2_sd2psxman_commands.c
+                ${CMAKE_CURRENT_SOURCE_DIR}/mmceman/ps2_mmceman.c
+                ${CMAKE_CURRENT_SOURCE_DIR}/mmceman/ps2_mmceman_commands.c
+                ${CMAKE_CURRENT_SOURCE_DIR}/mmceman/ps2_mmceman_debug.c
+                ${CMAKE_CURRENT_SOURCE_DIR}/mmceman/ps2_mmceman_fs.c
                 ${CMAKE_CURRENT_SOURCE_DIR}/card_emu/ps2_memory_card.c
                 ${CMAKE_CURRENT_SOURCE_DIR}/card_emu/ps2_mc_commands.c
                 ${CMAKE_CURRENT_SOURCE_DIR}/card_emu/ps2_mc_auth.c
                 ${CMAKE_CURRENT_SOURCE_DIR}/card_emu/ps2_mc_data_interface.c
                 ${CMAKE_CURRENT_SOURCE_DIR}/history_tracker/ps2_history_tracker.c
-                ${CMAKE_CURRENT_SOURCE_DIR}/mmce_fs/ps2_mmce_fs.c
+
                 ${CMAKE_CURRENT_SOURCE_DIR}/ps2_cardman.c
             )
 

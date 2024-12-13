@@ -103,7 +103,7 @@ extern "C" int sd_seek(int fd, uint64_t pos) {
 }
 
 //seekSet checks fd, no need for macro
-extern "C" int sd_seek_set_new(int fd, uint64_t pos) {
+extern "C" int sd_seek64_set(int fd, uint64_t pos) {
     /* return 1 on error */
     return files[fd].seekSet(pos) != true;
 }
@@ -115,7 +115,7 @@ extern "C" size_t sd_tell(int fd) {
 }
 
 //curPosition returns a uint64_t
-extern "C" uint64_t sd_tell_new(int fd) {
+extern "C" uint64_t sd_tell64(int fd) {
     CHECK_FD(fd);
 
     return files[fd].curPosition();
@@ -145,7 +145,7 @@ extern "C" int sd_remove(const char* path) {
     return sd.remove(path) != true;
 }
 
-extern "C" int sd_seek_new(int fd, int64_t offset, int whence) {
+extern "C" int sd_seek64(int fd, int64_t offset, int whence) {
     CHECK_FD(fd);
     if (whence == 0) {
         return files[fd].seekSet((uint64_t)offset) != true;
@@ -246,7 +246,7 @@ extern "C" int sd_fd_is_open(int fd) {
     return 0;
 }
 
-extern "C" uint64_t sd_filesize_new(int fd) {
+extern "C" uint64_t sd_filesize64(int fd) {
     CHECK_FD(fd);
     return files[fd].fileSize();
 }

@@ -7,11 +7,11 @@
 #include <string.h>
 
 #include "card_emu/ps2_mc_data_interface.h"
-#include "card_emu/ps2_sd2psxman.h"
+#include "mmceman/ps2_mmceman.h"
 #include "debug.h"
 #include "game_db/game_db.h"
 #include "hardware/timer.h"
-#include "mmce_fs/ps2_mmce_fs.h"
+#include "mmceman/ps2_mmceman_fs.h"
 #include "pico/multicore.h"
 #include "pico/platform.h"
 #if WITH_PSRAM
@@ -98,7 +98,7 @@ int ps2_cardman_read_sector(int sector, void *buf512) {
     if (fd < 0)
         return -1;
 
-    if (sd_seek_set_new(fd, sector * BLOCK_SIZE) != 0)
+    if (sd_seek64_set(fd, sector * BLOCK_SIZE) != 0)
         return -1;
 
     if (sd_read(fd, buf512, BLOCK_SIZE) != BLOCK_SIZE)
@@ -144,7 +144,7 @@ int ps2_cardman_write_sector(int sector, void *buf512) {
     if (fd < 0)
         return -1;
 
-    if (sd_seek_set_new(fd, sector * BLOCK_SIZE) != 0)
+    if (sd_seek64_set(fd, sector * BLOCK_SIZE) != 0)
         return -1;
 
     if (sd_write(fd, buf512, BLOCK_SIZE) != BLOCK_SIZE)
@@ -371,16 +371,18 @@ static int next_sector_to_load() {
 static void ps2_cardman_continue(void) {
     if (cardman_operation == CARDMAN_OPEN) {
         uint64_t slice_start = time_us_64();
+
         if (settings_get_sd_mode() || card_size > PS2_CARD_SIZE_8M) {
             uint64_t end = time_us_64();
             log(LOG_INFO, "took = %.2f s; SD read speed = %.2f kB/s\n", (end - cardprog_start) / 1e6, 1000000.0 * card_size / (end - cardprog_start) / 1024);
             if (cardman_cb)
                 cardman_cb(100, true);
             cardman_operation = CARDMAN_IDLE;
+        
         } else {
 #if WITH_PSRAM
             log(LOG_TRACE, "%s:%u\n", __func__, __LINE__);
-            while ((ps2_mmce_fs_idle()) && (time_us_64() - slice_start < MAX_SLICE_LENGTH)) {
+            while ((ps2_mmceman_fs_idle()) && (time_us_64() - slice_start < MAX_SLICE_LENGTH)) {
                 log(LOG_TRACE, "Slice!\n");
 
                 ps2_dirty_lock();
@@ -397,7 +399,7 @@ static void ps2_cardman_continue(void) {
                 }
 
                 size_t pos = sector_idx * BLOCK_SIZE;
-                if (sd_seek_new(fd, pos, 0) != 0)
+                if (sd_seek64(fd, pos, 0) != 0)
                     fatal("cannot read memcard\nseek");
 
                 if (sd_read(fd, flushbuf, BLOCK_SIZE) != BLOCK_SIZE)
@@ -424,7 +426,7 @@ static void ps2_cardman_continue(void) {
         }
     } else if (cardman_operation == CARDMAN_CREATE) {
         uint64_t slice_start = time_us_64();
-        while ((ps2_mmce_fs_idle()) && (time_us_64() - slice_start < MAX_SLICE_LENGTH)) {
+        while ((ps2_mmceman_fs_idle()) && (time_us_64() - slice_start < MAX_SLICE_LENGTH)) {
             cardprog_pos = cardman_sectors_done * BLOCK_SIZE;
             if (cardprog_pos >= card_size) {
                 sd_flush(fd);

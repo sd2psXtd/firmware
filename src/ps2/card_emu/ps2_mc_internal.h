@@ -23,8 +23,6 @@ extern uint8_t writetmp[528];
 extern int is_write, is_dma_read;
 extern uint32_t readptr, writeptr;
 extern uint8_t *eccptr;
-extern int transfer_stage;
-extern volatile bool op_in_progress;
 extern volatile bool card_active;
 
 extern const uint8_t EccTable[];
