@@ -17,7 +17,6 @@ extern volatile uint8_t mmceman_mcman_retry_counter;
 extern volatile bool mmceman_op_in_progress;
 extern volatile bool mmceman_timeout_detected;
 extern volatile bool mmceman_fs_abort_read;
-extern volatile bool mmceman_card_switch_in_progress;
 
 extern volatile uint8_t mmceman_cmd;
 extern volatile uint8_t mmceman_mode;

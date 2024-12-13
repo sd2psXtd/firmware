@@ -41,7 +41,6 @@ volatile uint8_t mmceman_mcman_retry_counter;
 volatile bool mmceman_op_in_progress = false;
 volatile bool mmceman_timeout_detected = false;
 volatile bool mmceman_fs_abort_read = false;
-volatile bool mmceman_card_switch_in_progress = false;
 
 volatile uint8_t mmceman_cmd;
 volatile uint8_t mmceman_mode;
@@ -106,9 +105,6 @@ void ps2_mmceman_task(void) {
         && !input_is_any_down()
         && !mmceman_op_in_progress) {
 
-        //TODO:
-        //mmceman_card_switch_in_progress = true;
-
         log(LOG_INFO, "%s Switching card now\n", __func__);
         uint32_t switching_time = time_us_32();
 
@@ -128,8 +124,8 @@ void ps2_mmceman_task(void) {
         gui_request_refresh();
         log(LOG_TRACE, "%s After Refresh\n", __func__);
 #endif
-        /* Set retry counter to stop the sd2psx from 
-         * responding to the next 5 requests from mcman. 
+        /* Set retry counter to stop the sd2psx from
+         * responding to the next 5 requests from mcman.
          * This causes mmcman to clear it's cache and invalidate
          * handles, preventing a cache flush bug from causing corruption */
         mmceman_mcman_retry_counter = 5;

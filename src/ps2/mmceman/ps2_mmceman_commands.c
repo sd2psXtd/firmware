@@ -50,8 +50,8 @@ inline __attribute__((always_inline)) void __time_critical_func(ps2_mmceman_cmd_
      * Currently it sets bit 0 of the first byte if the sd2psx
      * is busy switching memcards */
     mc_respond(0x0);    receiveOrNextCmd(&cmd); //reserved byte
-    
-    if (mmceman_card_switch_in_progress) {
+
+    if (ps2_cardman_is_idle()) {
         status |= 1;
     }
 
@@ -179,7 +179,7 @@ inline __attribute__((always_inline)) void __time_critical_func(ps2_mmceman_cmd_
     mmceman_cmd = MMCEMAN_UNMOUNT_BOOTCARD;
 }
 
-/* NOTE: Only used for MMCEMAN_FS at the moment, in future it could be used to 
+/* NOTE: Only used for MMCEMAN_FS at the moment, in future it could be used to
  * reset other states as well */
 inline __attribute__((always_inline)) void __time_critical_func(ps2_mmceman_cmd_reset)(void)
 {
