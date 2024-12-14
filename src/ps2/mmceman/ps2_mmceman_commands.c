@@ -51,7 +51,7 @@ inline __attribute__((always_inline)) void __time_critical_func(ps2_mmceman_cmd_
      * is busy switching memcards */
     mc_respond(0x0);    receiveOrNextCmd(&cmd); //reserved byte
 
-    if (ps2_cardman_is_idle()) {
+    if (!ps2_cardman_is_idle()) {
         status |= 1;
     }
 
