@@ -52,7 +52,7 @@ static inline void __time_critical_func(RAM_pio_sm_drain_tx_fifo)(PIO pio, uint 
 
 static void __time_critical_func(reset_pio)(void) {
 
-    /* NOTE: If the TX FIFO's not empty and this intr is triggered in the middle 
+    /* NOTE: If the TX FIFO's not empty and this intr is triggered in the middle
      * of a MMCEMAN FS function, it's a safe bet the PS2 was reset or the SD2PSX was unplugged */
     if (mmceman_callback != NULL && pio_sm_is_tx_fifo_empty(pio0, dat_writer.sm) == false) {
         mmceman_timeout_detected = true;
@@ -240,6 +240,9 @@ static void __time_critical_func(mc_main_loop)(void) {
             if (mmceman_mcman_retry_counter > 0) {
                 log(LOG_WARN, "Ignoring mcman for another %i requests\n", mmceman_mcman_retry_counter);
                 mmceman_mcman_retry_counter--;
+                continue;
+            } else if (!ps2_cardman_is_accessible() && (ps2_cardman_get_state() == PS2_CM_STATE_GAMEID)) {
+                /* game id card is not yet accessible */
                 continue;
             }
 
