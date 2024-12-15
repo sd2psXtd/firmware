@@ -5,6 +5,7 @@
 #include <sys/_default_fcntl.h>
 
 #include "sd.h"
+#include "config.h"
 
 #include "ps2_cardman.h"
 #include "card_emu/ps2_memory_card.h"
@@ -32,9 +33,9 @@ inline __attribute__((always_inline)) void __time_critical_func(ps2_mmceman_cmd_
 {
     uint8_t cmd;
     mc_respond(0x0); receiveOrNextCmd(&cmd); //reserved byte
-    mc_respond(0x1); receiveOrNextCmd(&cmd); //protocol version
-    mc_respond(0x1); receiveOrNextCmd(&cmd); //product ID
-    mc_respond(0x1); receiveOrNextCmd(&cmd); //product revision number
+    mc_respond(MMCE_PROTOCOL_VER);  receiveOrNextCmd(&cmd); //protocol version
+    mc_respond(MMCE_PRODUCT_ID);    receiveOrNextCmd(&cmd); //product ID
+    mc_respond(MMCE_REVISION);      receiveOrNextCmd(&cmd); //product revision number
     mc_respond(term);
 
     log(LOG_INFO, "received MMCEMAN_PING\n");
@@ -44,7 +45,7 @@ inline __attribute__((always_inline)) void __time_critical_func(ps2_mmceman_cmd_
 {
     uint8_t cmd;
     uint8_t status = 0;
-    uint8_t errno = 0;
+    uint8_t error = 0;
 
     /* TODO: Finish fleshing out spec and implementation details.
      * Currently it sets bit 0 of the first byte if the sd2psx
@@ -55,7 +56,7 @@ inline __attribute__((always_inline)) void __time_critical_func(ps2_mmceman_cmd_
         status |= 1;
     }
 
-    mc_respond(errno);    receiveOrNextCmd(&cmd);
+    mc_respond(error);    receiveOrNextCmd(&cmd);
     mc_respond(status);   receiveOrNextCmd(&cmd);
     mc_respond(term);
 

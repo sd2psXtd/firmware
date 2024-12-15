@@ -24,6 +24,8 @@ typedef enum  {
     PS2_CM_STATE_NORMAL
 } ps2_cardman_state_t;
 
+extern int cardman_fd;
+
 void ps2_cardman_init(void);
 void ps2_cardman_task(void);
 int ps2_cardman_read_sector(int sector, void *buf512);

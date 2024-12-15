@@ -36,7 +36,8 @@ static int sector_count = -1;
 uint8_t available_sectors[SECTOR_COUNT_8MB / 8];  // bitmap
 #endif
 static uint8_t flushbuf[BLOCK_SIZE];
-static int fd = -1;
+int cardman_fd = -1;
+
 int current_read_sector = 0, priority_sector = -1;
 
 #define MAX_GAME_NAME_LENGTH (127)
@@ -95,13 +96,13 @@ static bool try_set_game_id_card() {
 }
 
 int ps2_cardman_read_sector(int sector, void *buf512) {
-    if (fd < 0)
+    if (cardman_fd < 0)
         return -1;
 
-    if (sd_seek64_set(fd, sector * BLOCK_SIZE) != 0)
+    if (sd_seek64_set(cardman_fd, sector * BLOCK_SIZE) != 0)
         return -1;
 
-    if (sd_read(fd, buf512, BLOCK_SIZE) != BLOCK_SIZE)
+    if (sd_read(cardman_fd, buf512, BLOCK_SIZE) != BLOCK_SIZE)
         return -1;
 
     return 0;
@@ -141,13 +142,13 @@ static bool try_set_prev_named_card() {
 }
 
 int ps2_cardman_write_sector(int sector, void *buf512) {
-    if (fd < 0)
+    if (cardman_fd < 0)
         return -1;
 
-    if (sd_seek64_set(fd, sector * BLOCK_SIZE) != 0)
+    if (sd_seek64_set(cardman_fd, sector * BLOCK_SIZE) != 0)
         return -1;
 
-    if (sd_write(fd, buf512, BLOCK_SIZE) != BLOCK_SIZE)
+    if (sd_write(cardman_fd, buf512, BLOCK_SIZE) != BLOCK_SIZE)
         return -1;
 
     return 0;
@@ -172,8 +173,8 @@ void ps2_cardman_set_priority_sector(int sector) {
 }
 
 void ps2_cardman_flush(void) {
-    if (fd >= 0)
-        sd_flush(fd);
+    if (cardman_fd >= 0)
+        sd_flush(cardman_fd);
 }
 
 static void ensuredirs(void) {
@@ -399,10 +400,10 @@ static void ps2_cardman_continue(void) {
                 }
 
                 size_t pos = sector_idx * BLOCK_SIZE;
-                if (sd_seek64(fd, pos, 0) != 0)
+                if (sd_seek64(cardman_fd, pos, 0) != 0)
                     fatal("cannot read memcard\nseek");
 
-                if (sd_read(fd, flushbuf, BLOCK_SIZE) != BLOCK_SIZE)
+                if (sd_read(cardman_fd, flushbuf, BLOCK_SIZE) != BLOCK_SIZE)
                     fatal("cannot read memcard\nread %u", pos);
 
                 log(LOG_TRACE, "Writing pos %u\n", pos);
@@ -429,7 +430,7 @@ static void ps2_cardman_continue(void) {
         while ((ps2_mmceman_fs_idle()) && (time_us_64() - slice_start < MAX_SLICE_LENGTH)) {
             cardprog_pos = cardman_sectors_done * BLOCK_SIZE;
             if (cardprog_pos >= card_size) {
-                sd_flush(fd);
+                sd_flush(cardman_fd);
                 log(LOG_INFO, "OK!\n");
 
                 cardman_operation = CARDMAN_IDLE;
@@ -444,7 +445,7 @@ static void ps2_cardman_continue(void) {
             }
             if (settings_get_sd_mode() || (settings_get_ps2_cardsize() > 8)) {
                 genblock(cardprog_pos, flushbuf);
-                sd_write(fd, flushbuf, BLOCK_SIZE);
+                sd_write(cardman_fd, flushbuf, BLOCK_SIZE);
             } else {
 #if WITH_PSRAM
                 ps2_dirty_lock();
@@ -454,7 +455,7 @@ static void ps2_cardman_continue(void) {
                 psram_read_dma(cardprog_pos, flushbuf, BLOCK_SIZE, NULL);
                 psram_wait_for_dma();
 
-                if (sd_write(fd, flushbuf, BLOCK_SIZE) != BLOCK_SIZE)
+                if (sd_write(cardman_fd, flushbuf, BLOCK_SIZE) != BLOCK_SIZE)
                     fatal("cannot init memcard");
 
                 ps2_dirty_unlock();
@@ -515,7 +516,7 @@ void ps2_cardman_open(void) {
     if (!sd_exists(path)) {
         card_size = settings_get_ps2_cardsize() * 1024 * 1024;
         cardman_operation = CARDMAN_CREATE;
-        fd = sd_open(path, O_RDWR | O_CREAT | O_TRUNC);
+        cardman_fd = sd_open(path, O_RDWR | O_CREAT | O_TRUNC);
         cardman_sectors_done = 0;
         cardprog_pos = 0;
         if (card_size > PS2_CARD_SIZE_8M) {
@@ -524,7 +525,7 @@ void ps2_cardman_open(void) {
             ps2_mc_data_interface_set_sdmode(settings_get_sd_mode());
         }
 
-        if (fd < 0)
+        if (cardman_fd < 0)
             fatal("cannot open for creating new card");
 
         log(LOG_INFO, "create new image at %s... ", path);
@@ -552,13 +553,13 @@ void ps2_cardman_open(void) {
         cardprog_start = time_us_64();
 
     } else {
-        fd = sd_open(path, O_RDWR);
-        card_size = sd_filesize(fd);
+        cardman_fd = sd_open(path, O_RDWR);
+        card_size = sd_filesize(cardman_fd);
         cardman_operation = CARDMAN_OPEN;
         cardprog_pos = 0;
         cardman_sectors_done = 0;
 
-        if (fd < 0)
+        if (cardman_fd < 0)
             fatal("cannot open card");
 
         switch (card_size) {
@@ -586,11 +587,11 @@ void ps2_cardman_open(void) {
 }
 
 void ps2_cardman_close(void) {
-    if (fd < 0)
+    if (cardman_fd < 0)
         return;
     ps2_cardman_flush();
-    sd_close(fd);
-    fd = -1;
+    sd_close(cardman_fd);
+    cardman_fd = -1;
     current_read_sector = 0;
     priority_sector = -1;
 #if WITH_PSRAM

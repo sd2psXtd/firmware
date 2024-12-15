@@ -13,6 +13,7 @@
 #include "sd.h"
 
 #include "debug.h"
+#include "ps2_cardman.h"
 #include "ps2_mmceman.h"
 #include "ps2_mmceman_debug.h"
 #include "card_emu/ps2_mc_internal.h"
@@ -310,7 +311,9 @@ void ps2_mmceman_fs_run(void)
         case MMCEMAN_FS_RESET:
             //SD max files
             for (int i = 0; i < 8; i++) {
-                sd_close(i);
+                if (i != cardman_fd) {
+                    sd_close(i);
+                }
             }
 
             //Reset mmceman_fs
