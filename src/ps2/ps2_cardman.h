@@ -59,6 +59,8 @@ const char* ps2_cardman_get_gamename(void);
 const char* ps2_cardman_get_folder_name(void);
 ps2_cardman_state_t ps2_cardman_get_state(void);
 
+void ps2_cardman_set_variant(int variant);
+
 bool ps2_cardman_needs_update(void);
 bool ps2_cardman_is_accessible(void);
 bool ps2_cardman_is_idle(void);

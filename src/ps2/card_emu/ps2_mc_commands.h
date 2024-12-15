@@ -37,5 +37,4 @@ extern void ps2_mc_cmd_commitData(void);
 extern void ps2_mc_cmd_erase(void);
 extern void ps2_mc_cmd_0xBF(void);
 extern void ps2_mc_cmd_0xF3(void);
-extern void ps2_mc_cmd_keySelect(void);
 

@@ -16,15 +16,23 @@ int settings_get_ps2_card(void);
 int settings_get_ps2_channel(void);
 int settings_get_ps2_boot_channel(void);
 uint8_t settings_get_ps2_cardsize(void);
+int settings_get_ps2_variant(void);
 void settings_set_ps2_card(int x);
 void settings_set_ps2_channel(int x);
 void settings_set_ps2_boot_channel(int x);
 void settings_set_ps2_cardsize(uint8_t size);
+void settings_set_ps2_variant(int x);
 
 enum {
     MODE_PS1 = 0,
     MODE_PS2 = 1,
     MODE_TEMP_PS1 = 2
+};
+
+enum {
+    PS2_VARIANT_RETAIL  = 0,
+    PS2_VARIANT_COH     = 1,
+    PS2_VARIANT_PROTO   = 2
 };
 
 int settings_get_mode(void);

@@ -29,12 +29,12 @@ typedef struct {
     uint8_t display_vcomh; // display - vcomh, valid values are 0x00, 0x20, 0x30 and 0x40
     uint8_t ps2_cardsize;
     // TODO: how do we store last used channel for cards that use autodetecting w/ gameid?
-    uint8_t padding[1];
+    uint8_t ps2_variant; // Variant for keys
 } settings_t;
 
 #define SETTINGS_UPDATE_FIELD(field) settings_update_part(&settings.field, sizeof(settings.field))
 
-#define SETTINGS_VERSION_MAGIC (0xAACD0005)
+#define SETTINGS_VERSION_MAGIC (0xAACD0006)
 #define SETTINGS_PS1_FLAGS_AUTOBOOT (0b0000001)
 #define SETTINGS_PS1_FLAGS_GAME_ID  (0b0000010)
 #define SETTINGS_PS2_FLAGS_AUTOBOOT (0b0000001)
@@ -82,6 +82,13 @@ static int parse_card_configuration(void *user, const char *section, const char 
                 break;
             default:
                 break;
+        }
+    }else if (MATCH("PS2", "Variant")) {
+        _s->ps2_variant = PS2_VARIANT_RETAIL;
+        if (strcmp(value, "PROTO") == 0) {
+            _s->ps2_variant = PS2_VARIANT_PROTO;
+        } else if (strcmp(value, "ARCADE") == 0) {
+            _s->ps2_variant = PS2_VARIANT_COH;
         }
     } else if (MATCH("General", "Mode")
         && (strcmp(value, "PS2") == 0) != (_s->sys_flags & SETTINGS_SYS_FLAGS_PS2_MODE)) {
@@ -134,6 +141,20 @@ static void settings_serialize(void) {
         sd_write(fd, line_buffer, written);
         written = snprintf(line_buffer, 256, "CardSize=%u\n", settings.ps2_cardsize);
         sd_write(fd, line_buffer, written);
+        switch (settings.ps2_variant) {
+            case PS2_VARIANT_PROTO:
+                written = snprintf(line_buffer, 256, "Variant=PROTO\n" );
+                break;
+            case PS2_VARIANT_COH:
+                written = snprintf(line_buffer, 256, "Variant=ARCADE\n" );
+                break;
+            case PS2_VARIANT_RETAIL:
+            default:
+                written = snprintf(line_buffer, 256, "Variant=RETAIL\n" );
+                break;
+
+        }
+        sd_write(fd, line_buffer, written);
 
         sd_close(fd);
     }
@@ -148,6 +169,7 @@ static void settings_reset(void) {
     settings.ps1_flags = SETTINGS_PS1_FLAGS_GAME_ID;
     settings.ps2_flags = SETTINGS_PS2_FLAGS_GAME_ID;
     settings.ps2_cardsize = 8;
+    settings.ps2_variant = PS2_VARIANT_RETAIL;
     if (wear_leveling_write(0, &settings, sizeof(settings)) == WEAR_LEVELING_FAILED)
         fatal("failed to reset settings");
 }
@@ -220,6 +242,10 @@ uint8_t settings_get_ps2_cardsize(void) {
 #endif
 }
 
+int settings_get_ps2_variant(void) {
+    return settings.ps2_variant;
+}
+
 void settings_set_ps2_card(int card) {
     if (card != settings.ps2_card) {
         settings.ps2_card = card;
@@ -247,6 +273,14 @@ void settings_set_ps2_cardsize(uint8_t size) {
         SETTINGS_UPDATE_FIELD(ps2_cardsize);
     }
 }
+
+void settings_set_ps2_variant(int x) {
+    if (settings.ps2_variant != x) {
+        settings.ps2_variant = x;
+        SETTINGS_UPDATE_FIELD(ps2_variant);
+    }
+}
+
 
 int settings_get_ps1_card(void) {
     if (settings.ps1_card < IDX_MIN)
