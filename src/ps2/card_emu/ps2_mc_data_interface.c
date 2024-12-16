@@ -324,7 +324,11 @@ bool __time_critical_func(ps2_mc_data_interface_delay_required)(void) {
 }
 
 void ps2_mc_data_interface_flush(void) {
-    while ((sdmode && (op_fill_status() > 0)) || ps2_dirty_activity > 0) {
+    while ((sdmode && (op_fill_status() > 0))
+    #ifdef WITH_PSRAM
+        || ps2_dirty_activity > 0
+    #endif
+    ) {
         ps2_mc_data_interface_task();
     }
 }
