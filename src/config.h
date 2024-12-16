@@ -64,3 +64,15 @@
 #define DISPLAY_HEIGHT 64
 
 #define DEBOUNCE_MS 5
+
+#ifndef MMCE_PRODUCT_ID
+#define MMCE_PRODUCT_ID 0x1
+#endif
+
+#ifndef MMCE_REVISION
+#define MMCE_REVISION 0x1
+#endif
+
+#ifndef MMCE_PROTOCOL_VER
+#define MMCE_PROTOCOL_VER 0x1
+#endif

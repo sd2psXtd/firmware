@@ -10,8 +10,8 @@
 #include "card_emu/ps2_mc_data_interface.h"
 #include "card_emu/ps2_mc_internal.h"
 #include "card_emu/ps2_memory_card.h"
-#include "card_emu/ps2_sd2psxman.h"
-#include "card_emu/ps2_sd2psxman_commands.h"
+#include "mmceman/ps2_mmceman.h"
+#include "mmceman/ps2_mmceman_commands.h"
 #include "hardware/timer.h"
 #include "mcfat.h"
 #include "mcio.h"
@@ -255,7 +255,7 @@ void ps2_history_tracker_task() {
                     readSlots(buff, slots_new);
                     for (int j = 0; j < HISTORY_ENTRY_COUNT; j++) {
                         if (slots_new[j] != slotCount[i][j]) {
-                            if (ps2_sd2psxman_set_gameid(&buff[j * HISTORY_ENTRY_SIZE]))
+                            if (ps2_mmceman_set_gameid(&buff[j * HISTORY_ENTRY_SIZE]))
                                 break;
                         }
                     }

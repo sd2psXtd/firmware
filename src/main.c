@@ -28,8 +28,8 @@
 #include "ps1.h"
 
 #include "card_emu/ps2_memory_card.h"
-#include "card_emu/ps2_sd2psxman.h"
-#include "card_emu/ps2_sd2psxman_commands.h"
+#include "mmceman/ps2_mmceman.h"
+#include "mmceman/ps2_mmceman_commands.h"
 #include "ps2_cardman.h"
 
 
@@ -82,8 +82,8 @@ static void debug_task(void) {
             if ((in[1] == 'h') && (in[2] == '+')) {
                 DPRINTF("Received Channel Up!\n");
                 if (settings_get_mode() == MODE_PS2) {
-                    sd2psxman_mode = SD2PSXMAN_MODE_NEXT;
-                    sd2psxman_cmd = SD2PSXMAN_SET_CHANNEL;                
+                    mmceman_mode = MMCEMAN_MODE_NEXT;
+                    mmceman_cmd = MMCEMAN_SET_CHANNEL;                
                 }  else {
                     ps1_memory_card_exit();
                     ps1_cardman_close();
@@ -94,8 +94,8 @@ static void debug_task(void) {
             } else if ((in[1] == 'h') && (in[2] == '-')) {
                 DPRINTF("Received Channel Down!\n");
                 if (settings_get_mode() == MODE_PS2) {
-                    sd2psxman_mode = SD2PSXMAN_MODE_PREV;
-                    sd2psxman_cmd = SD2PSXMAN_SET_CHANNEL;
+                    mmceman_mode = MMCEMAN_MODE_PREV;
+                    mmceman_cmd = MMCEMAN_SET_CHANNEL;
                 } else {
                     ps1_memory_card_exit();
                     ps1_cardman_close();
@@ -106,8 +106,8 @@ static void debug_task(void) {
             } else if (in[1] == '+') {
                 DPRINTF("Received Card Up!\n");
                 if (settings_get_mode() == MODE_PS2) {
-                    sd2psxman_mode = SD2PSXMAN_MODE_NEXT;
-                    sd2psxman_cmd = SD2PSXMAN_SET_CARD;
+                    mmceman_mode = MMCEMAN_MODE_NEXT;
+                    mmceman_cmd = MMCEMAN_SET_CARD;
                 } else {
                     ps1_memory_card_exit();
                     ps1_cardman_close();
@@ -118,8 +118,8 @@ static void debug_task(void) {
             } else if (in[1] == '-') {
                 DPRINTF("Received Card Down!\n");
                 if (settings_get_mode() == MODE_PS2) {
-                    sd2psxman_mode = SD2PSXMAN_MODE_PREV;
-                    sd2psxman_cmd = SD2PSXMAN_SET_CARD;
+                    mmceman_mode = MMCEMAN_MODE_PREV;
+                    mmceman_cmd = MMCEMAN_SET_CARD;
                 } else {
                     ps1_memory_card_exit();
                     ps1_cardman_close();

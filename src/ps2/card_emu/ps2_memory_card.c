@@ -10,14 +10,15 @@
 #include "ps2_mc_auth.h"
 #include "ps2_mc_commands.h"
 #include "ps2_mc_internal.h"
+#include "mmceman/ps2_mmceman.h"
+#include "mmceman/ps2_mmceman_commands.h"
+#include "mmceman/ps2_mmceman_fs.h"
 #include "ps2_mc_spi.pio.h"
 
 #include <settings.h>
 #include <stdbool.h>
 #include <stdint.h>
 #include <stdio.h>
-
-#include "ps2_sd2psxman_commands.h"
 
 #if LOG_LEVEL_PS2_MC == 0
 #define log(x...)
@@ -37,21 +38,10 @@ typedef struct {
 pio_t cmd_reader, dat_writer, clock_probe;
 uint8_t term = 0xFF;
 
-static volatile uint8_t reset_tx_byte;
-static volatile uint8_t reset_place_tx_byte;
 static int memcard_running;
 volatile bool card_active;
 
 static volatile int mc_exit_request, mc_exit_response, mc_enter_request, mc_enter_response;
-
-static void (*mc_callback)(void);
-
-
-void __time_critical_func(ps2_queue_tx_byte_on_reset)(uint8_t byte)
-{
-    reset_place_tx_byte = 1;
-    reset_tx_byte = byte;
-}
 
 static inline void __time_critical_func(RAM_pio_sm_drain_tx_fifo)(PIO pio, uint sm) {
     uint instr = (pio->sm[sm].shiftctrl & PIO_SM0_SHIFTCTRL_AUTOPULL_BITS) ? pio_encode_out(pio_null, 32) : pio_encode_pull(false, false);
@@ -61,6 +51,13 @@ static inline void __time_critical_func(RAM_pio_sm_drain_tx_fifo)(PIO pio, uint 
 }
 
 static void __time_critical_func(reset_pio)(void) {
+
+    /* NOTE: If the TX FIFO's not empty and this intr is triggered in the middle
+     * of a MMCEMAN FS function, it's a safe bet the PS2 was reset or the SD2PSX was unplugged */
+    if (mmceman_callback != NULL && pio_sm_is_tx_fifo_empty(pio0, dat_writer.sm) == false) {
+        mmceman_timeout_detected = true;
+    }
+
     pio_set_sm_mask_enabled(pio0, (1 << cmd_reader.sm) | (1 << dat_writer.sm) | (1 << clock_probe.sm), false);
     pio_restart_sm_mask(pio0, (1 << cmd_reader.sm) | (1 << dat_writer.sm) | (1 << clock_probe.sm));
 
@@ -74,10 +71,10 @@ static void __time_critical_func(reset_pio)(void) {
 
     pio_enable_sm_mask_in_sync(pio0, (1 << cmd_reader.sm) | (1 << dat_writer.sm) | (1 << clock_probe.sm));
 
-    if (reset_place_tx_byte != 0) {
-        mc_respond(reset_tx_byte);  //Preemptively place byte on tx for proper alignment with mmce fs read packets
-        reset_place_tx_byte = 0;
-        reset_tx_byte = 0;
+    if (mmceman_tx_queued) {
+        mc_respond(mmceman_tx_byte); //Preemptively place byte on tx for proper alignment with mmce fs read packets
+        mmceman_tx_queued = false;
+        mmceman_tx_byte = 0;
     }
 
     reset = 1;
@@ -85,8 +82,8 @@ static void __time_critical_func(reset_pio)(void) {
 
 static void __time_critical_func(init_pio)(void) {
 
-    reset_place_tx_byte = 0x0;
-    reset_tx_byte = 0x0;
+    mmceman_tx_queued = false;
+    mmceman_tx_byte = 0x0;
 
     /* Set all pins as floating inputs */
     gpio_set_dir(PIN_PSX_ACK, 0);
@@ -210,11 +207,24 @@ static void __time_critical_func(mc_main_loop)(void) {
             }
         }
 
+        if (mmceman_timeout_detected) {
+            log(LOG_WARN, "Timeout detected during MMCEMAN OP, PS2 likely reset\n");
+            mmceman_callback = NULL;
+            mmceman_transfer_stage = 0;
+
+            //Only set if we're in a read
+            if (ps2_mmceman_fs_get_operation() == 0x3) {
+                mmceman_fs_abort_read = true;
+            }
+            mmceman_timeout_detected = false;
+        }
+
         reset = 0;
-        if (mc_callback != NULL) {
-            mc_callback();
+        if (mmceman_callback != NULL) {
+            mmceman_callback();
             continue;
         }
+
         uint8_t received = receiveFirst(&cmd);
 
         if (received == RECEIVE_EXIT) {
@@ -226,6 +236,16 @@ static void __time_critical_func(mc_main_loop)(void) {
 
 
         if (cmd == PS2_SIO2_CMD_IDENTIFIER) {
+            //Don't respond to mcman after a card switch to trigger its internal reset
+            if (mmceman_mcman_retry_counter > 0) {
+                log(LOG_WARN, "Ignoring mcman for another %i requests\n", mmceman_mcman_retry_counter);
+                mmceman_mcman_retry_counter--;
+                continue;
+            } else if (!ps2_cardman_is_accessible() && (ps2_cardman_get_state() == PS2_CM_STATE_GAMEID)) {
+                /* game id card is not yet accessible */
+                continue;
+            }
+
             /* resp to 0x81 */
             mc_respond(0xFF);
 
@@ -233,7 +253,7 @@ static void __time_critical_func(mc_main_loop)(void) {
             if (receive(&cmd) == RECEIVE_RESET)
                 continue;
 
-            //log(LOG_TRACE, "%s: 0x81 %.02x\n", __func__, cmd);
+            log(LOG_TRACE, "%s: 0x81 %.02x\n", __func__, cmd);
             switch (cmd) {
                 case PS2_SIO2_CMD_0x11: ps2_mc_cmd_0x11(); break;
                 case PS2_SIO2_CMD_0x12: ps2_mc_cmd_0x12(); break;
@@ -267,7 +287,7 @@ static void __time_critical_func(mc_main_loop)(void) {
                 case PS2_SIO2_CMD_SESSION_KEY_1: ps2_mc_sessionKeyEncr(); break;
                 default: DPRINTF("Unknown Subcommand: %02x\n", cmd); break;
             }
-        } else if (cmd == PS2_SD2PSXMAN_CMD_IDENTIFIER) {
+        } else if (cmd == PS2_MMCEMAN_CMD_IDENTIFIER) {
             /* resp to 0x8B */
             mc_respond(0xAA);
 
@@ -276,15 +296,16 @@ static void __time_critical_func(mc_main_loop)(void) {
 
             switch (cmd)
             {
-                case SD2PSXMAN_PING: ps2_sd2psxman_cmds_ping(); break;
-                case SD2PSXMAN_GET_STATUS: ps2_sd2psxman_cmds_get_status(); break;
-                case SD2PSXMAN_GET_CARD: ps2_sd2psxman_cmds_get_card(); break;
-                case SD2PSXMAN_SET_CARD: ps2_sd2psxman_cmds_set_card(); break;
-                case SD2PSXMAN_GET_CHANNEL: ps2_sd2psxman_cmds_get_channel(); break;
-                case SD2PSXMAN_SET_CHANNEL: ps2_sd2psxman_cmds_set_channel(); break;
-                case SD2PSXMAN_GET_GAMEID: ps2_sd2psxman_cmds_get_gameid(); break;
-                case SD2PSXMAN_SET_GAMEID: ps2_sd2psxman_cmds_set_gameid(); break;
-                case SD2PSXMAN_UNMOUNT_BOOTCARD: ps2_sd2psxman_cmds_unmount_bootcard(); break;
+                case MMCEMAN_PING: ps2_mmceman_cmd_ping(); break;
+                case MMCEMAN_GET_STATUS: ps2_mmceman_cmd_get_status(); break;
+                case MMCEMAN_GET_CARD: ps2_mmceman_cmd_get_card(); break;
+                case MMCEMAN_SET_CARD: ps2_mmceman_cmd_set_card(); break;
+                case MMCEMAN_GET_CHANNEL: ps2_mmceman_cmd_get_channel(); break;
+                case MMCEMAN_SET_CHANNEL: ps2_mmceman_cmd_set_channel(); break;
+                case MMCEMAN_GET_GAMEID: ps2_mmceman_cmd_get_gameid(); break;
+                case MMCEMAN_SET_GAMEID: ps2_mmceman_cmd_set_gameid(); break;
+                case MMCEMAN_UNMOUNT_BOOTCARD: ps2_mmceman_cmd_unmount_bootcard(); break;
+                case MMCEMAN_RESET: ps2_mmceman_cmd_reset(); break;
 #ifdef FEAT_PS2_MMCE
                 case MMCEMAN_CMD_FS_OPEN: ps2_mmceman_cmd_fs_open(); break;
                 case MMCEMAN_CMD_FS_CLOSE: ps2_mmceman_cmd_fs_close(); break;
@@ -321,8 +342,8 @@ static void __no_inline_not_in_flash_func(mc_main)(void) {
 
         ps2_history_tracker_card_changed();
         memcard_running = 1;
-        transfer_stage = 0;
-        mc_callback = NULL;
+        mmceman_transfer_stage = 0;
+        mmceman_callback = NULL;
 
         reset_pio();
         mc_main_loop();
@@ -408,6 +429,7 @@ void ps2_memory_card_exit(void) {
     };
     mc_exit_request = mc_exit_response = 0;
     memcard_running = 0;
+    mmceman_mcman_retry_counter = 5;
     log(LOG_TRACE, "MEMCARD EXIT END!\n");
 }
 
@@ -421,10 +443,6 @@ void ps2_memory_card_enter(void) {
     mc_enter_request = mc_enter_response = 0;
 }
 
-void ps2_memory_card_set_cmd_callback(void (*cb)(void)) {
-    mc_callback = cb;
-}
-
 void ps2_memory_card_unload(void) {
     pio_remove_program(pio0, &cmd_reader_program, cmd_reader.offset);
     pio_sm_unclaim(pio0, cmd_reader.sm);
@@ -436,8 +454,4 @@ void ps2_memory_card_unload(void) {
 
 bool ps2_memory_card_running(void) {
     return (memcard_running != 0);
-}
-
-bool ps2_memory_card_transfer_running(void) {
-    return (mc_callback != NULL);
 }

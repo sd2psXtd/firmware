@@ -11,7 +11,6 @@
 
 #include "pico/platform.h"
 
-
 #include "debug.h"
 #include "sd.h"
 #include "settings.h"
@@ -243,7 +242,7 @@ int game_db_update_game(const char* const game_id) {
 
     current_game = find_game_lookup(game_id, mode);
 
-    if ((current_game.game_id == 0) && (mode == MODE_PS2)){
+    if ((current_game.game_id == 0) && (mode == MODE_PS2)) {
         current_game = find_game_lookup(game_id, MODE_PS1);
     }
 

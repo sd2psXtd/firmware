@@ -1,4 +1,4 @@
-#include "card_emu/ps2_mmceman_debug.h"
+#include "ps2_mmceman_debug.h"
 #include "pico/platform.h"
 
 #include <stdio.h>

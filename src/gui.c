@@ -3,7 +3,7 @@
 #include <debug.h>
 #include <game_db/game_db.h>
 #include <ps2/card_emu/ps2_mc_data_interface.h>
-#include <ps2/card_emu/ps2_sd2psxman.h>
+#include <ps2/mmceman/ps2_mmceman.h>
 #include <ps2/history_tracker/ps2_history_tracker.h>
 #include <src/core/lv_obj.h>
 #include <src/core/lv_obj_class.h>
@@ -351,10 +351,10 @@ static void evt_scr_main(lv_event_t *event) {
                 }
             } else {
                 switch (key) {
-                    case INPUT_KEY_PREV: ps2_sd2psxman_prev_ch(true); break;
-                    case INPUT_KEY_NEXT: ps2_sd2psxman_next_ch(true); break;
-                    case INPUT_KEY_BACK: ps2_sd2psxman_prev_idx(true); break;
-                    case INPUT_KEY_ENTER: ps2_sd2psxman_next_idx(true); break;
+                    case INPUT_KEY_PREV: ps2_mmceman_prev_ch(true); break;
+                    case INPUT_KEY_NEXT: ps2_mmceman_next_ch(true); break;
+                    case INPUT_KEY_BACK: ps2_mmceman_prev_idx(true); break;
+                    case INPUT_KEY_ENTER: ps2_mmceman_next_idx(true); break;
                 }
             }
 

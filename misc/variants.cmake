@@ -27,6 +27,7 @@ if (VARIANT STREQUAL "SD2PSX")
                             "SD_CS=29"
                             "FLASH_OFF_CIV=0x7fb000"
                             "FLASH_OFF_EEPROM=0x7fc000"
+                            "MMCE_PRODUCT_ID=0x1"
                             )
     set(SD2PSX_WITH_GUI TRUE)
     set(SD2PSX_WITH_PSRAM TRUE)
@@ -49,6 +50,7 @@ elseif( VARIANT STREQUAL "PMC+")
                             "SD_CS=17"
                             "FLASH_OFF_CIV=0x1fb000"
                             "FLASH_OFF_EEPROM=0x1fc000"
+                            "MMCE_PRODUCT_ID=0x3"
                             )
     set(SD2PSX_WITH_GUI FALSE)
     set(SD2PSX_WITH_PSRAM FALSE)
@@ -71,6 +73,7 @@ elseif( VARIANT STREQUAL "PMCZero")
                             "SD_CS=1"
                             "FLASH_OFF_CIV=0x1fb000"
                             "FLASH_OFF_EEPROM=0x1fc000"
+                            "MMCE_PRODUCT_ID=0x4"
                             )
     set(SD2PSX_WITH_GUI FALSE)
     set(SD2PSX_WITH_PSRAM FALSE)
@@ -93,6 +96,7 @@ elseif( VARIANT STREQUAL "SD2PSXlite")
                             "SD_CS=29"
                             "FLASH_OFF_CIV=0x1fb000"
                             "FLASH_OFF_EEPROM=0x1fc000"
+                            "MMCE_PRODUCT_ID=0x1"
                             PARENT_DIRECTORY)
     set(SD2PSX_WITH_GUI FALSE)
     set(SD2PSX_WITH_PSRAM FALSE)
