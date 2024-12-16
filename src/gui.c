@@ -439,9 +439,9 @@ static void update_ps2_main_header(void) {
     else if (PS2_VARIANT_RETAIL == settings_get_ps2_variant())
         lv_label_set_text(main_header, "PS2 Memory Card");
     else if (PS2_VARIANT_PROTO == settings_get_ps2_variant())
-        lv_label_set_text(main_header, "PROT Memory Card");
+        lv_label_set_text(main_header, "Prototype Card");
     else if (PS2_VARIANT_COH == settings_get_ps2_variant())
-        lv_label_set_text(main_header, "COH Dongle");
+        lv_label_set_text(main_header, "Security Dongle");
 }
 
 static void evt_go_back(lv_event_t *event) {
