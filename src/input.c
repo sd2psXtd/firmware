@@ -109,6 +109,7 @@ static void input_process(void) {
         if (!buttons[i].state)
             buttons[i].suppressed = 0;
     }
+
 }
 #if WITH_GUI
 void input_update_display(lv_obj_t *line) {
@@ -138,6 +139,12 @@ void input_update_display(lv_obj_t *line) {
     }
 }
 #endif
+
+void input_flip(void) {
+    for (int i = 0; i < 2; ++i) {
+        buttons[i].pin = (buttons[i].pin == PIN_BTN_LEFT) ? PIN_BTN_RIGHT : PIN_BTN_LEFT;
+    }
+}
 
 void input_init(void) {
     gpio_set_dir(PIN_BTN_LEFT, 0);

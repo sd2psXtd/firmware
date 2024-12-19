@@ -4,6 +4,7 @@
 #include "lvgl.h"
 #endif
 
+void input_flip(void);
 void input_init(void);
 void input_task(void);
 #if WITH_GUI
