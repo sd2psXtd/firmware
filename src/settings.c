@@ -34,12 +34,13 @@ typedef struct {
 
 #define SETTINGS_UPDATE_FIELD(field) settings_update_part(&settings.field, sizeof(settings.field))
 
-#define SETTINGS_VERSION_MAGIC (0xAACD0006)
-#define SETTINGS_PS1_FLAGS_AUTOBOOT (0b0000001)
-#define SETTINGS_PS1_FLAGS_GAME_ID  (0b0000010)
-#define SETTINGS_PS2_FLAGS_AUTOBOOT (0b0000001)
-#define SETTINGS_PS2_FLAGS_GAME_ID  (0b0000010)
-#define SETTINGS_SYS_FLAGS_PS2_MODE (0b0000001)
+#define SETTINGS_VERSION_MAGIC              (0xAACD0006)
+#define SETTINGS_PS1_FLAGS_AUTOBOOT         (0b0000001)
+#define SETTINGS_PS1_FLAGS_GAME_ID          (0b0000010)
+#define SETTINGS_PS2_FLAGS_AUTOBOOT         (0b0000001)
+#define SETTINGS_PS2_FLAGS_GAME_ID          (0b0000010)
+#define SETTINGS_SYS_FLAGS_PS2_MODE         (0b0000001)
+#define SETTINGS_SYS_FLAGS_FLIPPED_DISPLAY   (0b0000010)
 
 _Static_assert(sizeof(settings_t) == 20, "unexpected padding in the settings structure");
 
@@ -93,6 +94,9 @@ static int parse_card_configuration(void *user, const char *section, const char 
     } else if (MATCH("General", "Mode")
         && (strcmp(value, "PS2") == 0) != (_s->sys_flags & SETTINGS_SYS_FLAGS_PS2_MODE)) {
         _s->sys_flags ^= SETTINGS_SYS_FLAGS_PS2_MODE;
+    } else if (MATCH("General", "FlippedScreen")
+        && DIFFERS(value, (_s->sys_flags & SETTINGS_SYS_FLAGS_FLIPPED_DISPLAY))) {
+        _s->sys_flags ^= SETTINGS_SYS_FLAGS_FLIPPED_DISPLAY;
     }
     #undef MATCH
     return 1;
@@ -126,6 +130,8 @@ static void settings_serialize(void) {
         int written = snprintf(line_buffer, 256, "[General]\n");
         sd_write(fd, line_buffer, written);
         written = snprintf(line_buffer, 256, "Mode=%s\n", ((settings.sys_flags & SETTINGS_SYS_FLAGS_PS2_MODE) > 0) ? "PS2" : "PS1");
+        sd_write(fd, line_buffer, written);
+        written = snprintf(line_buffer, 256, "FlippedScreen=%s\n", ((settings.sys_flags & SETTINGS_SYS_FLAGS_FLIPPED_DISPLAY) > 0) ? "ON" : "OFF");
         sd_write(fd, line_buffer, written);
         written = snprintf(line_buffer, 256, "[PS1]\n");
         sd_write(fd, line_buffer, written);
@@ -401,6 +407,10 @@ uint8_t settings_get_display_vcomh() {
     return settings.display_vcomh;
 }
 
+bool settings_get_display_flipped() {
+    return (settings.sys_flags & SETTINGS_SYS_FLAGS_FLIPPED_DISPLAY);
+}
+
 bool settings_get_sd_mode() {
 #if WITH_PSRAM
     return false;
@@ -422,4 +432,10 @@ void settings_set_display_contrast(uint8_t display_contrast) {
 void settings_set_display_vcomh(uint8_t display_vcomh) {
     settings.display_vcomh = display_vcomh;
     SETTINGS_UPDATE_FIELD(display_vcomh);
+}
+
+void settings_set_display_flipped(bool flipped) {
+    if (flipped != settings_get_display_flipped())
+        settings.sys_flags ^= SETTINGS_SYS_FLAGS_FLIPPED_DISPLAY;
+    SETTINGS_UPDATE_FIELD(sys_flags);
 }
