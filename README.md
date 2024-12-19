@@ -82,6 +82,7 @@ A settings file has the following format:
 ```ini
 [General]
 Mode=PS2
+FlippedScreen=OFF
 [PS1]
 Autoboot=ON
 GameID=ON
@@ -94,13 +95,14 @@ Variant=RETAIL
 
 Possible values are:
 
-| Setting     | Values                      |
-|-------------|-----------------------------|
-| Mode        | `PS1`, `PS2`               |
-| AutoBoot    | `OFF`, `ON`                |
-| GameID      | `OFF`, `ON`                |
-| CardSize    | `1`, `2`, `4`, `8`, `16`, `32`, `64` |
-| Variant     | `RETAIL`, `PROTO`, `ARCADE` |
+| Setting       | Values                                |
+|---------------|---------------------------------------|
+| Mode          | `PS1`, `PS2`                          |
+| AutoBoot      | `OFF`, `ON`                           |
+| GameID        | `OFF`, `ON`                           |
+| CardSize      | `1`, `2`, `4`, `8`, `16`, `32`, `64`  |
+| Variant       | `RETAIL`, `PROTO`, `ARCADE`           |
+| FlippedScreen | `ON`, `OFF`                           |
 
 ## General: Support for Other RP2040-Based MMCE Devices
 
