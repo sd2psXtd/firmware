@@ -1026,6 +1026,8 @@ void gui_init(void) {
             oled_clear();
             oled_show();
         }
+        if (settings_get_display_flipped())
+            input_flip();
 
         lv_init();
 
