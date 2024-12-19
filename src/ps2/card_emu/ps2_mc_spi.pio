@@ -40,16 +40,15 @@
     ; wait for the arm core to give us a byte to send
     pull block ; Pull Block for sending
 
-    ; Pulse ACK 13.3 ns (which seems to be enough)
-    set pins, 0 [30]
-
-    set pins, 1
+    ; Set ACK to 0 for whole transfer to speed up bus
+    set pins, 0
 
     set x 7 ; Send 8 Bits in total
 sendbit:
     wait 1 irq 7
     out pins 1
     jmp x-- sendbit ; Repeat until byte is sent
+    set pins, 1 ; Set ACK to 1
 .wrap ; Wait for next byte
 
 .program clock_probe
