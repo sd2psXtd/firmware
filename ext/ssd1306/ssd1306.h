@@ -22,9 +22,9 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 */
 
-/** 
+/**
 * @file ssd1306.h
-* 
+*
 * simple driver for ssd1306 displays
 */
 
@@ -65,7 +65,7 @@ typedef struct {
     uint8_t pages;		/**< stores pages of display (calculated on initialization*/
     uint8_t address; 	/**< i2c address of display*/
     i2c_inst_t *i2c_i; 	/**< i2c connection instance */
-    bool external_vcc; 	/**< whether display uses external vcc */ 
+    bool external_vcc; 	/**< whether display uses external vcc */
     uint8_t *buffer;	/**< display buffer */
     size_t bufsize;		/**< buffer size */
 } ssd1306_t;
@@ -78,12 +78,12 @@ typedef struct {
 *	@param[in] height : heigth of display
 *	@param[in] address : i2c address of display
 *	@param[in] i2c_instance : instance of i2c connection
-*	
+*
 * 	@return bool.
 *	@retval true for Success
 *	@retval false if initialization failed
 */
-bool ssd1306_init(ssd1306_t *p, uint16_t width, uint16_t height, uint8_t address, i2c_inst_t *i2c_instance, uint8_t contrast, uint8_t vcomh);
+bool ssd1306_init(ssd1306_t *p, uint16_t width, uint16_t height, uint8_t address, i2c_inst_t *i2c_instance, uint8_t contrast, uint8_t vcomh, bool flipped);
 
 /**
 *	@brief turn off display
@@ -118,6 +118,13 @@ void ssd1306_contrast(ssd1306_t *p, uint8_t val);
 
 */
 void ssd1306_set_vcomh(ssd1306_t *p, uint8_t val);
+
+/**
+    @brief flip screen
+    @param[in] p : instance of display
+    @param[in] flip : flip screen
+ */
+void ssd1306_flip_display(ssd1306_t *p, bool flip);
 
 /**
 	@brief display buffer, should be called on change

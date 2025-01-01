@@ -29,8 +29,9 @@ int oled_init(void) {
 
     have_oled = ssd1306_init(
         &oled_disp, DISPLAY_WIDTH, DISPLAY_HEIGHT, OLED_I2C_ADDR, OLED_I2C_PERIPH,
-        settings_get_display_contrast(), settings_get_display_vcomh()
+        settings_get_display_contrast(), settings_get_display_vcomh(), settings_get_display_flipped()
     );
+
     return have_oled;
 }
 

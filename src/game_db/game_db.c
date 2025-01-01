@@ -11,10 +11,9 @@
 
 #include "pico/platform.h"
 
-
-#include "../debug.h"
-#include "../sd.h"
-#include "../settings.h"
+#include "debug.h"
+#include "sd.h"
+#include "settings.h"
 
 #define MAX_GAME_NAME_LENGTH (127)
 #define MAX_PREFIX_LENGTH    (5)
@@ -110,25 +109,6 @@ static game_lookup build_game_lookup(const char* const db_start, const size_t db
     return game;
 }
 
-static bool file_has_extension(const char* const file, const char* const extension) {
-    int file_index = strlen(file) - 1;
-    int ext_index = strlen(extension) - 1;
-    while ((file_index >= 0) && (ext_index >= 0))
-        if (file[file_index--] != extension[ext_index--])
-            return false;
-
-    return true;
-}
-
-static void file_remove_extension(char* const file) {
-    int file_index = strlen(file) - 1;
-    while ((file_index >= 0) && (file[file_index] != '.')) {
-        file[file_index--] = 0x00;
-    }
-    if (file_index >= 0)
-        file[file_index] = 0x00;
-}
-
 static game_lookup find_game_lookup(const char* game_id, int mode) {
     char prefixString[MAX_PREFIX_LENGTH] = {};
     char idString[10] = {};
@@ -165,6 +145,8 @@ static game_lookup find_game_lookup(const char* game_id, int mode) {
             strlcpy(idString, split, 11);
             numeric_id = atoi(idString);
         }
+
+        free(copy);
     }
 
     numeric_prefix = game_db_char_array_to_uint32(prefixString);
@@ -181,8 +163,8 @@ static game_lookup find_game_lookup(const char* game_id, int mode) {
 
                 if (game.game_id == numeric_id) {
                     ret = game;
-                    debug_printf("Found ID - Name Offset: %d, Parent ID: %d\n", (int)game.name, game.parent_id);
-                    debug_printf("Name:%s\n", game.name);
+                    DPRINTF("Found ID - Name Offset: %d, Parent ID: %d\n", (int)game.name, game.parent_id);
+                    DPRINTF("Name:%s\n", game.name);
                     ret.mode = mode;
                     ret.id_length = strlen(idString);
                     memcpy(ret.prefix, prefixString, 4);
@@ -216,38 +198,6 @@ void __time_critical_func(game_db_extract_title_id)(const uint8_t* const in_titl
     }
 }
 
-void game_db_get_folderbased_name(const char* const folder, char* const game_name) {
-    strlcpy(game_name, "", MAX_GAME_NAME_LENGTH);    
-
-    int dir_fd, it_fd = -1;
-    char filename[MAX_GAME_NAME_LENGTH] = {};
-    char dir[64];
-    if (settings_get_mode() == MODE_PS1) {
-        snprintf(dir, sizeof(dir), "MemoryCards/PS1/%s", folder);
-    } else {
-        snprintf(dir, sizeof(dir), "MemoryCards/PS2/%s", folder);
-    }
-
-    dir_fd = sd_open(dir, O_RDONLY);
-    if (dir_fd >= 0) {
-        it_fd = sd_iterate_dir(dir_fd, it_fd);
-
-        while (it_fd != -1) {
-            sd_get_name(it_fd, filename, MAX_GAME_NAME_LENGTH);
-
-            if (file_has_extension(filename, ".txt")) {
-                file_remove_extension(filename);
-                strlcpy(game_name, filename, MAX_GAME_NAME_LENGTH);
-                break;
-            }
-            it_fd = sd_iterate_dir(dir_fd, it_fd);
-        }
-        if (it_fd != -1)
-            sd_close(it_fd);
-        sd_close(dir_fd);
-    }
-}
-
 void game_db_get_current_name(char* const game_name) {
     strlcpy(game_name, "", MAX_GAME_NAME_LENGTH);    
 
@@ -261,7 +211,7 @@ int game_db_get_current_parent(char* const parent_id) {
     if (current_game.parent_id != 0)
         snprintf(parent_id, MAX_GAME_ID_LENGTH, "%s-%0*d", current_game.prefix, current_game.id_length, (int)current_game.parent_id);
 
-    debug_printf("Parent ID: %s\n", parent_id);
+    DPRINTF("Parent ID: %s\n", parent_id);
     
     return current_game.mode;
 }
@@ -286,11 +236,13 @@ int game_db_update_game(const char* const game_id) {
         if (strlen(split) > 0) {
             strlcpy(idString, split, 11);
         }
+
+        free(copy);
     }
 
     current_game = find_game_lookup(game_id, mode);
 
-    if ((current_game.game_id == 0) && (mode == MODE_PS2)){
+    if ((current_game.game_id == 0) && (mode == MODE_PS2)) {
         current_game = find_game_lookup(game_id, MODE_PS1);
     }
 
@@ -300,6 +252,15 @@ int game_db_update_game(const char* const game_id) {
     }
 
     return current_game.mode;
+}
+
+void game_db_get_game_name(const char* game_id, char* game_name) {
+    if (!game_db_sanity_check_title_id(game_id))
+        return;
+
+    game_lookup lookup = find_game_lookup(game_id, settings_get_mode());
+    if (lookup.name && lookup.name[0])
+        strlcpy(game_name, lookup.name, MAX_GAME_NAME_LENGTH);
 }
 
 void game_db_init(void) {

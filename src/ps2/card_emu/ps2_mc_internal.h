@@ -2,6 +2,7 @@
 
 #include "../ps2_dirty.h"
 #include "psram/psram.h"
+#include "debug.h"
 
 
 #include <pico/platform.h>
@@ -22,8 +23,9 @@ extern uint8_t writetmp[528];
 extern int is_write, is_dma_read;
 extern uint32_t readptr, writeptr;
 extern uint8_t *eccptr;
+extern volatile bool card_active;
 
-extern uint8_t EccTable[];
+extern const uint8_t EccTable[];
 
 extern uint8_t receive(uint8_t *cmd);
 extern uint8_t receiveFirst(uint8_t *cmd);
@@ -32,5 +34,6 @@ extern void __time_critical_func(read_mc)(uint32_t addr, void *buf, size_t sz, v
 extern void __time_critical_func(write_mc)(uint32_t addr, void *buf, size_t sz);
 
 #define receiveOrNextCmd(cmd)          \
-    if (receive(cmd) == RECEIVE_RESET) \
-    return
+    if (receive(cmd) == RECEIVE_RESET) {\
+    DPRINTF("Reset at %s:%u", __func__, __LINE__); \
+    return;}

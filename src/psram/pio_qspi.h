@@ -44,4 +44,6 @@ void pio_qspi_dma_init(const pio_spi_inst_t *spi);
     pio_qspi_write8_read8_blocking(spi, cmd_read, NULL, 0, buf, buf_len); \
 } while (0);
 
+bool pio_qspi_dma_active();
+
 #endif

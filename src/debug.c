@@ -4,8 +4,18 @@
 #include <stdio.h>
 #include <stdarg.h>
 
+#if WITH_GUI
 #include "oled.h"
+#endif
 #include "pico/platform.h"
+
+const char *log_level_str[] = {
+    " ",
+    "[ERROR]",
+    "[WARN] ",
+    "[INFO] ",
+    "[TRACE]"
+};
 
 static char debug_queue[1024];
 static size_t debug_read_pos, debug_write_pos;
@@ -24,7 +34,7 @@ char debug_get(void) {
     return ret;
 }
 
-void __time_critical_func(debug_printf)(const char *format, ...) {
+void __time_critical_func(buffered_printf)(const char *format, ...) {
     char buf[128];
 
     va_list args;
@@ -45,7 +55,7 @@ void fatal(const char *format, ...) {
     va_end(args);
 
     printf("%s\n", buf);
-
+#if WITH_GUI
     static int fatal_reentry;
     if (!fatal_reentry) {
         fatal_reentry = 1;
@@ -55,6 +65,7 @@ void fatal(const char *format, ...) {
         oled_draw_text(buf);
         oled_show();
     }
+#endif
 
     while (1) {
     }

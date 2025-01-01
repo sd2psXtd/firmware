@@ -1,14 +1,18 @@
 #pragma once
 
+#include <stdint.h>
+
 #define PS1_CARD_IDX_SPECIAL 0
 
 typedef enum {
+    PS1_CM_STATE_NAMED,
     PS1_CM_STATE_BOOT,
     PS1_CM_STATE_GAMEID,
     PS1_CM_STATE_NORMAL
 } ps1_cardman_state_t;
 
 void ps1_cardman_init(void);
+int ps1_cardman_read_sector(int sector, void *buf128);
 int ps1_cardman_write_sector(int sector, void *buf512);
 void ps1_cardman_flush(void);
 void ps1_cardman_open(void);

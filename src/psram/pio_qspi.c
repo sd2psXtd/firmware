@@ -3,7 +3,9 @@
  *
  * SPDX-License-Identifier: BSD-3-Clause
  */
+#include <stdio.h>
 
+#include "pico/time.h"
 #include "pio_qspi.h"
 #include "config.h"
 #include "hardware/dma.h"
@@ -80,6 +82,7 @@ void __time_critical_func(pio_qspi_write8_read8_blocking)(const pio_spi_inst_t *
 
 static dma_channel_config dma_tx_data_conf, dma_rx_data_conf,
                           dma_tx_cmd_conf, dma_rx_cmd_conf;
+static volatile bool dma_active = false;
 
 static void (*dma_done_cb)(void);
 
@@ -87,6 +90,9 @@ void __time_critical_func(pio_qspi_write8_dma)(const pio_spi_inst_t *spi, uint32
     io_rw_8 *txfifo = (io_rw_8 *) &spi->pio->txf[spi->sm];
     io_rw_8 *rxfifo = (io_rw_8 *) &spi->pio->rxf[spi->sm];
 
+    if (dma_channel_is_busy(PIO_SPI_DMA_RX_DATA_CHAN)) printf("WARNING!!!DMA ALREADY ACTIVE!!!!!!!!!\n");
+    while (dma_active) {tight_loop_contents();};
+    dma_active = true;
     dma_done_cb = cb;
 
     pio_sm_set_pindirs_with_mask(spi->pio, spi->sm, QSPI_DAT_MASK, QSPI_DAT_MASK);
@@ -96,6 +102,8 @@ void __time_critical_func(pio_qspi_write8_dma)(const pio_spi_inst_t *spi, uint32
     cmd_write[2] = (addr & 0xFF00) >> 8;
     cmd_write[3] = (addr & 0xFF);
 
+    dma_claim_mask(1 << PIO_SPI_DMA_TX_DATA_CHAN | 1 << PIO_SPI_DMA_TX_CMD_CHAN | 1 << PIO_SPI_DMA_RX_DATA_CHAN | 1 << PIO_SPI_DMA_RX_CMD_CHAN );
+
     static uint8_t zero = 0;
     channel_config_set_write_increment(&dma_tx_data_conf, false);
     channel_config_set_read_increment(&dma_tx_data_conf, true);
@@ -104,17 +112,22 @@ void __time_critical_func(pio_qspi_write8_dma)(const pio_spi_inst_t *spi, uint32
     channel_config_set_write_increment(&dma_tx_cmd_conf, false);
     channel_config_set_read_increment(&dma_tx_cmd_conf, true);
     channel_config_set_chain_to(&dma_tx_cmd_conf, PIO_SPI_DMA_TX_DATA_CHAN);
-    dma_channel_configure(PIO_SPI_DMA_TX_CMD_CHAN, &dma_tx_cmd_conf, txfifo, cmd_write, sizeof(cmd_write), true);
+    dma_channel_configure(PIO_SPI_DMA_TX_CMD_CHAN, &dma_tx_cmd_conf, txfifo, cmd_write, sizeof(cmd_write), false);
 
     channel_config_set_write_increment(&dma_rx_data_conf, false);
     channel_config_set_read_increment(&dma_rx_data_conf, false);
-    dma_channel_configure(PIO_SPI_DMA_RX_DATA_CHAN, &dma_rx_data_conf, &zero, rxfifo, sizeof(cmd_write) + srclen, true);
+    dma_channel_configure(PIO_SPI_DMA_RX_DATA_CHAN, &dma_rx_data_conf, &zero, rxfifo, sizeof(cmd_write) + srclen, false);
+
+    dma_start_channel_mask(1 << PIO_SPI_DMA_TX_CMD_CHAN | 1 << PIO_SPI_DMA_RX_DATA_CHAN);
 }
 
 void __time_critical_func(pio_qspi_read8_dma)(const pio_spi_inst_t *spi, uint32_t addr, uint8_t *dst, size_t dstlen, void (*cb)(void)) {
     io_rw_8 *txfifo = (io_rw_8 *) &spi->pio->txf[spi->sm];
     io_rw_8 *rxfifo = (io_rw_8 *) &spi->pio->rxf[spi->sm];
 
+    if (dma_active) printf("WARNING!!!DMA ALREADY ACTIVE!!!!!!!!!\n");
+    while (dma_active) {tight_loop_contents();};
+    dma_active = true;
     dma_done_cb = cb;
 
     pio_sm_set_pindirs_with_mask(spi->pio, spi->sm, QSPI_DAT_MASK, QSPI_DAT_MASK);
@@ -129,6 +142,8 @@ void __time_critical_func(pio_qspi_read8_dma)(const pio_spi_inst_t *spi, uint32_
     }
 
     pio_sm_set_pindirs_with_mask(spi->pio, spi->sm, 0, QSPI_DAT_MASK);
+
+    dma_claim_mask(1 << PIO_SPI_DMA_TX_DATA_CHAN | 1 << PIO_SPI_DMA_TX_CMD_CHAN | 1 << PIO_SPI_DMA_RX_DATA_CHAN | 1 << PIO_SPI_DMA_RX_CMD_CHAN );
 
     static uint8_t zero = 0;
     channel_config_set_write_increment(&dma_tx_data_conf, false);
@@ -150,10 +165,19 @@ void __time_critical_func(pio_qspi_read8_dma)(const pio_spi_inst_t *spi, uint32_
 
 static void __time_critical_func(dma_rx_done)(void) {
     /* note that this irq is called by core0 despite most dma tx started by core1 */
-    dma_channel_acknowledge_irq0(PIO_SPI_DMA_RX_DATA_CHAN);
-    gpio_put(PSRAM_CS, 1);
-    if (dma_done_cb)
-        dma_done_cb();
+    if (dma_channel_get_irq0_status(PIO_SPI_DMA_RX_DATA_CHAN)) {
+        dma_channel_acknowledge_irq0(PIO_SPI_DMA_RX_DATA_CHAN);
+        gpio_put(PSRAM_CS, 1);
+        dma_unclaim_mask(1 << PIO_SPI_DMA_TX_DATA_CHAN | 1 << PIO_SPI_DMA_TX_CMD_CHAN | 1 << PIO_SPI_DMA_RX_DATA_CHAN | 1 << PIO_SPI_DMA_RX_CMD_CHAN );
+
+        dma_active = false;
+        if (dma_done_cb)
+            dma_done_cb();
+    }
+}
+
+bool __time_critical_func(pio_qspi_dma_active)() {
+    return dma_active;
 }
 
 void pio_qspi_dma_init(const pio_spi_inst_t *spi) {

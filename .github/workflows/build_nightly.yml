@@ -1,0 +1,102 @@
+name: Build Nightly
+
+on:
+  push:
+    tags:
+      - '*'
+    branches:
+      - 'develop'
+      - 'main'
+
+env:
+  # Customize the CMake build type here (Release, Debug, RelWithDebInfo, etc.)
+  BUILD_TYPE: Release
+
+jobs:
+  build:
+    # The CMake configure and build commands are platform agnostic and should work equally well on Windows or Mac.
+    # You can convert this to a matrix build if you need cross-platform coverage.
+    # See: https://docs.github.com/en/free-pro-team@latest/actions/learn-github-actions/managing-complex-workflows#using-a-build-matrix
+    runs-on: ubuntu-latest
+    #needs: create_release
+    strategy:
+      matrix:
+        target: [SD2PSX, SD2PSXlite, PMC+, PMCZero]
+        debug: [ON, OFF]
+        include:
+          - debug: ON
+            ext: -debug.uf2
+            delay: 3
+          - debug: OFF
+            ext: .uf2
+            delay: 0
+          - target: SD2PSX
+            filename: sd2psx
+          - target: SD2PSXlite
+            filename: sd2psxlite
+          - target: PMC+
+            filename: pmc+
+          - target: PMCZero
+            filename: pmczero
+    steps:
+    - uses: actions/checkout@v4
+      with:
+         submodules: 'recursive'
+         fetch-depth: '0'
+    - run: |
+        git fetch origin --tags --force
+        TAG=$(git describe --tags --exact-match HEAD --exclude=latest --exclude=nightly) || true
+        if [ $TAG ]
+        then
+          echo "SD2PSX_VERSION=${TAG}" >> $GITHUB_ENV
+          echo "SD2PSX_RLS_TAG=latest" >> $GITHUB_ENV
+          echo "${TAG}"
+        else
+          echo "SD2PSX_VERSION=nightly-$(git rev-parse --short HEAD)" >> $GITHUB_ENV
+          echo "SD2PSX_RLS_TAG=nightly" >> $GITHUB_ENV
+          echo "nightly"
+        fi
+
+    - name: add build essential
+      run: sudo apt-get update && sudo apt-get install -y cmake gcc-arm-none-eabi libnewlib-arm-none-eabi libstdc++-arm-none-eabi-newlib clangd git python3-venv
+
+    - name: Build
+      # Configure CMake in a 'build' subdirectory. `CMAKE_BUILD_TYPE` is only required if you are using a single-configuration generator such as make.
+      # See https://cmake.org/cmake/help/latest/variable/CMAKE_BUILD_TYPE.html?highlight=cmake_build_type
+      run: |
+          cmake -B ${{ github.workspace }}/build -DCMAKE_BUILD_TYPE=${{ env.BUILD_TYPE }} -DDEBUG_USB_UART:BOOL=${{ matrix.debug }} -DVARIANT:STRING=${{ matrix.target }} -DDEBUG_STARTUP_DELAY=${{ matrix.delay }}  -G "Unix Makefiles"
+          cmake --build ${{github.workspace}}/build
+
+    - name: Upload variants artifact
+      uses: actions/upload-artifact@v4
+      with:
+        name:  ${{ matrix.filename }}${{ matrix.ext }}
+        path: build/${{ matrix.filename }}${{ matrix.ext }}
+
+  create_release:
+    needs: [build]
+    runs-on: ubuntu-latest
+    steps:
+    - name: Download all artifacts
+      uses: actions/download-artifact@v4
+
+    - name: Create Nightly
+      if: (!startsWith(github.ref, 'refs/tags/'))
+      uses: mathieucarbou/marvinpinto-action-automatic-releases@latest
+      with:
+        repo_token: "${{ secrets.GITHUB_TOKEN }}"
+        prerelease: true
+        automatic_release_tag: "nightly"
+        title: "${{ env.SD2PSX_VERSION }}"
+        files: |
+          */*.uf2
+
+    - name: Create release
+      if: startsWith(github.ref, 'refs/tags/')
+      uses: mathieucarbou/marvinpinto-action-automatic-releases@latest
+      with:
+        repo_token: "${{ secrets.GITHUB_TOKEN }}"
+        prerelease: "${{ contains(github.ref, '-rc') || contains(github.ref, '-beta')}}"
+        title: "${{ env.SD2PSX_VERSION }}"
+        files: |
+          */*.uf2

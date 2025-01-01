@@ -30,5 +30,6 @@ file(READ ${SCRIPT_TEMPLATE} template_file)
 string(REPLACE "@SD2PSX_VERSION@" ${SD2PSX_VERSION} template_file "${template_file}")
 string(REPLACE "@SD2PSX_COMMIT@" ${SD2PSX_COMMIT} template_file "${template_file}")
 string(REPLACE "@SD2PSX_BRANCH@" ${SD2PSX_BRANCH} template_file "${template_file}")
+string(REPLACE "@VARIANT@" ${VARIANT} template_file "${template_file}")
 
 file(WRITE ${SCRIPT_OUTPUT_FILE} "${template_file}")

@@ -51,7 +51,7 @@ inline static void ssd1306_write(ssd1306_t *p, uint8_t val) {
     fancy_write(p->i2c_i, p->address, d, 2, "ssd1306_write");
 }
 
-bool ssd1306_init(ssd1306_t *p, uint16_t width, uint16_t height, uint8_t address, i2c_inst_t *i2c_instance, uint8_t contrast, uint8_t vcomh) {
+bool ssd1306_init(ssd1306_t *p, uint16_t width, uint16_t height, uint8_t address, i2c_inst_t *i2c_instance, uint8_t contrast, uint8_t vcomh, bool flipped) {
     p->width=width;
     p->height=height;
     p->pages=height/8;
@@ -76,10 +76,10 @@ bool ssd1306_init(ssd1306_t *p, uint16_t width, uint16_t height, uint8_t address
         0x00,  // horizontal
         // resolution and layout
         SET_DISP_START_LINE | 0x00,
-        SET_SEG_REMAP | 0x01,  // column addr 127 mapped to SEG0
+        SET_SEG_REMAP | (flipped?0x00:0x01),  // column addr 127 mapped to SEG0
         SET_MUX_RATIO,
         height - 1,
-        SET_COM_OUT_DIR | 0x08,  // scan from COM[N] to COM0
+        SET_COM_OUT_DIR | (flipped?0x00:0x08),  // scan from COM[N] to COM0
         SET_DISP_OFFSET,
         0x00,
         SET_COM_PIN_CFG,
@@ -128,6 +128,11 @@ inline void ssd1306_contrast(ssd1306_t *p, uint8_t val) {
 inline void ssd1306_set_vcomh(ssd1306_t *p, uint8_t val) {
     ssd1306_write(p, SET_VCOM_DESEL);
     ssd1306_write(p, val);
+}
+
+inline void ssd1306_flip_display(ssd1306_t *p, bool flip) {
+    ssd1306_write(p, SET_SEG_REMAP | (flip?0x00:0x01));
+    ssd1306_write(p, SET_COM_OUT_DIR| (flip?0x00:0x08));
 }
 
 inline void ssd1306_clear(ssd1306_t *p) {

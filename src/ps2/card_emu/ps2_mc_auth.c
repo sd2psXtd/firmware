@@ -1,18 +1,31 @@
 
 #include "ps2_mc_auth.h"
 
+#include <settings.h>
 #include <stdint.h>
 
 #include "debug.h"
 #include "des.h"
+#include "hardware/timer.h"
 #include "keystore.h"
 #include "ps2_mc_internal.h"
 
+#if LOG_LEVEL_MC_AUTH == 0
+#define log(x...)
+#else
+#define log(level, fmt, x...) LOG_PRINT(LOG_LEVEL_MC_AUTH, level, fmt, ##x)
+#endif
+
 // keysource and key are self generated values
-uint8_t keysource[] = {0xf5, 0x80, 0x95, 0x3c, 0x4c, 0x84, 0xa9, 0xc0};
-uint8_t dex_key[16] = {0x17, 0x39, 0xd3, 0xbc, 0xd0, 0x2c, 0x18, 0x07, 0x4b, 0x17, 0xf0, 0xea, 0xc4, 0x66, 0x30, 0xf9};
+uint8_t ps2_keysource[] = {0xf5, 0x80, 0x95, 0x3c, 0x4c, 0x84, 0xa9, 0xc0};
+uint8_t coh_keysource[] = {0x03, 0x14, 0x93, 0x16, 0x27, 0x02, 0x9D, 0xA2};
 uint8_t cex_key[16] = {0x06, 0x46, 0x7a, 0x6c, 0x5b, 0x9b, 0x82, 0x77, 0x0d, 0xdf, 0xe9, 0x7e, 0x24, 0x5b, 0x9f, 0xca};
-uint8_t *key = cex_key;
+uint8_t dex_key[16] = {0x17, 0x39, 0xD3, 0xBC, 0xD0, 0x2C, 0x18, 0x07, 0x0F, 0x7A, 0xF3, 0xB7, 0x9E, 0x73, 0x03, 0x1C};
+uint8_t coh_key[16] = {0x05, 0x3D, 0x59, 0x77, 0xC4, 0xF7, 0xB0, 0xD4, 0x37, 0xAE, 0x66, 0xA5, 0x17, 0x71, 0xB8, 0xC0};
+uint8_t prt_key[16] = {0x8C, 0x4B, 0xEF, 0xA6, 0xF4, 0x9A, 0x23, 0xA0, 0x9C, 0xF1, 0x46, 0xAA, 0x17, 0x1C, 0xFE, 0x75};
+
+uint8_t *key = dex_key;
+uint8_t *keysource = ps2_keysource;
 
 uint8_t iv[8];
 uint8_t seed[8];
@@ -57,6 +70,22 @@ void __time_critical_func(xor_bit)(const void *a, const void *b, void *Result, s
 }
 
 void __time_critical_func(generateIvSeedNonce)() {
+    switch (settings_get_ps2_variant()) {
+        case PS2_VARIANT_COH:
+            keysource = coh_keysource;
+            key = coh_key;
+            break;
+        case PS2_VARIANT_PROTO:
+            keysource = ps2_keysource;
+            key = prt_key;
+            break;
+        case PS2_VARIANT_RETAIL:
+        default:
+            keysource = ps2_keysource;
+            key = dex_key;
+            break;
+        break;
+    }
     for (int i = 0; i < 8; i++) {
         iv[i] = 0x42;
         seed[i] = keysource[i] ^ iv[i];
@@ -78,6 +107,7 @@ void __time_critical_func(generateResponse)() {
     xor_bit(random, CardResponse1, CardResponse2, 8);
     doubleDesEncrypt(key, CardResponse2);
 
+    /* Generates the session key */
     uint8_t CardKey[] = {'M', 'e', 'c', 'h', 'a', 'P', 'w', 'n'};
     xor_bit(CardKey, CardResponse2, CardResponse3, 8);
     doubleDesEncrypt(key, CardResponse3);
@@ -93,7 +123,7 @@ inline __attribute__((always_inline)) void __time_critical_func(ps2_mc_auth_prob
 
 inline __attribute__((always_inline)) void __time_critical_func(ps2_mc_auth_getIv)(void) {
     uint8_t _;
-    debug_printf("iv : %02X %02X %02X %02X %02X %02X %02X %02X\n", ARG8(iv));
+    log(LOG_INFO, "iv : %02X %02X %02X %02X %02X %02X %02X %02X\n", ARG8(iv));
 
     /* get IV */
     mc_respond(0x2B);
@@ -121,7 +151,7 @@ inline __attribute__((always_inline)) void __time_critical_func(ps2_mc_auth_getI
 
 inline __attribute__((always_inline)) void __time_critical_func(ps2_mc_auth_getSeed)(void) {
     uint8_t _;
-    debug_printf("seed : %02X %02X %02X %02X %02X %02X %02X %02X\n", ARG8(seed));
+    log(LOG_INFO, "seed : %02X %02X %02X %02X %02X %02X %02X %02X\n", ARG8(seed));
 
     /* get seed */
     mc_respond(0x2B);
@@ -157,7 +187,7 @@ inline __attribute__((always_inline)) void __time_critical_func(ps2_mc_auth_dumm
 
 inline __attribute__((always_inline)) void __time_critical_func(ps2_mc_auth_getNonce)(void) {
     uint8_t _;
-    debug_printf("nonce : %02X %02X %02X %02X %02X %02X %02X %02X\n", ARG8(nonce));
+    log(LOG_INFO, "nonce : %02X %02X %02X %02X %02X %02X %02X %02X\n", ARG8(nonce));
 
     /* get nonce */
     mc_respond(0x2B);
@@ -217,7 +247,7 @@ inline __attribute__((always_inline)) void __time_critical_func(ps2_mc_auth_mech
     receiveOrNextCmd(&_);
     mc_respond(term);
 
-    debug_printf("MechaChallenge3 : %02X %02X %02X %02X %02X %02X %02X %02X\n", ARG8(MechaChallenge3));
+    log(LOG_INFO, "MechaChallenge3 : %02X %02X %02X %02X %02X %02X %02X %02X\n", ARG8(MechaChallenge3));
 }
 
 inline __attribute__((always_inline)) void __time_critical_func(ps2_mc_auth_mechaChallenge2)(void) {
@@ -246,7 +276,7 @@ inline __attribute__((always_inline)) void __time_critical_func(ps2_mc_auth_mech
     receiveOrNextCmd(&_);
     mc_respond(term);
 
-    debug_printf("MechaChallenge2 : %02X %02X %02X %02X %02X %02X %02X %02X\n", ARG8(MechaChallenge2));
+    log(LOG_INFO, "MechaChallenge2 : %02X %02X %02X %02X %02X %02X %02X %02X\n", ARG8(MechaChallenge2));
 }
 
 inline __attribute__((always_inline)) void __time_critical_func(ps2_mc_auth_dummy8)(void) {
@@ -299,7 +329,7 @@ inline __attribute__((always_inline)) void __time_critical_func(ps2_mc_auth_mech
     receiveOrNextCmd(&_);
     mc_respond(term);
 
-    debug_printf("MechaChallenge1 : %02X %02X %02X %02X %02X %02X %02X %02X\n", ARG8(MechaChallenge1));
+    log(LOG_INFO, "MechaChallenge1 : %02X %02X %02X %02X %02X %02X %02X %02X\n", ARG8(MechaChallenge1));
 }
 
 inline __attribute__((always_inline)) void __time_critical_func(ps2_mc_auth_dummyC)(void) {
@@ -322,9 +352,9 @@ inline __attribute__((always_inline)) void __time_critical_func(ps2_mc_auth_dumm
     uint8_t _ = 0;
     /* dummy E */
     generateResponse();
-    debug_printf("CardResponse1 : %02X %02X %02X %02X %02X %02X %02X %02X\n", ARG8(CardResponse1));
-    debug_printf("CardResponse2 : %02X %02X %02X %02X %02X %02X %02X %02X\n", ARG8(CardResponse2));
-    debug_printf("CardResponse3 : %02X %02X %02X %02X %02X %02X %02X %02X\n", ARG8(CardResponse3));
+    log(LOG_INFO, "CardResponse1 : %02X %02X %02X %02X %02X %02X %02X %02X\n", ARG8(CardResponse1));
+    log(LOG_INFO, "CardResponse2 : %02X %02X %02X %02X %02X %02X %02X %02X\n", ARG8(CardResponse2));
+    log(LOG_INFO, "CardResponse3 : %02X %02X %02X %02X %02X %02X %02X %02X\n", ARG8(CardResponse3));
     mc_respond(0x2B);
     receiveOrNextCmd(&_);
     mc_respond(term);
@@ -466,7 +496,7 @@ inline __attribute__((always_inline)) void __time_critical_func(ps2_mc_sessionKe
         }
         mc_respond(term);
     } else {
-        debug_printf("!! unknown subcmd %02X -> %02X\n", 0xF2, subcmd);
+        log(LOG_WARN, "!! unknown subcmd %02X -> %02X\n", 0xF2, subcmd);
     }
 }
 
@@ -475,7 +505,7 @@ inline __attribute__((always_inline)) void __time_critical_func(ps2_mc_auth)(voi
     mc_respond(0xFF);
 
     receiveOrNextCmd(&subcmd);
-    //    debug_printf("MC Auth: %02X\n", subcmd);
+    //    log("MC Auth: %02X\n", subcmd);
     switch (subcmd) {
         case 0x0: ps2_mc_auth_probe(); break;
         case 0x1: ps2_mc_auth_getIv(); break;
@@ -499,7 +529,28 @@ inline __attribute__((always_inline)) void __time_critical_func(ps2_mc_auth)(voi
         case 0x13: ps2_mc_auth_cardResponse3(); break;
         case 0x14: ps2_mc_auth_dummy14(); break;
         default:
-            // debug_printf("unknown %02X -> %02X\n", ch, subcmd);
+            // log("unknown %02X -> %02X\n", ch, subcmd);
             break;
     }
+}
+
+/**
+  * Official retail memory cards use both developer and retail keys.
+  * they use developer keys untill 0xF7 command (this function) is called. then they switch to retail keys
+  * the ideal approach is just to respond to this command, but never expect it.
+  * retail SECRMAN expects an answer to this, but the others wont.
+  * arcade cards support this command but dont perform a key change bc they were not intended to do so.
+  */
+inline __attribute__((always_inline)) void __time_critical_func(ps2_mc_auth_keySelect)(void) {
+    // TODO: it fails to get detected at all when ps2_magicgate==0, check if it's intentional
+    uint8_t _ = 0U;
+    /* SIO_MEMCARD_KEY_SELECT */
+    mc_respond(0xFF);
+    receiveOrNextCmd(&_);
+    mc_respond(0x2B);
+    receiveOrNextCmd(&_);
+    mc_respond(term);
+    log(LOG_TRACE, "Switching to CEX\n");
+    if (PS2_VARIANT_RETAIL == settings_get_ps2_variant())
+        key = cex_key;
 }

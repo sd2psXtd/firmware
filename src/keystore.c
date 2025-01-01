@@ -8,13 +8,23 @@
 #include "pico/multicore.h"
 
 #include "flashmap.h"
+#include "pico/platform.h"
 #include "sd.h"
+#include "settings.h"
 
 uint8_t ps2_civ[8];
+const char civ_path[]           = "civ.bin";
+const char civ_path_backup[]    = ".sd2psx/civ.bin";
 int ps2_magicgate;
 
 void keystore_init(void) {
     keystore_read();
+#if WITH_GUI==0
+    if (ps2_magicgate == 0) {
+        printf("Deploying keys...\n");
+        keystore_deploy();
+    }
+#endif
 }
 
 void keystore_read(void) {
@@ -48,14 +58,21 @@ char *keystore_error(int rc) {
     }
 }
 
-int keystore_deploy(void) {
+int __not_in_flash_func(keystore_deploy)(void) {
     uint8_t civbuf[8] = { 0 };
     uint8_t chkbuf[256] = { 0 };
+    const char* path;
 
-    if (!sd_exists("civ.bin"))
+    sd_init();
+
+    if (sd_exists(civ_path))
+        path = civ_path;
+    else if (sd_exists(civ_path_backup))
+        path = civ_path_backup;
+    else
         return KEYSTORE_DEPLOY_NOFILE;
 
-    int fd = sd_open("civ.bin", O_RDONLY);
+    int fd = sd_open(path, O_RDONLY);
     if (fd < 0)
         return KEYSTORE_DEPLOY_OPEN;
 
@@ -70,15 +87,42 @@ int keystore_deploy(void) {
         chkbuf[i + 8] = ~chkbuf[i];
 
     if (memcmp(chkbuf, (uint8_t*)XIP_BASE + FLASH_OFF_CIV, sizeof(chkbuf)) != 0) {
-        multicore_lockout_start_blocking();
+        if (multicore_lockout_victim_is_initialized(1))
+            multicore_lockout_start_blocking();
+        uint32_t ints = save_and_disable_interrupts();
         flash_range_erase(FLASH_OFF_CIV, 4096);
         flash_range_program(FLASH_OFF_CIV, chkbuf, sizeof(chkbuf));
-        multicore_lockout_end_blocking();
+        restore_interrupts (ints);
+        if (multicore_lockout_victim_is_initialized(1))
+            multicore_lockout_end_blocking();
     } else {
         printf("keystore - skipping CIV flash because data is unchanged\n");
+    }
+
+    if (!sd_exists(civ_path_backup)) {
+        fd = sd_open(civ_path_backup, O_CREAT | O_WRONLY);
+        sd_write(fd, civbuf, 8);
+        sd_close(fd);
+        sd_remove(path);
     }
 
     keystore_read();
 
     return 0;
+}
+
+void __not_in_flash_func(keystore_reset)(void) {
+    uint8_t chkbuf[256] = { 0 };
+
+    #if WITH_GUI
+    multicore_lockout_start_blocking();
+    #endif
+    uint32_t ints = save_and_disable_interrupts();
+    flash_range_erase(FLASH_OFF_CIV, 4096);
+    flash_range_program(FLASH_OFF_CIV, chkbuf, sizeof(chkbuf));
+    restore_interrupts (ints);
+    #if WITH_GUI
+    multicore_lockout_end_blocking();
+    #endif
+    keystore_read();
 }
