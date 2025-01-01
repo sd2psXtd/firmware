@@ -1010,6 +1010,7 @@ static void update_activity(void) {
         } else if (visible) {
             lv_obj_add_flag(g_activity_frame, LV_OBJ_FLAG_HIDDEN);
             last_update = time;
+            visible = false;
         }
         write_occured = false;
     }
