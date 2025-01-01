@@ -994,12 +994,13 @@ static void create_ui(void) {
 
 static void update_activity(void) {
     static uint64_t last_update = 0U;
+    static bool write_occured = false;
     static bool visible = false;
     uint64_t time = time_us_64();
+    write_occured |= (ps1_dirty_activity || ps2_mc_data_interface_write_occured());
     if ((time - last_update) > 500 * 1000) {
         // TODO: Causes a 31ms delay that causes issues with mmce fs
-        if (ps1_dirty_activity || ps2_mc_data_interface_write_occured()) {
-            // log(LOG_INFO, "ps2_dirty_activity\n");
+        if (write_occured) {
             input_flush();
             if (!visible) {
                 lv_obj_clear_flag(g_activity_frame, LV_OBJ_FLAG_HIDDEN);
@@ -1010,6 +1011,7 @@ static void update_activity(void) {
             lv_obj_add_flag(g_activity_frame, LV_OBJ_FLAG_HIDDEN);
             last_update = time;
         }
+        write_occured = false;
     }
 }
 
@@ -1155,6 +1157,7 @@ void gui_task(void) {
             gui_do_ps1_card_switch();
         }
         refresh_gui = false;
+        update_activity();
     } else {
         static int displayed_card_idx = -1;
         static int displayed_card_channel = -1;
