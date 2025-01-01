@@ -998,7 +998,7 @@ static void update_activity(void) {
     static bool visible = false;
     uint64_t time = time_us_64();
     write_occured |= (ps1_dirty_activity || ps2_mc_data_interface_write_occured());
-    if ((time - last_update) > 500 * 1000) {
+    if ((time - last_update) > 200 * 1000) {
         // TODO: Causes a 31ms delay that causes issues with mmce fs
         if (write_occured) {
             input_flush();
