@@ -527,7 +527,7 @@ static void evt_switch_variant(lv_event_t *event) {
         else if (settings_get_ps2_variant() == PS2_VARIANT_PROTO)
             lv_label_set_text(lbl_ps2_variant, "Proto>");
         else if (settings_get_ps2_variant() == PS2_VARIANT_COH)
-            lv_label_set_text(lbl_ps2_variant, "COH>");
+            lv_label_set_text(lbl_ps2_variant, "Arcade>");
     }
 
     gui_request_refresh();
@@ -581,14 +581,7 @@ static void create_main_screen(void) {
     if (settings_get_mode() == MODE_PS1) {
         main_header = ui_header_create(scr_main, "PS1 Memory Card");
     } else {
-        if (!ps2_magicgate)
-            main_header = ui_header_create(scr_main, "PS2: No CIV!");
-        else if (PS2_VARIANT_RETAIL == settings_get_ps2_variant())
-            main_header = ui_header_create(scr_main, "PS2 Memory Card");
-        else if (PS2_VARIANT_PROTO == settings_get_ps2_variant())
-            main_header = ui_header_create(scr_main, "PROT Memory Card");
-        else if (PS2_VARIANT_COH == settings_get_ps2_variant())
-            main_header = ui_header_create(scr_main, "COH Dongle");
+        update_ps2_main_header();
     }
 
     ui_label_create_at(scr_main, 0, 24, "Card");
@@ -878,7 +871,7 @@ static void create_menu_screen(void) {
             lv_obj_add_event_cb(cont, evt_switch_variant, LV_EVENT_CLICKED, (void*)(intptr_t)PS2_VARIANT_PROTO);
 
             cont = ui_menu_cont_create_nav(variant_page);
-            ui_label_create(cont, "COH");
+            ui_label_create(cont, "Arcade");
             lv_obj_add_event_cb(cont, evt_switch_variant, LV_EVENT_CLICKED, (void*)(intptr_t)PS2_VARIANT_COH);
         }
         {
@@ -888,7 +881,7 @@ static void create_menu_screen(void) {
             else if (settings_get_ps2_variant() == PS2_VARIANT_PROTO)
                 snprintf(text, ARRAY_SIZE(text), "Proto>");
             else if (settings_get_ps2_variant() == PS2_VARIANT_COH)
-                snprintf(text, ARRAY_SIZE(text), "COH>");
+                snprintf(text, ARRAY_SIZE(text), "Arcade>");
             cont = ui_menu_cont_create_nav(ps2_page);
             ui_label_create_grow(cont, "Variant");
             lbl_ps2_variant = ui_label_create(cont, text);

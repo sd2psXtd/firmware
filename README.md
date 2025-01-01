@@ -9,7 +9,7 @@ It provides the same functionality as the official stable firmware and extends i
 - **PS2:** MMCEMAN and MMCEDRV support
 - **PS2:** Instant card availability
 - **PS2:** 1-64 MB card size support
-- **PS2:** Development, prototype, arcade support
+- **PS2:** Support for developer (`DTL-H` & `DTL-T`), Arcade (`COH-H`) and Prototype (`EB`?) models is available.
 - **PS1:** BootCard mechanics
 - **PS1:** PSRAM support
 - **General:** Settings file
@@ -36,9 +36,11 @@ When launching in PS2 mode, commands sent to *sd2psx* are monitored. Since PS1 s
 
 While in general this should be safe behavior, if *sd2psx* is used mainly in PS1, manual mode selection is recommended.
 
-**Note:** If *sd2psx* is connected to a PS1 in PS2 mode, there is always a risk of damaging your PS1 console. You have been warned!
+> [!CAUTION]
+> **Note 1:** If *sd2psx* is connected to a PS1 in PS2 mode, there is always a risk of damaging your PS1 console. You have been warned!
 
-**Note 2:** Do not use *sd2psx* in dynamic mode on a PS1 multitap, as this WILL damage your PS1 multitap device.
+> [!CAUTION]
+> **Note 2:** Do not use *sd2psx* in dynamic mode on a PS1 multitap, as this **WILL** damage your PS1 multitap device.
 
 ## PS2: MMCEMAN and MMCEDRV Support
 
@@ -51,19 +53,29 @@ While in general this should be safe behavior, if *sd2psx* is used mainly in PS1
 
 ## PS2: Instant Card Availability
 
-If using 8MB cards, *sd2psXtd* firmware exposes the card to the PS2 while it is still being transferred to PSRAM. This enables using FMCB/PS2BBL at boot time without additional waiting scripts.
+If using 8MB cards, *sd2psXtd* firmware exposes the card to the PS2 while it is still being transferred to PSRAM. This enables using FMCB/PS2BBL at boot time without additional waiting scripts.  
+Very helpful for PlayStation 2 models with simpler OSDSYS programs, that result on faster boot times (like PSX DESR and Arcade PS2)
 
 ## PS2: 1-64 MB Card Size Support
 
 Support for card sizes between 1 and 64 MB has been added. Cards larger than 8 MB rely heavily on quick SD card access, so on older or lower-quality SD cards, these larger cards may become corrupt.
 
-**Note:** While the feature has been extensively tested, it is still recommended to use 8MB cards, as this is the official specification for memory cards.
+> [!NOTE]
+>  While the feature has been extensively tested, it is still recommended to use 8MB cards, as this is the official specification for memory cards.
 
-## PS2: Development, Prototype, Arcade Support
+## PS2: Support for Developer, Arcade and Prototype PS2s
 
-PS2 memory cards have been used in variations like *DevKits* and *Prototypes*. *sd2psXtd* firmware supports these devices by configuring the variant within the PS2 settings.
+PS2 memory cards have been used in variations of PS2 like: *DevKits*, *TestKits*, *Arcades* and *Prototypes*.  
 
-COH/Arcade mode is also supported. Please be aware, that Arcade card images still nee to be acquired separately.
+*sd2psXtd* firmware supports these devices by configuring the variant within the PS2 settings.
+
+These PlayStation 2 variations use different magicgate keysets to ensure their memory cards are inaccessible in other devices (eg: Opening developer memory card on normal PS2). that's why SD2PSX has to actively support them
+
+> [!NOTE]
+> **Devkit/DTL-H owners**:
+> as you may notice, SD2PSX has no `DEVELOPER` mode, this is because sd2psxtd is mimicking the behavior of licensed retail card. to use the device on developer hardware, set the card on `RETAIL` mode [^1]
+
+[^1]: Devkits: official retail memory cards use developer magicgate by default until the console actively requests to use retail magicgate with a dedicated command
 
 ## PS1: BootCard Mechanics
 
