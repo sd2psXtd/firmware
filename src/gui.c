@@ -577,9 +577,9 @@ static void create_main_screen(void) {
     /* Main screen listing current memcard, status, etc */
     scr_main = ui_scr_create();
     lv_obj_add_event_cb(scr_main, evt_scr_main, LV_EVENT_ALL, NULL);
-
+    main_header = ui_header_create(scr_main, "");
     if (settings_get_mode() == MODE_PS1) {
-        main_header = ui_header_create(scr_main, "PS1 Memory Card");
+        lv_label_set_text(main_header, "PS1 Memory Card");
     } else {
         update_ps2_main_header();
     }
