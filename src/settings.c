@@ -411,14 +411,6 @@ bool settings_get_display_flipped() {
     return (settings.sys_flags & SETTINGS_SYS_FLAGS_FLIPPED_DISPLAY);
 }
 
-bool settings_get_sd_mode() {
-#if WITH_PSRAM
-    return false;
-#else
-    return true;
-#endif
-}
-
 void settings_set_display_timeout(uint8_t display_timeout) {
     settings.display_timeout = display_timeout;
     SETTINGS_UPDATE_FIELD(display_timeout);

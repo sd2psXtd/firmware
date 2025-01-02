@@ -40,6 +40,9 @@ static int sector_count = -1;
 #if WITH_PSRAM
 #define SECTOR_COUNT_8MB (PS2_CARD_SIZE_8M / BLOCK_SIZE)
 uint8_t available_sectors[SECTOR_COUNT_8MB / 8];  // bitmap
+#define PSRAM_AVAILABLE true
+#else
+#define PSRAM_AVAILABLE false
 #endif
 static uint8_t flushbuf[BLOCK_SIZE];
 int cardman_fd = -1;
@@ -394,13 +397,13 @@ static void ps2_cardman_continue(void) {
     if (cardman_operation == CARDMAN_OPEN) {
         uint64_t slice_start = time_us_64();
 
-        if (settings_get_sd_mode() || card_size > PS2_CARD_SIZE_8M) {
+        if (!PSRAM_AVAILABLE || card_size > PS2_CARD_SIZE_8M) {
             uint64_t end = time_us_64();
             log(LOG_INFO, "took = %.2f s; SD read speed = %.2f kB/s\n", (end - cardprog_start) / 1e6, 1000000.0 * card_size / (end - cardprog_start) / 1024);
             if (cardman_cb)
                 cardman_cb(100, true);
             cardman_operation = CARDMAN_IDLE;
-        
+
         } else {
 #if WITH_PSRAM
             log(LOG_TRACE, "%s:%u\n", __func__, __LINE__);
@@ -464,7 +467,7 @@ static void ps2_cardman_continue(void) {
 
                 break;
             }
-            if (settings_get_sd_mode() || (settings_get_ps2_cardsize() > 8)) {
+            if (!PSRAM_AVAILABLE || (settings_get_ps2_cardsize() > 8)) {
                 genblock(cardprog_pos, flushbuf);
                 sd_write(cardman_fd, flushbuf, BLOCK_SIZE);
             } else {
@@ -543,7 +546,7 @@ void ps2_cardman_open(void) {
         if (card_size > PS2_CARD_SIZE_8M) {
             ps2_mc_data_interface_set_sdmode(true);
         } else {
-            ps2_mc_data_interface_set_sdmode(settings_get_sd_mode());
+            ps2_mc_data_interface_set_sdmode(!PSRAM_AVAILABLE);
         }
 
         if (cardman_fd < 0)
@@ -588,7 +591,7 @@ void ps2_cardman_open(void) {
             case PS2_CARD_SIZE_1M:
             case PS2_CARD_SIZE_2M:
             case PS2_CARD_SIZE_4M:
-            case PS2_CARD_SIZE_8M: ps2_mc_data_interface_set_sdmode(settings_get_sd_mode()); break;
+            case PS2_CARD_SIZE_8M: ps2_mc_data_interface_set_sdmode(!PSRAM_AVAILABLE); break;
             case PS2_CARD_SIZE_16M:
             case PS2_CARD_SIZE_32M:
             case PS2_CARD_SIZE_64M: ps2_mc_data_interface_set_sdmode(true); break;
@@ -785,7 +788,7 @@ bool __time_critical_func(ps2_cardman_is_accessible)(void) {
     // SD: / IDLE   => X
     // SD: / CREATE => X
     // SD: / OPEN   => X
-    if ((card_size > PS2_CARD_SIZE_8M) || (settings_get_sd_mode()))
+    if ((card_size > PS2_CARD_SIZE_8M) || (!PSRAM_AVAILABLE))
         return (cardman_operation == CARDMAN_IDLE);
     else
         return true;

@@ -144,9 +144,9 @@ void ps1_cardman_flush(void) {
 
 static void ensuredirs(void) {
     char cardpath[32];
-    
+
     snprintf(cardpath, sizeof(cardpath), "MemoryCards/PS1/%s", folder_name);
-    
+
     sd_mkdir("MemoryCards");
     sd_mkdir("MemoryCards/PS1");
     sd_mkdir(cardpath);
@@ -199,7 +199,7 @@ void ps1_cardman_open(void) {
     }
 
     printf("Switching to card path = %s\n", path);
-    
+
     if (!sd_exists(path)) {
         fd = sd_open(path, O_RDWR | O_CREAT | O_TRUNC);
 
@@ -212,16 +212,12 @@ void ps1_cardman_open(void) {
         for (size_t pos = 0; pos < CARD_SIZE; pos += BLOCK_SIZE) {
             genblock(pos, flushbuf);
 #if WITH_PSRAM
-            if (!settings_get_sd_mode()) {
-                psram_write_dma(pos, flushbuf, BLOCK_SIZE, NULL);
-            }
+            psram_write_dma(pos, flushbuf, BLOCK_SIZE, NULL);
 #endif
             if (sd_write(fd, flushbuf, BLOCK_SIZE) != BLOCK_SIZE)
                 fatal("cannot init memcard");
 #if WITH_PSRAM
-            if (!settings_get_sd_mode()) {
-                psram_wait_for_dma();
-            }
+            psram_wait_for_dma();
 #endif
         }
         sd_flush(fd);
@@ -244,15 +240,12 @@ void ps1_cardman_open(void) {
         printf("reading card.... ");
         uint64_t cardprog_start = time_us_64();
 #if WITH_PSRAM
-        if (!settings_get_sd_mode()) {
+        for (size_t pos = 0; pos < CARD_SIZE; pos += BLOCK_SIZE) {
+            if (sd_read(fd, flushbuf, BLOCK_SIZE) != BLOCK_SIZE)
+                fatal("cannot read memcard");
 
-            for (size_t pos = 0; pos < CARD_SIZE; pos += BLOCK_SIZE) {
-                if (sd_read(fd, flushbuf, BLOCK_SIZE) != BLOCK_SIZE)
-                    fatal("cannot read memcard");
-                
-                psram_write_dma(pos, flushbuf, BLOCK_SIZE, NULL);
-                psram_wait_for_dma();
-            }
+            psram_write_dma(pos, flushbuf, BLOCK_SIZE, NULL);
+            psram_wait_for_dma();
         }
 #endif
         ps1_mc_data_interface_card_changed();

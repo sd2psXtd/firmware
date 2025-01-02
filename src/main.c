@@ -1,4 +1,5 @@
 #include <stdio.h>
+#include "led.h"
 #include "pico/stdio.h"
 #include "pico/stdlib.h"
 #include "pico/bootrom.h"
@@ -83,7 +84,7 @@ static void debug_task(void) {
                 DPRINTF("Received Channel Up!\n");
                 if (settings_get_mode() == MODE_PS2) {
                     mmceman_mode = MMCEMAN_MODE_NEXT;
-                    mmceman_cmd = MMCEMAN_SET_CHANNEL;                
+                    mmceman_cmd = MMCEMAN_SET_CHANNEL;
                 }  else {
                     ps1_memory_card_exit();
                     ps1_cardman_close();
@@ -164,6 +165,10 @@ int main() {
 #endif
     game_db_init();
 
+#if WITH_LED
+    led_init();
+#endif
+
     while (1) {
         if (settings_get_mode() == MODE_PS2) {
             ps2_init();
@@ -172,7 +177,7 @@ int main() {
                 if (!ps2_task())
                     break;
             }
-            ps2_deinit();           
+            ps2_deinit();
 
         } else {
             ps1_init();

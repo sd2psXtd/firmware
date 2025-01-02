@@ -1,4 +1,5 @@
 #include "keystore.h"
+#include "led.h"
 #if WITH_GUI
 #include "gui.h"
 #include "input.h"
@@ -62,6 +63,9 @@ bool ps2_task(void) {
     gui_task();
     input_task();
     oled_task();
+#endif
+#if WITH_LED
+    led_task();
 #endif
     log(LOG_TRACE, "%s after GUI\n", __func__);
 #ifdef FEAT_PS2_MMCE

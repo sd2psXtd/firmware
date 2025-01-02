@@ -12,6 +12,7 @@ set(CMAKE_CXX_STANDARD 17)
 
 option(SD2PSX_WITH_PSRAM "Build SD2PSX with PSRAM support" ON)
 option(SD2PSX_WITH_GUI   "Build SD2PSX with GUI support" ON)
+option(SD2PSX_WITH_LED   "Build SD2PSX with LED support" OFF)
 option(DEBUG_USB_UART "Activate UART over USB for debugging" OFF)
 
 # variants
@@ -132,6 +133,13 @@ if (SD2PSX_WITH_GUI)
                     lvgl::lvgl
                 PRIVATE
                     ssd1306)
+endif()
+
+if (SD2PSX_WITH_LED)
+    target_compile_definitions(sd2psx_common PUBLIC "WITH_LED=1")
+    target_sources(sd2psx_common PRIVATE
+                ${CMAKE_CURRENT_SOURCE_DIR}/src/led.c)
+
 endif()
 
 set_target_properties(sd2psx_common PROPERTIES PICO_TARGET_LINKER_SCRIPT ${CMAKE_SOURCE_DIR}/memmap_custom.ld)

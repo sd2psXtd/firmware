@@ -26,6 +26,7 @@
 #include "ps1/ps1_cardman.h"
 #include "ps1/ps1_dirty.h"
 #include "ps1/ps1_memory_card.h"
+#include "ps1_mc_data_interface.h"
 #include "ps2/card_emu/ps2_memory_card.h"
 #include "ps2/ps2_cardman.h"
 #include "ps2/ps2_dirty.h"
@@ -997,7 +998,7 @@ static void update_activity(void) {
     static bool write_occured = false;
     static bool visible = false;
     uint64_t time = time_us_64();
-    write_occured |= (ps1_dirty_activity || ps2_mc_data_interface_write_occured());
+    write_occured |= (ps1_mc_data_interface_write_occured() || ps2_mc_data_interface_write_occured());
     if ((time - last_update) > 200 * 1000) {
         // TODO: Causes a 31ms delay that causes issues with mmce fs
         if (write_occured) {
