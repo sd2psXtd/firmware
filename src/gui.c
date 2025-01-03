@@ -48,7 +48,7 @@ static lv_obj_t *scr_switch_nag, *scr_card_switch, *scr_main, *scr_menu, *menu, 
 static lv_style_t style_inv, src_main_label_style;
 static lv_anim_t src_main_animation_template;
 static lv_obj_t *scr_main_idx_lbl, *scr_main_channel_lbl, *src_main_title_lbl, *lbl_channel, *lbl_ps1_autoboot, *lbl_ps1_game_id, *lbl_ps2_autoboot,
-    *lbl_ps2_cardsize, *lbl_ps2_variant, *lbl_ps2_game_id, *lbl_civ_err, *auto_off_lbl, *contrast_lbl, *vcomh_lbl, *lbl_mode;
+    *lbl_ps2_cardsize, *lbl_ps2_variant, *lbl_ps2_game_id, *lbl_civ_err, *auto_off_lbl, *contrast_lbl, *vcomh_lbl, *lbl_mode, *lbl_scrn_flip;
 
 static struct {
     uint8_t value;
@@ -450,6 +450,15 @@ static void evt_go_back(lv_event_t *event) {
     lv_event_stop_bubbling(event);
 }
 
+static void evt_screen_flip(lv_event_t *event) {
+    bool current = settings_get_display_flipped();
+    settings_set_display_flipped(!current);
+    oled_flip(!current);
+    input_flip();
+    lv_label_set_text(lbl_scrn_flip, !current ? "Yes" : "No");
+    lv_event_stop_bubbling(event);
+}
+
 static void evt_ps1_autoboot(lv_event_t *event) {
     bool current = settings_get_ps1_autoboot();
     settings_set_ps1_autoboot(!current);
@@ -801,6 +810,11 @@ static void create_menu_screen(void) {
         vcomh_lbl = ui_label_create(cont, NULL);
         ui_menu_set_load_page_event(menu, cont, vcomh_page);
         ui_set_display_vcomh(settings_get_display_vcomh());
+
+        cont = ui_menu_cont_create_nav(display_page);
+        ui_label_create_grow(cont, "Flip");
+        lbl_scrn_flip = ui_label_create(cont, settings_get_display_flipped() ? " Yes" : " No");
+        lv_obj_add_event_cb(cont, evt_screen_flip, LV_EVENT_CLICKED, NULL);
     }
 
     /* ps1 */

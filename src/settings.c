@@ -32,6 +32,13 @@ typedef struct {
     uint8_t ps2_variant; // Variant for keys
 } settings_t;
 
+typedef struct {
+    uint8_t ps2_flags;
+    uint8_t sys_flags;
+    uint8_t ps2_cardsize;
+    uint8_t ps2_variant; // Variant for keys
+} serialized_settings_t;
+
 #define SETTINGS_UPDATE_FIELD(field) settings_update_part(&settings.field, sizeof(settings.field))
 
 #define SETTINGS_VERSION_MAGIC              (0xAACD0006)
@@ -45,6 +52,7 @@ typedef struct {
 _Static_assert(sizeof(settings_t) == 20, "unexpected padding in the settings structure");
 
 static settings_t settings;
+static serialized_settings_t serialized_settings;
 static int tempmode;
 static const char settings_path[] = "/.sd2psx/settings.ini";
 
@@ -115,10 +123,21 @@ static void settings_deserialize(void) {
             wear_leveling_write(0, &settings, sizeof(settings));
         }
     }
+    serialized_settings.sys_flags       = settings.sys_flags;
+    serialized_settings.ps2_flags       = settings.ps2_flags;
+    serialized_settings.ps2_cardsize    = settings.ps2_cardsize;
+    serialized_settings.ps2_variant     = settings.ps2_variant;
 }
 
 static void settings_serialize(void) {
     int fd;
+    // Only serialize if required
+    if (serialized_settings.ps2_cardsize == settings.ps2_cardsize &&
+        serialized_settings.ps2_flags == settings.ps2_flags &&
+        serialized_settings.sys_flags == settings.sys_flags &&
+        serialized_settings.ps2_variant == settings.ps2_variant) {
+        return;
+    }
 
     if (!sd_exists("/.sd2psx/")) {
         sd_mkdir("/.sd2psx/");
@@ -164,6 +183,10 @@ static void settings_serialize(void) {
 
         sd_close(fd);
     }
+    serialized_settings.sys_flags       = settings.sys_flags;
+    serialized_settings.ps2_flags       = settings.ps2_flags;
+    serialized_settings.ps2_cardsize    = settings.ps2_cardsize;
+    serialized_settings.ps2_variant     = settings.ps2_variant;
 }
 
 static void settings_reset(void) {
