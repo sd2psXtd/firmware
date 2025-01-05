@@ -200,7 +200,7 @@ extern "C" void mapTime(const uint16_t date, const uint16_t time, uint8_t* const
 
     out_time[3] = (time >> 11); // Hours
     out_time[2] = (time >> 5) & 63; // Minutes
-    out_time[1] = (time << 1) & 31; // Seconds (multiplied by 2)    
+    out_time[1] = (time << 1) & 31; // Seconds (multiplied by 2)
 }
 
 //Get stat and convert to format fileio expects
@@ -211,20 +211,20 @@ extern "C" int sd_get_stat(int fd, ps2_fileio_stat_t* const ps2_fileio_stat) {
 
     //FIO_SO_IFREG
     if (files[fd].isFile())
-        ps2_fileio_stat->mode = 0x10;
-    //FIO_SO_IFDIR
+        ps2_fileio_stat->mode = PS2_MODE_IFREG;
+    //PS2_MODEO_IFDIR
     else if (files[fd].isDir())
-        ps2_fileio_stat->mode = 0x20;
+        ps2_fileio_stat->mode = PS2_MODE_IFDIR;
 
-    //FIO_SO_IROTH
+    //PS2_MODEO_IROTH
     if (files[fd].isReadable())
-        ps2_fileio_stat->mode |= 0x4;
-    
-    //FIO_SO_IWOTH
+        ps2_fileio_stat->mode |= PS2_MODE_IROTH;
+
+    //PS2_MODEO_IWOTH
     if (files[fd].isWritable())
-        ps2_fileio_stat->mode |= 0x2;
-    
-    //FIO_SO_IXOTH - TODO
+        ps2_fileio_stat->mode |= PS2_MODE_IWOTH;
+
+    //PS2_MODE_IXOTH - TODO
 
     ps2_fileio_stat->attr = 0x0; //TODO
     ps2_fileio_stat->size = files[fd].fileSize();

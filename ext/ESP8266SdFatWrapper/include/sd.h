@@ -4,6 +4,19 @@
 #include <stdbool.h>
 #include <stdint.h>
 
+
+/** Symbolic link */
+#define PS2_MODE_IFLNK 0x4000
+/** Regular file */
+#define PS2_MODE_IFREG 0x2000
+/** Directory */
+#define PS2_MODE_IFDIR 0x1000
+/** Others read permission */
+#define PS2_MODE_IROTH 0x0004
+/** Others write permission */
+#define PS2_MODE_IWOTH 0x0002
+
+
 typedef struct ps2_fileio_stat_t
 {
     unsigned int mode;
