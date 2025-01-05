@@ -6,7 +6,7 @@
 
 #define LOG_LEVEL_MC_DATA    2
 #define LOG_LEVEL_MMCEMAN    3
-#define LOG_LEVEL_MMCEMAN_FS 2
+#define LOG_LEVEL_MMCEMAN_FS 3
 #define LOG_LEVEL_MC_AUTH    2
 #define LOG_LEVEL_PS2_CM     2
 #define LOG_LEVEL_PS2_MAIN   2

@@ -215,8 +215,8 @@ void ps2_mmceman_fs_run(void)
                 op_data.read_ahead.valid = 0;
             }
 
-            sd_seek64(op_data.fd, op_data.offset, op_data.whence);
-            op_data.position = sd_tell64(op_data.fd);
+            sd_seek(op_data.fd, op_data.offset, op_data.whence);
+            op_data.position = sd_tell(op_data.fd);
 
             mmceman_fs_operation = MMCEMAN_FS_NONE;
         break;

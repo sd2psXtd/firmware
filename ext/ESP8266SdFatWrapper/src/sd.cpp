@@ -95,30 +95,24 @@ extern "C" int sd_write(int fd, void *buf, size_t count) {
     return files[fd].write(buf, count);
 }
 
-extern "C" int sd_seek(int fd, uint64_t pos) {
+extern "C" int sd_seek(int fd, int32_t offset, int whence) {
     CHECK_FD(fd);
 
-    /* return 1 on error */
-    return files[fd].seekSet(pos) != true;
+    if (whence == 0) {
+        return files[fd].seekSet(offset) != true;
+    } else if (whence == 1) {
+        return files[fd].seekCur(offset) != true;
+    } else if (whence == 2) {
+        return files[fd].seekEnd(offset) != true;
+    }
+
+    return 1;
 }
 
-//seekSet checks fd, no need for macro
-extern "C" int sd_seek64_set(int fd, uint64_t pos) {
-    /* return 1 on error */
-    return files[fd].seekSet(pos) != true;
-}
-
-extern "C" size_t sd_tell(int fd) {
+extern "C" uint32_t sd_tell(int fd) {
     CHECK_FD(fd);
 
-    return files[fd].curPosition();
-}
-
-//curPosition returns a uint64_t
-extern "C" uint64_t sd_tell64(int fd) {
-    CHECK_FD(fd);
-
-    return files[fd].curPosition();
+    return (uint32_t)files[fd].curPosition();
 }
 
 extern "C" int sd_mkdir(const char *path) {
@@ -143,18 +137,6 @@ extern "C" int sd_rmdir(const char* path) {
 extern "C" int sd_remove(const char* path) {
     /* return 1 on error */
     return sd.remove(path) != true;
-}
-
-extern "C" int sd_seek64(int fd, int64_t offset, int whence) {
-    CHECK_FD(fd);
-    if (whence == 0) {
-        return files[fd].seekSet((uint64_t)offset) != true;
-    } else if (whence == 1) {
-        return files[fd].seekCur(offset) != true;
-    } else if (whence == 2) {
-        return files[fd].seekEnd(offset) != true;
-    }
-    return -1;
 }
 
 extern "C" int sd_iterate_dir(int dir, int it) {
@@ -209,22 +191,22 @@ extern "C" int sd_get_stat(int fd, ps2_fileio_stat_t* const ps2_fileio_stat) {
 
     uint16_t date, time;
 
-    //FIO_SO_IFREG
+    //FIO_S_IFREG
     if (files[fd].isFile())
-        ps2_fileio_stat->mode = PS2_MODE_IFREG;
-    //PS2_MODEO_IFDIR
+        ps2_fileio_stat->mode = FIO_S_IFREG;
+    //FIO_S_IFDIR
     else if (files[fd].isDir())
-        ps2_fileio_stat->mode = PS2_MODE_IFDIR;
+        ps2_fileio_stat->mode = FIO_S_IFDIR;
 
-    //PS2_MODEO_IROTH
+    //FIO_S_IROTH
     if (files[fd].isReadable())
-        ps2_fileio_stat->mode |= PS2_MODE_IROTH;
+        ps2_fileio_stat->mode |= FIO_S_IROTH;
 
-    //PS2_MODEO_IWOTH
+    //FIO_S_IWOTH
     if (files[fd].isWritable())
-        ps2_fileio_stat->mode |= PS2_MODE_IWOTH;
+        ps2_fileio_stat->mode |= FIO_S_IWOTH;
 
-    //PS2_MODE_IXOTH - TODO
+    //FIO_S_IXOTH - TODO
 
     ps2_fileio_stat->attr = 0x0; //TODO
     ps2_fileio_stat->size = files[fd].fileSize();
@@ -249,4 +231,22 @@ extern "C" int sd_fd_is_open(int fd) {
 extern "C" uint64_t sd_filesize64(int fd) {
     CHECK_FD(fd);
     return files[fd].fileSize();
+}
+
+//curPosition returns a uint64_t when using exFAT
+extern "C" uint64_t sd_tell64(int fd) {
+    CHECK_FD(fd);
+
+    return (uint64_t)files[fd].curPosition();
+}
+
+extern "C" int sd_seek64(int fd, int64_t offset, int whence) {
+    if (whence == 0) {
+        return files[fd].seekSet((uint64_t)offset) != true;
+    } else if (whence == 1) {
+        return files[fd].seekCur(offset) != true;
+    } else if (whence == 2) {
+        return files[fd].seekEnd(offset) != true;
+    }
+    return 1;
 }
