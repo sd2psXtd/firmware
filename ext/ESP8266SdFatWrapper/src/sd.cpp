@@ -209,7 +209,7 @@ extern "C" int sd_get_stat(int fd, ps2_fileio_stat_t* const ps2_fileio_stat) {
     //FIO_S_IXOTH - TODO
 
     ps2_fileio_stat->attr = 0x0; //TODO
-    ps2_fileio_stat->size = files[fd].fileSize();
+    ps2_fileio_stat->size = (uint32_t)files[fd].fileSize();
 
     files[fd].getCreateDateTime(&date, &time);
     mapTime(date, time, ps2_fileio_stat->ctime);
@@ -218,7 +218,7 @@ extern "C" int sd_get_stat(int fd, ps2_fileio_stat_t* const ps2_fileio_stat) {
     files[fd].getModifyDateTime(&date, &time);
     mapTime(date, time, ps2_fileio_stat->mtime);
 
-    ps2_fileio_stat->hisize = 0x0; //TODO
+    ps2_fileio_stat->hisize = (files[fd].fileSize() >> 32);
 
     return 0;
 }
