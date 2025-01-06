@@ -44,6 +44,8 @@ void ps2_cardman_set_channel(uint16_t num);
 void ps2_cardman_next_channel(void);
 void ps2_cardman_prev_channel(void);
 
+void ps2_cardman_switch_bootcard(void);
+
 void ps2_cardman_set_idx(uint16_t num);
 void ps2_cardman_next_idx(void);
 void ps2_cardman_prev_idx(void);

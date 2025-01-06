@@ -88,6 +88,12 @@ void ps2_mmceman_task(void) {
                     log(LOG_INFO, "%s: set game id\n", __func__);
                 break;
             }
+
+            //TEMP:
+            case MMCEMAN_SWITCH_BOOTCARD:
+                ps2_cardman_switch_bootcard();
+            break;
+
             case MMCEMAN_UNMOUNT_BOOTCARD:
                 if (ps2_cardman_get_idx() == 0) {
                     ps2_cardman_next_idx();

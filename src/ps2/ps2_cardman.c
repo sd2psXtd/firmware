@@ -646,6 +646,12 @@ void ps2_cardman_prev_channel(void) {
     needs_update = true;
 }
 
+//TEMP
+void ps2_cardman_switch_bootcard(void) {
+    if (try_set_boot_card())
+        needs_update = true;
+}
+
 void ps2_cardman_set_idx(uint16_t idx_num) {
     if (idx_num != card_idx)
         needs_update = true;

@@ -78,9 +78,11 @@ inline __attribute__((always_inline)) void __time_critical_func(ps2_mmceman_cmd_
 inline __attribute__((always_inline)) void __time_critical_func(ps2_mmceman_cmd_set_card)(void)
 {
     uint8_t cmd;
+    uint8_t type;
 
     mc_respond(0x0); receiveOrNextCmd(&cmd); //reserved byte
     mc_respond(0x0); receiveOrNextCmd(&cmd); //type (unused?)
+    type = cmd;    
     mc_respond(0x0); receiveOrNextCmd(&cmd); //mode
     mmceman_mode = cmd;
     mc_respond(0x0); receiveOrNextCmd(&cmd); //card upper 8 bits
@@ -89,9 +91,14 @@ inline __attribute__((always_inline)) void __time_critical_func(ps2_mmceman_cmd_
     mmceman_cnum |= cmd;
     mc_respond(term);
 
-    log(LOG_INFO, "received MMCEMAN_SET_CARD mode: %i, num: %i\n", mmceman_mode, mmceman_cnum);
-
-    mmceman_cmd = MMCEMAN_SET_CARD;  //set after setting mode and cnum
+    //TEMP: for switching to bootcard
+    if (type == 1) {
+        log(LOG_INFO, "received MMCEMAN_SET_CARD BOOTCARD\n");
+        mmceman_cmd = MMCEMAN_SWITCH_BOOTCARD;
+    } else {
+        log(LOG_INFO, "received MMCEMAN_SET_CARD mode: %i, num: %i\n", mmceman_mode, mmceman_cnum);
+        mmceman_cmd = MMCEMAN_SET_CARD;  //set after setting mode and cnum
+    }
 }
 
 inline __attribute__((always_inline)) void __time_critical_func(ps2_mmceman_cmd_get_channel)(void)
