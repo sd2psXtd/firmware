@@ -12,10 +12,10 @@ extern "C" {
 
 #include <stdio.h>
 
-#define NUM_FILES 8
+#define NUM_FILES 16
 
 static SdFat sd;
-static File files[NUM_FILES];
+static File files[NUM_FILES + 1];
 static bool initialized = false;
 
 extern "C" void sd_init() {

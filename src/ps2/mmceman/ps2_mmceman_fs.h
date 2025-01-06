@@ -50,7 +50,7 @@ typedef struct ps2_mmceman_fs_op_data_t {
     int rv;
     int fd;
     int flags;          //file flags
-    int it_fd;          //iterator dir
+    int it_fd[17];      //iterator dir
 
     uint64_t filesize;
 

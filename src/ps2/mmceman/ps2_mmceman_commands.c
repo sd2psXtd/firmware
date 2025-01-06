@@ -929,8 +929,11 @@ inline __attribute__((always_inline)) void __time_critical_func(ps2_mmceman_cmd_
     ps2_mmceman_fs_wait_ready();
     op_data = ps2_mmceman_fs_get_op_data();
 
-    mc_respond(0x0); receiveOrNextCmd(&cmd);                    //Reservered
-    mc_respond(0x0); receiveOrNextCmd((uint8_t*)&op_data->fd);  //File descriptor
+    mc_respond(0x0); receiveOrNextCmd(&cmd);    //Reservered
+    mc_respond(0x0); receiveOrNextCmd(&cmd);    //File descriptor
+    
+    op_data->fd = cmd;
+
     log(LOG_INFO, "%s: fd: %i\n", __func__, op_data->fd);
 
     MP_SIGNAL_OP();
@@ -961,8 +964,10 @@ inline __attribute__((always_inline)) void __time_critical_func(ps2_mmceman_cmd_
             ps2_mmceman_fs_wait_ready();
             op_data = ps2_mmceman_fs_get_op_data();
 
-            mc_respond(0x0); receiveOrNextCmd(&cmd);                    //Reservered
-            mc_respond(0x0); receiveOrNextCmd((uint8_t*)&op_data->fd);  //File descriptor
+            mc_respond(0x0); receiveOrNextCmd(&cmd);    //Reservered
+            mc_respond(0x0); receiveOrNextCmd(&cmd);    //File descriptor
+            
+            op_data->fd = cmd;
 
             log(LOG_INFO, "%s: fd: %i\n", __func__, op_data->fd);
 
@@ -1046,7 +1051,7 @@ inline __attribute__((always_inline)) void __time_critical_func(ps2_mmceman_cmd_
         //Packet #n + 3: Term
         case 3:
             receiveOrNextCmd(&cmd);     //Padding
-            mc_respond(op_data->it_fd); //iterator fd
+            mc_respond(op_data->it_fd[op_data->fd]); //iterator fd
 
             ps2_mmceman_set_cb(NULL);
             mmceman_transfer_stage = 0;
