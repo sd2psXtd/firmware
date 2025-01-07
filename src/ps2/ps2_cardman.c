@@ -110,7 +110,7 @@ int ps2_cardman_read_sector(int sector, void *buf512) {
     if (cardman_fd < 0)
         return -1;
 
-    if (sd_seek64_set(cardman_fd, sector * BLOCK_SIZE) != 0)
+    if (sd_seek(cardman_fd, sector * BLOCK_SIZE, SEEK_SET) != 0)
         return -1;
 
     if (sd_read(cardman_fd, buf512, BLOCK_SIZE) != BLOCK_SIZE)
@@ -156,7 +156,7 @@ int ps2_cardman_write_sector(int sector, void *buf512) {
     if (cardman_fd < 0)
         return -1;
 
-    if (sd_seek64_set(cardman_fd, sector * BLOCK_SIZE) != 0)
+    if (sd_seek(cardman_fd, sector * BLOCK_SIZE, SEEK_SET) != 0)
         return -1;
 
     if (sd_write(cardman_fd, buf512, BLOCK_SIZE) != BLOCK_SIZE)
@@ -424,7 +424,7 @@ static void ps2_cardman_continue(void) {
                 }
 
                 size_t pos = sector_idx * BLOCK_SIZE;
-                if (sd_seek64(cardman_fd, pos, 0) != 0)
+                if (sd_seek(cardman_fd, pos, 0) != 0)
                     fatal("cannot read memcard\nseek");
 
                 if (sd_read(cardman_fd, flushbuf, BLOCK_SIZE) != BLOCK_SIZE)
