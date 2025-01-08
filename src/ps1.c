@@ -4,6 +4,7 @@
 #include <stdio.h>
 #include "led.h"
 #include "pico/multicore.h"
+#include "ps1_mc_data_interface.h"
 
 #if WITH_GUI
 #include "gui.h"
@@ -52,7 +53,7 @@ bool ps1_task() {
 #if WITH_LED
     led_task();
 #endif
-    //ps1_mc_data_interface_task();
+    ps1_mc_data_interface_task();
     if ((settings_get_mode() == MODE_PS2))
         return false;
 
