@@ -3,6 +3,7 @@
 #include <inttypes.h>
 #include <stdio.h>
 #include <string.h>
+#include "debug.h"
 #include "hardware/regs/addressmap.h"
 #include "hardware/flash.h"
 #include "pico/multicore.h"
@@ -17,12 +18,23 @@ const char civ_path[]           = "civ.bin";
 const char civ_path_backup[]    = ".sd2psx/civ.bin";
 int ps2_magicgate;
 
+
+void __not_in_flash_func(keystore_backup)(void) {
+    if (!sd_exists(civ_path_backup)) {
+        int fd = sd_open(civ_path_backup, O_CREAT | O_WRONLY);
+        sd_write(fd, ps2_civ, 8);
+        sd_close(fd);
+    }
+}
+
 void keystore_init(void) {
     keystore_read();
 #if WITH_GUI==0
     if (ps2_magicgate == 0) {
         printf("Deploying keys...\n");
         keystore_deploy();
+        if (!ps2_magicgate)
+            fatal("Cannot find civ!\n");
     }
 #endif
 }
@@ -89,24 +101,19 @@ int __not_in_flash_func(keystore_deploy)(void) {
     if (memcmp(chkbuf, (uint8_t*)XIP_BASE + FLASH_OFF_CIV, sizeof(chkbuf)) != 0) {
         if (multicore_lockout_victim_is_initialized(1))
             multicore_lockout_start_blocking();
-        uint32_t ints = save_and_disable_interrupts();
         flash_range_erase(FLASH_OFF_CIV, 4096);
         flash_range_program(FLASH_OFF_CIV, chkbuf, sizeof(chkbuf));
-        restore_interrupts (ints);
         if (multicore_lockout_victim_is_initialized(1))
             multicore_lockout_end_blocking();
     } else {
         printf("keystore - skipping CIV flash because data is unchanged\n");
     }
 
-    if (!sd_exists(civ_path_backup)) {
-        fd = sd_open(civ_path_backup, O_CREAT | O_WRONLY);
-        sd_write(fd, civbuf, 8);
-        sd_close(fd);
-        sd_remove(path);
-    }
+    sd_remove(path);
 
     keystore_read();
+
+    keystore_backup();
 
     return 0;
 }
@@ -114,15 +121,13 @@ int __not_in_flash_func(keystore_deploy)(void) {
 void __not_in_flash_func(keystore_reset)(void) {
     uint8_t chkbuf[256] = { 0 };
 
-    #if WITH_GUI
-    multicore_lockout_start_blocking();
-    #endif
+    if (multicore_lockout_victim_is_initialized(1))
+        multicore_lockout_start_blocking();
     uint32_t ints = save_and_disable_interrupts();
     flash_range_erase(FLASH_OFF_CIV, 4096);
     flash_range_program(FLASH_OFF_CIV, chkbuf, sizeof(chkbuf));
     restore_interrupts (ints);
-    #if WITH_GUI
-    multicore_lockout_end_blocking();
-    #endif
+    if (multicore_lockout_victim_is_initialized(1))
+        multicore_lockout_end_blocking();
     keystore_read();
 }
