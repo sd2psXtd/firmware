@@ -407,11 +407,7 @@ void settings_set_ps1_game_id(bool enabled) {
 }
 
 bool settings_get_ps2_autoboot(void) {
-#ifdef WITH_GUI
     return (settings.ps2_flags & SETTINGS_PS2_FLAGS_AUTOBOOT);
-#else
-    return true;
-#endif
 }
 
 void settings_set_ps2_autoboot(bool autoboot) {
