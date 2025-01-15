@@ -491,6 +491,7 @@ static void ps2_cardman_continue(void) {
 
             cardman_sectors_done++;
         }
+        sd_flush(cardman_fd);
 
     } else if (cardman_cb) {
         cardman_cb(100, true);
