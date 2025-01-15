@@ -215,6 +215,16 @@ static void settings_reset(void) {
         fatal("failed to reset settings");
 }
 
+void settings_load_sd(void) {
+    sd_init();
+    if (sd_exists(settings_path)) {
+        printf("Reading settings from %s\n", settings_path);
+        settings_deserialize();
+    } else {
+        settings_serialize();
+    }
+}
+
 void settings_init(void) {
     printf("Settings - init\n");
     if (wear_leveling_init() == WEAR_LEVELING_FAILED) {
@@ -232,13 +242,6 @@ void settings_init(void) {
         settings_reset();
     }
 
-    sd_init();
-    if (sd_exists(settings_path)) {
-        printf("Reading settings from %s\n", settings_path);
-        settings_deserialize();
-    } else {
-        settings_serialize();
-    }
 
     tempmode = settings.sys_flags & SETTINGS_SYS_FLAGS_PS2_MODE;
 }

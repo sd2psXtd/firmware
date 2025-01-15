@@ -3,6 +3,7 @@
 #include <stdbool.h>
 #include <stdint.h>
 
+void settings_load_sd(void);
 void settings_init(void);
 
 int settings_get_ps1_card(void);
