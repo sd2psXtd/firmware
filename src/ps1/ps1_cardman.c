@@ -5,6 +5,7 @@
 #include <stdio.h>
 #include <string.h>
 #include <stdlib.h>
+#include "card_config.h"
 
 #include "ps1_mc_data_interface.h"
 #include "sd.h"
@@ -266,19 +267,22 @@ void ps1_cardman_close(void) {
 }
 
 void ps1_cardman_next_channel(void) {
+    uint8_t max_chan = card_config_get_max_channels(folder_name, (cardman_state == PS1_CM_STATE_BOOT) ? "BootCard" : folder_name);
     switch (cardman_state) {
         case PS1_CM_STATE_NAMED:
         case PS1_CM_STATE_BOOT:
         case PS1_CM_STATE_GAMEID:
         case PS1_CM_STATE_NORMAL:
             card_chan += 1;
-            if (card_chan > CHAN_MAX)
+            if (card_chan > max_chan)
                 card_chan = CHAN_MIN;
             break;
     }
 }
 
 void ps1_cardman_prev_channel(void) {
+    uint8_t max_chan = card_config_get_max_channels(folder_name, (cardman_state == PS1_CM_STATE_BOOT) ? "BootCard" : folder_name);
+
     switch (cardman_state) {
         case PS1_CM_STATE_NAMED:
         case PS1_CM_STATE_BOOT:
@@ -286,7 +290,7 @@ void ps1_cardman_prev_channel(void) {
         case PS1_CM_STATE_NORMAL:
             card_chan -= 1;
             if (card_chan < CHAN_MIN)
-                card_chan = CHAN_MAX;
+                card_chan = max_chan;
             break;
     }
 }
