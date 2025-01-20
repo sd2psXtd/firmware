@@ -3,6 +3,7 @@
 #include <stddef.h>
 #include <inttypes.h>
 #include <stdio.h>
+#include <pico/platform.h>
 
 #define LOG_LEVEL_MC_DATA    2
 #define LOG_LEVEL_MMCEMAN    3
@@ -14,6 +15,7 @@
 #define LOG_LEVEL_PS2_HT     2
 #define LOG_LEVEL_PS2_S2M    3
 #define LOG_LEVEL_GUI        2
+#define LOG_LEVEL_CARD_CONF  4
 
 #define LOG_ERROR 1
 #define LOG_WARN 2

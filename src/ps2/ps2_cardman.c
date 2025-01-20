@@ -21,6 +21,7 @@
 #include "sd.h"
 #include "settings.h"
 #include "util.h"
+#include "card_config.h"
 
 #if LOG_LEVEL_PS2_CM == 0
     #define log(x...)
@@ -539,7 +540,10 @@ void ps2_cardman_open(void) {
     ps2_mc_data_interface_card_changed();
 
     if (!sd_exists(path)) {
-        card_size = settings_get_ps2_cardsize() * 1024 * 1024;
+        card_size = card_config_get_ps2_cardsize(folder_name, (cardman_state == PS2_CM_STATE_BOOT) ? "BootCard" : folder_name) * 1024 * 1024;
+        if (card_size == 0U) {
+            card_size = settings_get_ps2_cardsize() * 1024 * 1024;
+        }
         cardman_operation = CARDMAN_CREATE;
         cardman_fd = sd_open(path, O_RDWR | O_CREAT | O_TRUNC);
         cardman_sectors_done = 0;
@@ -625,25 +629,28 @@ void ps2_cardman_close(void) {
 }
 
 void ps2_cardman_set_channel(uint16_t chan_num) {
+    uint8_t max_chan = card_config_get_max_channels(folder_name, (cardman_state == PS2_CM_STATE_BOOT) ? "BootCard" : folder_name);
     if (chan_num != card_chan)
         needs_update = true;
-    if (chan_num <= CHAN_MAX && chan_num >= CHAN_MIN) {
+    if (chan_num <= max_chan && chan_num >= CHAN_MIN) {
         card_chan = chan_num;
     }
     snprintf(folder_name, sizeof(folder_name), "Card%d", card_idx);
 }
 
 void ps2_cardman_next_channel(void) {
+    uint8_t max_chan = card_config_get_max_channels(folder_name, (cardman_state == PS2_CM_STATE_BOOT) ? "BootCard" : folder_name);
     card_chan += 1;
-    if (card_chan > CHAN_MAX)
+    if (card_chan > max_chan)
         card_chan = CHAN_MIN;
     needs_update = true;
 }
 
 void ps2_cardman_prev_channel(void) {
+    uint8_t max_chan = card_config_get_max_channels(folder_name, (cardman_state == PS2_CM_STATE_BOOT) ? "BootCard" : folder_name);
     card_chan -= 1;
     if (card_chan < CHAN_MIN)
-        card_chan = CHAN_MAX;
+        card_chan = max_chan;
     needs_update = true;
 }
 

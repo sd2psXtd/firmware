@@ -56,8 +56,6 @@ void ps2_cardman_set_progress_cb(cardman_cb_t func);
 char *ps2_cardman_get_progress_text(void);
 
 void ps2_cardman_set_gameid(const char* game_id);
-const char* ps2_cardman_get_gameid(void);
-const char* ps2_cardman_get_gamename(void);
 const char* ps2_cardman_get_folder_name(void);
 ps2_cardman_state_t ps2_cardman_get_state(void);
 
