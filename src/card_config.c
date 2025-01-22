@@ -17,7 +17,8 @@
     #define log(level, fmt, x...) LOG_PRINT(LOG_LEVEL_CARD_CONF, level, fmt, ##x)
 #endif
 
-#define MAX_CFG_PATH_LENGTH     (64)
+#define MAX_CFG_PATH_LENGTH         (64)
+#define CUSTOM_CARDS_CONFIG_PATH    (".sd2psx/CustomCards.ini")
 
 typedef struct {
     const char *channel_number;
@@ -25,10 +26,33 @@ typedef struct {
     size_t channel_name_max_len;
     uint8_t card_size;
     uint8_t max_channels;
-} parse_ctx_t;
+} parse_card_config_t;
+
+typedef struct {
+    const char *game_id;
+    const char *mode;
+    char *card_folder;
+    size_t card_folder_max_len;
+} parse_custom_card_folder_t;
+
+static int parse_custom_card_folder(void *user, const char *section, const char *name, const char *value) {
+    parse_custom_card_folder_t *ctx = user;
+
+    #define MATCH(s, n) strcmp(section, s) == 0 && strcmp(name, n) == 0
+    if (MATCH(ctx->mode, ctx->game_id)) {
+        if (strlen(value) <= ctx->card_folder_max_len) {
+            strlcpy(ctx->card_folder, value, ctx->card_folder_max_len);
+        }
+    }
+    #undef MATCH
+
+    log(LOG_TRACE, "s=%s n=%s card_folder=%s\n", section, name, ctx->card_folder);
+
+    return 1;
+}
 
 static int parse_card_configuration(void *user, const char *section, const char *name, const char *value) {
-    parse_ctx_t *ctx = user;
+    parse_card_config_t *ctx = user;
 
     #define MATCH(s, n) strcmp(section, s) == 0 && strcmp(name, n) == 0
     if (MATCH("ChannelName", ctx->channel_number)) {
@@ -90,7 +114,7 @@ void card_config_read_channel_name(const char* card_folder, const char* card_bas
 
     fd = sd_open(config_path, O_RDONLY);
     if (fd >= 0) {
-        parse_ctx_t ctx = {
+        parse_card_config_t ctx = {
             .channel_number = channel_number,
             .channel_name = name,
             .channel_name_max_len = name_max_len,
@@ -105,7 +129,7 @@ void card_config_read_channel_name(const char* card_folder, const char* card_bas
 uint8_t card_config_get_ps2_cardsize(const char* card_folder, const char* card_base) {
     char config_path[64];
     int fd;
-    parse_ctx_t ctx = {
+    parse_card_config_t ctx = {
         .channel_number = NULL,
         .channel_name = NULL,
         .channel_name_max_len = 0,
@@ -126,7 +150,7 @@ uint8_t card_config_get_ps2_cardsize(const char* card_folder, const char* card_b
 uint8_t card_config_get_max_channels(const char* card_folder, const char* card_base) {
     char config_path[MAX_CFG_PATH_LENGTH];
     int fd;
-    parse_ctx_t ctx = {
+    parse_card_config_t ctx = {
         .channel_number = NULL,
         .channel_name = NULL,
         .channel_name_max_len = 0,
@@ -138,9 +162,47 @@ uint8_t card_config_get_max_channels(const char* card_folder, const char* card_b
 
     fd = sd_open(config_path, O_RDONLY);
     if (fd >= 0) {
+        log(LOG_TRACE, "config_path=%s\n", config_path);
         ini_parse_sd_file(fd, parse_card_configuration, &ctx);
         sd_close(fd);
     }
     log(LOG_TRACE, "max_channels=%d\n", ctx.max_channels);
     return ctx.max_channels;
+}
+
+
+void card_config_get_card_folder(const char* game_id, char* card_folder, size_t card_folder_max_len) {
+    char mode[6];
+    parse_custom_card_folder_t ctx = {
+        .game_id = game_id,
+        .mode = mode,
+        .card_folder = card_folder,
+        .card_folder_max_len = card_folder_max_len
+    };
+
+    if (settings_get_mode() == MODE_PS1) {
+        snprintf(mode, sizeof(mode), "PS1");
+    } else {
+        switch (settings_get_ps2_variant()) {
+            case PS2_VARIANT_PROTO:
+                snprintf(mode, sizeof(mode), "PROT");
+            break;
+            case PS2_VARIANT_COH:
+                snprintf(mode, sizeof(mode), "COH");
+            break;
+            case PS2_VARIANT_RETAIL:
+            default:
+                snprintf(mode, sizeof(mode), "PS2");
+            break;
+        }
+    }
+    int fd = sd_open(CUSTOM_CARDS_CONFIG_PATH, O_RDONLY);
+    log(LOG_TRACE, "Looking for game_id=%s mode=%s \n", game_id, ctx.mode);
+
+    if (fd >= 0) {
+        ini_parse_sd_file(fd, parse_custom_card_folder, &ctx);
+        sd_close(fd);
+    }
+
+    log(LOG_TRACE, "found card_folder=%s\n", card_folder);
 }

@@ -33,7 +33,7 @@ static int fd = -1;
 
 static int card_idx;
 static int card_chan;
-static char folder_name[MAX_GAME_ID_LENGTH];
+static char folder_name[MAX_FOLDER_NAME_LENGTH];
 static ps1_cardman_state_t cardman_state;
 
 static bool try_set_boot_card() {
@@ -68,6 +68,8 @@ static bool try_set_game_id_card() {
     card_idx = PS1_CARD_IDX_SPECIAL;
     card_chan = CHAN_MIN;
     cardman_state = PS1_CM_STATE_GAMEID;
+    card_config_get_card_folder(parent_id, folder_name, sizeof(folder_name));
+
     snprintf(folder_name, sizeof(folder_name), "%s", parent_id);
 
     return true;
@@ -107,9 +109,8 @@ static bool try_set_prev_named_card() {
 }
 
 void ps1_cardman_init(void) {
-    if (!try_set_boot_card())
-        if (!try_set_game_id_card())
-            set_default_card();
+    if (!try_set_boot_card() && !try_set_game_id_card())
+        set_default_card();
 }
 
 int ps1_cardman_read_sector(int sector, void *buf128) {
@@ -298,10 +299,8 @@ void ps1_cardman_prev_channel(void) {
 void ps1_cardman_next_idx(void) {
     switch (cardman_state) {
         case PS1_CM_STATE_NAMED:
-            if (!try_set_prev_named_card())
-                if (!try_set_boot_card())
-                    if (!try_set_game_id_card())
-                        set_default_card();
+            if (!try_set_prev_named_card() && !try_set_boot_card() && !try_set_game_id_card())
+                set_default_card();
             break;
         case PS1_CM_STATE_BOOT:
             if (!try_set_game_id_card())
@@ -336,10 +335,8 @@ void ps1_cardman_prev_idx(void) {
             card_idx -= 1;
             card_chan = CHAN_MIN;
             if (card_idx <= PS1_CARD_IDX_SPECIAL) {
-                if (!try_set_game_id_card())
-                    if (!try_set_boot_card())
-                        if (!try_set_next_named_card())
-                            set_default_card();
+                if (!try_set_game_id_card() && !try_set_boot_card() && !try_set_next_named_card())
+                    set_default_card();
             } else {
                 snprintf(folder_name, sizeof(folder_name), "Card%d", card_idx);
             }

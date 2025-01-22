@@ -60,7 +60,7 @@ static int card_chan;
 static bool needs_update;
 static uint32_t card_size;
 static cardman_cb_t cardman_cb;
-static char folder_name[MAX_GAME_ID_LENGTH];
+static char folder_name[MAX_FOLDER_NAME_LENGTH];
 static char cardhome[CARD_HOME_LENGTH];
 static uint64_t cardprog_start;
 static int cardman_sectors_done;
@@ -102,7 +102,9 @@ static bool try_set_game_id_card() {
     card_idx = PS2_CARD_IDX_SPECIAL;
     card_chan = CHAN_MIN;
     cardman_state = PS2_CM_STATE_GAMEID;
-    snprintf(folder_name, sizeof(folder_name), "%s", parent_id);
+    card_config_get_card_folder(parent_id, folder_name, sizeof(folder_name));
+    if (folder_name[0] == 0x00)
+        snprintf(folder_name, sizeof(folder_name), "%s", parent_id);
 
     return true;
 }
@@ -673,7 +675,9 @@ void ps2_cardman_set_idx(uint16_t idx_num) {
 void ps2_cardman_next_idx(void) {
     switch (cardman_state) {
         case PS2_CM_STATE_NAMED:
-            if (!try_set_prev_named_card() && !try_set_boot_card() && !try_set_game_id_card())
+            if (!try_set_prev_named_card()
+                && !try_set_boot_card()
+                && !try_set_game_id_card())
                 set_default_card();
             break;
         case PS2_CM_STATE_BOOT:
@@ -732,14 +736,17 @@ void ps2_cardman_set_gameid(const char *const card_game_id) {
     if (!settings_get_ps2_game_id())
         return;
 
-    char new_folder_name[MAX_GAME_ID_LENGTH];
+    char new_folder_name[MAX_FOLDER_NAME_LENGTH] = {};
     if (card_game_id[0]) {
-        snprintf(new_folder_name, sizeof(new_folder_name), "%s", card_game_id);
+        card_config_get_card_folder(card_game_id, new_folder_name, sizeof(new_folder_name));
+        if (new_folder_name[0] == 0x00)
+            snprintf(new_folder_name, sizeof(new_folder_name), "%s", card_game_id);
+        log(LOG_TRACE, "Folder: %s\n", new_folder_name);
         if ((strcmp(new_folder_name, folder_name) != 0) || (PS2_CM_STATE_GAMEID != cardman_state)) {
             card_idx = PS2_CARD_IDX_SPECIAL;
             cardman_state = PS2_CM_STATE_GAMEID;
             card_chan = CHAN_MIN;
-            snprintf(folder_name, sizeof(folder_name), "%s", card_game_id);
+            memcpy(folder_name, new_folder_name, sizeof(folder_name));
             needs_update = true;
         }
     }
