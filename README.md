@@ -14,7 +14,7 @@ It provides the same functionality as the official stable firmware and extends i
 - **PS1:** PSRAM support
 - **General:** Settings file
 - **General:** Support for other RP2040-based MMCE devices
-- **General:** Channel naming
+- **General:** Per Card Config
 
 ## PS2: Game ID Switching
 
