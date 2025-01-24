@@ -165,6 +165,8 @@ SCXS-12345=FolderName1
 SCXS-23456=FolderName2
 ```
 
+*Note: Be aware: Long folder names may not be displayed correctly and may result in stuttering of MMCE games due to scrolling.*
+
 ## Special Thanks to...
 
 - **@xyz**: for sd2psx ❤️
