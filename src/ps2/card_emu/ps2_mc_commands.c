@@ -254,7 +254,7 @@ inline __attribute__((always_inline)) void __time_critical_func(ps2_mc_cmd_readD
     uint8_t _ = 0U;
     /* read data */
     uint8_t sz;
-    volatile ps2_mcdi_page_t* page;
+    volatile ps2_mcdi_page_t* page = NULL;
     uint8_t ck = 0;
     uint8_t b = 0xFF;
     last_response = time_us_64();

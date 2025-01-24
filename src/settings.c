@@ -57,7 +57,6 @@ static serialized_settings_t serialized_settings;
 static int tempmode;
 static const char settings_path[] = "/.sd2psx/settings.ini";
 
-static void settings_update(void);
 static void settings_update_part(void *settings_ptr, uint32_t sz);
 static void settings_serialize(void);
 
@@ -244,10 +243,6 @@ void settings_init(void) {
 
 
     tempmode = settings.sys_flags & SETTINGS_SYS_FLAGS_PS2_MODE;
-}
-
-static void settings_update(void) {
-    wear_leveling_write(0, &settings, sizeof(settings));
 }
 
 static void settings_update_part(void *settings_ptr, uint32_t sz) {

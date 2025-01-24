@@ -192,7 +192,7 @@ void ps2_cardman_flush(void) {
 }
 
 static void ensuredirs(void) {
-    char cardpath[33];
+    char cardpath[CARD_HOME_LENGTH + MAX_FOLDER_NAME_LENGTH + 2];
 
     switch (settings_get_ps2_variant()) {
         case PS2_VARIANT_COH:
@@ -502,7 +502,7 @@ static void ps2_cardman_continue(void) {
 }
 
 void ps2_cardman_open(void) {
-    char path[64];
+    char path[256];
 
     needs_update = false;
 

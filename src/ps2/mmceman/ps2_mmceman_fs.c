@@ -34,7 +34,7 @@ void ps2_mmceman_fs_init(void)
     op_data.rv = 0;
     op_data.fd = 0;
     //op_data.it_fd = 0;
-    
+
     memset(op_data.it_fd, -1, 16);
     op_data.flags = 0;
 

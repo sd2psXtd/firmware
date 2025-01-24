@@ -82,7 +82,7 @@ inline __attribute__((always_inline)) void __time_critical_func(ps2_mmceman_cmd_
 
     mc_respond(0x0); receiveOrNextCmd(&cmd); //reserved byte
     mc_respond(0x0); receiveOrNextCmd(&cmd); //type (unused?)
-    type = cmd;    
+    type = cmd;
     mc_respond(0x0); receiveOrNextCmd(&cmd); //mode
     mmceman_mode = cmd;
     mc_respond(0x0); receiveOrNextCmd(&cmd); //card upper 8 bits
@@ -214,7 +214,6 @@ inline __attribute__((always_inline)) void __time_critical_func(ps2_mmceman_cmd_
     uint8_t packed_flags;
 
     int idx = 0;
-    int ready = 0;
 
     switch(mmceman_transfer_stage)
     {
@@ -938,7 +937,7 @@ inline __attribute__((always_inline)) void __time_critical_func(ps2_mmceman_cmd_
 
     mc_respond(0x0); receiveOrNextCmd(&cmd);    //Reservered
     mc_respond(0x0); receiveOrNextCmd(&cmd);    //File descriptor
-    
+
     op_data->fd = cmd;
 
     log(LOG_INFO, "%s: fd: %i\n", __func__, op_data->fd);
@@ -973,7 +972,7 @@ inline __attribute__((always_inline)) void __time_critical_func(ps2_mmceman_cmd_
 
             mc_respond(0x0); receiveOrNextCmd(&cmd);    //Reservered
             mc_respond(0x0); receiveOrNextCmd(&cmd);    //File descriptor
-            
+
             op_data->fd = cmd;
 
             log(LOG_INFO, "%s: fd: %i\n", __func__, op_data->fd);

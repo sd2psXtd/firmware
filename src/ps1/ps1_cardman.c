@@ -145,7 +145,7 @@ void ps1_cardman_flush(void) {
 }
 
 static void ensuredirs(void) {
-    char cardpath[32];
+    char cardpath[64];
 
     snprintf(cardpath, sizeof(cardpath), "MemoryCards/PS1/%s", folder_name);
 
@@ -165,7 +165,7 @@ static void genblock(size_t pos, void *buf) {
 }
 
 void ps1_cardman_open(void) {
-    char path[64];
+    char path[96];
     sd_init();
     ensuredirs();
 
