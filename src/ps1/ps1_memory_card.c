@@ -136,7 +136,7 @@ static int __time_critical_func(mc_do_state)(uint8_t ch) {
                     return LSB;
                 case 10 ... 137: {
                     ps1_mc_data_interface_wait_for_byte(OFF);
-                    curr_page = ps1_mc_data_interface_get_page();
+                    curr_page = ps1_mc_data_interface_get_page(PAGE);
                     chk ^= curr_page[OFF];
                     return curr_page[OFF];
                 }

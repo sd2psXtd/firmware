@@ -53,7 +53,7 @@ void __time_critical_func(ps1_mc_data_interface_setup_read_page)(uint32_t page) 
 #endif
 }
 
-uint8_t* __time_critical_func(ps1_mc_data_interface_get_page)() {
+uint8_t* __time_critical_func(ps1_mc_data_interface_get_page)(uint32_t page) {
     uint8_t* ret = NULL;
 
 #ifdef WITH_PSRAM
