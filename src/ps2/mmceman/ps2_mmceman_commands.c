@@ -415,7 +415,7 @@ inline __attribute__((always_inline)) void __time_critical_func(ps2_mmceman_cmd_
             if (bytes_left_in_packet != 0) {
 
                 //Send up until the last byte
-                for (int i = 1; i < bytes_left_in_packet; i++) {
+                for (uint32_t i = 1; i < bytes_left_in_packet; i++) {
                     mc_respond(op_data->buffer[op_data->tail_idx][i]);
                 }
 
@@ -586,7 +586,7 @@ inline __attribute__((always_inline)) void __time_critical_func(ps2_mmceman_cmd_
                 log(LOG_TRACE, "bytes left in packet: %u, bytes transferred: %u\n", bytes_left_in_packet, op_data->bytes_transferred);
 
                 //receive rest of bytes
-                for (int i = 1; i <= bytes_left_in_packet; i++) {
+                for (uint32_t i = 1; i <= bytes_left_in_packet; i++) {
                     mc_respond(0x0);
                     receiveOrNextCmd((uint8_t*)&op_data->buffer[op_data->tail_idx][i]);
                 }
@@ -1377,7 +1377,7 @@ inline __attribute__((always_inline)) void __time_critical_func(ps2_mmceman_cmd_
             //Using chunk from read ahead buffer
             if (op_data->use_read_ahead == 1) {
                 //Send up until the last byte
-                for (int i = 1; i < bytes_left_in_packet; i++) {
+                for (uint32_t i = 1; i < bytes_left_in_packet; i++) {
                     mc_respond(op_data->read_ahead.buffer[i]);
                 }
 
@@ -1386,7 +1386,7 @@ inline __attribute__((always_inline)) void __time_critical_func(ps2_mmceman_cmd_
             //Use chunk from ring buffer
             } else {
                 //Send up until the last byte
-                for (int i = 1; i < bytes_left_in_packet; i++) {
+                for (uint32_t i = 1; i < bytes_left_in_packet; i++) {
                     mc_respond(op_data->buffer[op_data->tail_idx][i]);
                 }
 
