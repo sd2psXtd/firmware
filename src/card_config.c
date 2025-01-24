@@ -18,7 +18,7 @@
 #endif
 
 #define MAX_CFG_PATH_LENGTH         (64)
-#define CUSTOM_CARDS_CONFIG_PATH    (".sd2psx/CustomCards.ini")
+#define CUSTOM_CARDS_CONFIG_PATH    (".sd2psx/Game2Folder.ini")
 
 typedef struct {
     const char *channel_number;
