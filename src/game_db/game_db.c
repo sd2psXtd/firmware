@@ -287,6 +287,11 @@ void game_db_get_current_name(char* const game_name) {
 
 int game_db_get_current_parent(char* const parent_id) {
 
+    if ((settings_get_mode() == MODE_PS1)
+        && (current_game.mode == MODE_PS2)) {
+        game_db_init();
+        return -1;
+    }
     if (current_game.parent_id != 0)
         snprintf(parent_id, MAX_GAME_ID_LENGTH, "%s-%0*d", current_game.prefix, current_game.id_length, (int)current_game.parent_id);
 
