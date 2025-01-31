@@ -1,0 +1,103 @@
+name: General issue report
+description: Report an issue 
+title: "[REPORT]: "
+labels: [report]
+body:
+
+  - type: checkboxes
+    id: terms
+    attributes:
+      label: Checks
+      description: "Check before posting"
+      options:
+        - label: I have checked if a report of the same problem, in the same environment, is already listed [here](https://github.com/sd2psXtd/firmware/issues)
+        
+  - type: markdown
+    attributes:
+      value: |
+        ##### please complete the following information:
+        
+  - type: dropdown
+    id: firmwaretype
+    attributes:
+      label: "firmware"
+      description: "Wich firmware are you using?"
+      multiple: false
+      options:
+        - "pmc+"
+        - "pmczero"
+        - "psxmemcard"
+        - "sd2psx"
+        - "sd2psxlite"
+    validations:
+      required: true
+
+  - type: dropdown
+    id: ps1or2
+    attributes:
+      label: "PS1 or PS2?"
+      description: "wich of the following consoles is being used with the device?"
+      multiple: false
+      options:
+        - "PS1"
+        - "PS2"
+    validations:
+      required: true
+
+  - type: dropdown
+    id: ps2mg
+    attributes:
+      label: "[PS2 ONLY]: special consoles"
+      description: "If you are using the device on non retail PS2, please specify wich. to tag the appropiate developers"
+      multiple: false
+      options:
+        - "DEVELOPER. (DTL-H or DTL-T models)"
+        - "ARCADE. (namco system 246/256 and konami python1)"
+        - "PROTOTYPE."
+    validations:
+      required: false
+      
+  - type: input
+    id: console
+    attributes:
+      label: Console model
+      description: you may see it on the console sticker or inside OSDSYS (press triangle on main menú)
+      placeholder: "SCPH-????? / DTL-H????? / DESR-???? / COH-H?????"
+    validations:
+      required: true
+
+  - type: input
+    id: firmver
+    attributes:
+      label: "Firmware version"
+      description: "Firmware version being used (if your device has OLED, you can check it on the settings"
+      placeholder: "eg:  1.0.0-beta11"
+    validations:
+      required: true
+
+  - type: input
+    id: game
+    attributes:
+      label: "related game"
+      description: "if the issue is related to a PS2 game, please mention it with region code"
+      placeholder: "eg: Kingdom Hearts 2 Final mix [SLPM_666.75]"
+    validations:
+      required: false
+      
+  - type: textarea
+    id: explanation
+    attributes:
+      label: Explain your issue
+      description: Information about what and how it is failing
+      placeholder: "ie: the device hangs when I try to do ... and ..."
+    validations:
+      required: false
+      
+  - type: textarea
+    id: logs
+    attributes:
+      label: Debug Logs
+      description: If by any chance you were using debug firmware and you have any log related to the issue, paste it here
+      render: shell
+    validations:
+      required: false
