@@ -29,14 +29,14 @@ void __not_in_flash_func(keystore_backup)(void) {
 
 void keystore_init(void) {
     keystore_read();
-#if WITH_GUI==0
     if (ps2_magicgate == 0) {
         printf("Deploying keys...\n");
         keystore_deploy();
+#if WITH_GUI==0
         if (!ps2_magicgate)
             fatal("Cannot find civ!\n");
-    }
 #endif
+    }
 }
 
 void keystore_read(void) {
@@ -120,6 +120,8 @@ int __not_in_flash_func(keystore_deploy)(void) {
 
 void __not_in_flash_func(keystore_reset)(void) {
     uint8_t chkbuf[256] = { 0 };
+    printf("keystore - Resetting CIV\n");
+    ps2_magicgate = 0;
 
     if (multicore_lockout_victim_is_initialized(1))
         multicore_lockout_start_blocking();
@@ -129,5 +131,7 @@ void __not_in_flash_func(keystore_reset)(void) {
     restore_interrupts (ints);
     if (multicore_lockout_victim_is_initialized(1))
         multicore_lockout_end_blocking();
+    if (sd_exists(civ_path_backup))
+        sd_remove(civ_path_backup);
     keystore_read();
 }

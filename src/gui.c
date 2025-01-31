@@ -510,6 +510,7 @@ static void evt_do_civ_deploy(lv_event_t *event) {
     } else {
         lv_label_set_text(lbl_civ_err, keystore_error(ret));
     }
+    refresh_gui = true;
 }
 
 static void evt_switch_to_ps1(lv_event_t *event) {
@@ -1190,6 +1191,7 @@ void gui_task(void) {
             displayed_card_channel = ps2_cardman_get_channel();
             folder_name = ps2_cardman_get_folder_name();
             cardman_state = ps2_cardman_get_state();
+            update_ps2_main_header();
             memset(card_name, 0, sizeof(card_name));
 
             switch (cardman_state) {

@@ -277,7 +277,7 @@ static void __time_critical_func(mc_main_loop)(void) {
                         ps2_mc_cmd_erase();
                     break;
                 case PS2_SIO2_CMD_BF: ps2_mc_cmd_0xBF(); break;
-                case PS2_SIO2_CMD_F3: ps2_mc_cmd_0xF3(); break;
+                case PS2_SIO2_CMD_AUTH_RESET: ps2_mc_auth_reset(); break;
                 case PS2_SIO2_CMD_KEY_SELECT: ps2_mc_auth_keySelect(); break;
                 case PS2_SIO2_CMD_AUTH:
                     if (ps2_magicgate)

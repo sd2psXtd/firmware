@@ -383,12 +383,3 @@ inline __attribute__((always_inline)) void __time_critical_func(ps2_mc_cmd_0xBF)
     receiveOrNextCmd(&_);
     mc_respond(term);
 }
-
-inline __attribute__((always_inline)) void __time_critical_func(ps2_mc_cmd_0xF3)(void) {
-    uint8_t _ = 0U;
-    mc_respond(0xFF);
-    receiveOrNextCmd(&_);
-    mc_respond(0x2B);
-    receiveOrNextCmd(&_);
-    mc_respond(term);
-}
