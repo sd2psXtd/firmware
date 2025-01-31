@@ -83,7 +83,9 @@ bool ps2_task(void) {
         && ps2_cardman_is_idle()) {
         keystore_reset();
         ps2_mc_auth_keyStoreResetAck();
+#if WITH_GUI
         gui_request_refresh();
+#endif
     }
 
     if ((settings_get_mode() == MODE_PS1) && (ps2_cardman_is_idle()))
