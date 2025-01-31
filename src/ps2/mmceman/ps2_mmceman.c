@@ -81,13 +81,24 @@ void ps2_mmceman_task(void) {
 
             case MMCEMAN_SET_GAMEID:
             {
-                if (MODE_PS1 == game_db_update_game(mmceman_gameid))
+                int mode;
+                if (settings_get_ps2_variant() == PS2_VARIANT_COH)
+                    mode = game_db_update_arcade(mmceman_gameid);
+                else
+                    mode = game_db_update_game(mmceman_gameid);
+                if (MODE_PS1 == mode)
                     settings_set_mode(MODE_TEMP_PS1);
                 else
                     ps2_cardman_set_gameid(mmceman_gameid);
                     log(LOG_INFO, "%s: set game id\n", __func__);
                 break;
             }
+
+            //TEMP:
+            case MMCEMAN_SWITCH_BOOTCARD:
+                ps2_cardman_switch_bootcard();
+            break;
+
             case MMCEMAN_UNMOUNT_BOOTCARD:
                 if (ps2_cardman_get_idx() == 0) {
                     ps2_cardman_next_idx();

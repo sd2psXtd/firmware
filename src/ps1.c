@@ -2,7 +2,9 @@
 #include <input.h>
 #include <settings.h>
 #include <stdio.h>
+#include "led.h"
 #include "pico/multicore.h"
+#include "ps1_mc_data_interface.h"
 
 #if WITH_GUI
 #include "gui.h"
@@ -48,7 +50,10 @@ bool ps1_task() {
     input_task();
     oled_task();
 #endif
-    //ps1_mc_data_interface_task();
+#if WITH_LED
+    led_task();
+#endif
+    ps1_mc_data_interface_task();
     if ((settings_get_mode() == MODE_PS2))
         return false;
 
@@ -58,9 +63,9 @@ bool ps1_task() {
 void ps1_deinit(void) {
 
     ps1_memory_card_exit();
-    
+
     while(ps1_dirty_activity)
-        ps1_dirty_task(); 
+        ps1_dirty_task();
     ps1_cardman_close();
     multicore_reset_core1();
     ps1_memory_card_unload();

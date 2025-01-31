@@ -12,10 +12,10 @@ extern "C" {
 
 #include <stdio.h>
 
-#define NUM_FILES 8
+#define NUM_FILES 16
 
 static SdFat sd;
-static File files[NUM_FILES];
+static File files[NUM_FILES + 1];
 static bool initialized = false;
 
 extern "C" void sd_init() {
@@ -95,30 +95,24 @@ extern "C" int sd_write(int fd, void *buf, size_t count) {
     return files[fd].write(buf, count);
 }
 
-extern "C" int sd_seek(int fd, uint64_t pos) {
+extern "C" int sd_seek(int fd, int32_t offset, int whence) {
     CHECK_FD(fd);
 
-    /* return 1 on error */
-    return files[fd].seekSet(pos) != true;
+    if (whence == 0) {
+        return files[fd].seekSet(offset) != true;
+    } else if (whence == 1) {
+        return files[fd].seekCur(offset) != true;
+    } else if (whence == 2) {
+        return files[fd].seekEnd(offset) != true;
+    }
+
+    return 1;
 }
 
-//seekSet checks fd, no need for macro
-extern "C" int sd_seek64_set(int fd, uint64_t pos) {
-    /* return 1 on error */
-    return files[fd].seekSet(pos) != true;
-}
-
-extern "C" size_t sd_tell(int fd) {
+extern "C" uint32_t sd_tell(int fd) {
     CHECK_FD(fd);
 
-    return files[fd].curPosition();
-}
-
-//curPosition returns a uint64_t
-extern "C" uint64_t sd_tell64(int fd) {
-    CHECK_FD(fd);
-
-    return files[fd].curPosition();
+    return (uint32_t)files[fd].curPosition();
 }
 
 extern "C" int sd_mkdir(const char *path) {
@@ -143,18 +137,6 @@ extern "C" int sd_rmdir(const char* path) {
 extern "C" int sd_remove(const char* path) {
     /* return 1 on error */
     return sd.remove(path) != true;
-}
-
-extern "C" int sd_seek64(int fd, int64_t offset, int whence) {
-    CHECK_FD(fd);
-    if (whence == 0) {
-        return files[fd].seekSet((uint64_t)offset) != true;
-    } else if (whence == 1) {
-        return files[fd].seekCur(offset) != true;
-    } else if (whence == 2) {
-        return files[fd].seekEnd(offset) != true;
-    }
-    return -1;
 }
 
 extern "C" int sd_iterate_dir(int dir, int it) {
@@ -200,7 +182,7 @@ extern "C" void mapTime(const uint16_t date, const uint16_t time, uint8_t* const
 
     out_time[3] = (time >> 11); // Hours
     out_time[2] = (time >> 5) & 63; // Minutes
-    out_time[1] = (time << 1) & 31; // Seconds (multiplied by 2)    
+    out_time[1] = (time << 1) & 31; // Seconds (multiplied by 2)
 }
 
 //Get stat and convert to format fileio expects
@@ -209,25 +191,25 @@ extern "C" int sd_get_stat(int fd, ps2_fileio_stat_t* const ps2_fileio_stat) {
 
     uint16_t date, time;
 
-    //FIO_SO_IFREG
+    //FIO_S_IFREG
     if (files[fd].isFile())
-        ps2_fileio_stat->mode = 0x10;
-    //FIO_SO_IFDIR
+        ps2_fileio_stat->mode = FIO_S_IFREG;
+    //FIO_S_IFDIR
     else if (files[fd].isDir())
-        ps2_fileio_stat->mode = 0x20;
+        ps2_fileio_stat->mode = FIO_S_IFDIR;
 
-    //FIO_SO_IROTH
+    //FIO_S_IROTH
     if (files[fd].isReadable())
-        ps2_fileio_stat->mode |= 0x4;
-    
-    //FIO_SO_IWOTH
+        ps2_fileio_stat->mode |= FIO_S_IROTH;
+
+    //FIO_S_IWOTH
     if (files[fd].isWritable())
-        ps2_fileio_stat->mode |= 0x2;
-    
-    //FIO_SO_IXOTH - TODO
+        ps2_fileio_stat->mode |= FIO_S_IWOTH;
+
+    //FIO_S_IXOTH - TODO
 
     ps2_fileio_stat->attr = 0x0; //TODO
-    ps2_fileio_stat->size = files[fd].fileSize();
+    ps2_fileio_stat->size = (uint32_t)files[fd].fileSize();
 
     files[fd].getCreateDateTime(&date, &time);
     mapTime(date, time, ps2_fileio_stat->ctime);
@@ -236,7 +218,7 @@ extern "C" int sd_get_stat(int fd, ps2_fileio_stat_t* const ps2_fileio_stat) {
     files[fd].getModifyDateTime(&date, &time);
     mapTime(date, time, ps2_fileio_stat->mtime);
 
-    ps2_fileio_stat->hisize = 0x0; //TODO
+    ps2_fileio_stat->hisize = (files[fd].fileSize() >> 32);
 
     return 0;
 }
@@ -249,4 +231,22 @@ extern "C" int sd_fd_is_open(int fd) {
 extern "C" uint64_t sd_filesize64(int fd) {
     CHECK_FD(fd);
     return files[fd].fileSize();
+}
+
+//curPosition returns a uint64_t when using exFAT
+extern "C" uint64_t sd_tell64(int fd) {
+    CHECK_FD(fd);
+
+    return (uint64_t)files[fd].curPosition();
+}
+
+extern "C" int sd_seek64(int fd, int64_t offset, int whence) {
+    if (whence == 0) {
+        return files[fd].seekSet((uint64_t)offset) != true;
+    } else if (whence == 1) {
+        return files[fd].seekCur(offset) != true;
+    } else if (whence == 2) {
+        return files[fd].seekEnd(offset) != true;
+    }
+    return 1;
 }

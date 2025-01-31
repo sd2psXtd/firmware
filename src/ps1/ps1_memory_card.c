@@ -121,7 +121,7 @@ static int __time_critical_func(mc_do_state)(uint8_t ch) {
             #define OFF (byte_count - 10)
 
             static uint8_t chk;
-            
+
             switch (byte_count) {
                 case 2: return 0x5A;
                 case 3: return 0x5D;
@@ -132,7 +132,7 @@ static int __time_critical_func(mc_do_state)(uint8_t ch) {
                 case 8: return MSB;
                 case 9:
                     chk = MSB ^ LSB;
-                    ps1_mc_data_interface_setup_read_page(PAGE, false);
+                    ps1_mc_data_interface_setup_read_page(PAGE);
                     return LSB;
                 case 10 ... 137: {
                     ps1_mc_data_interface_wait_for_byte(OFF);
@@ -196,7 +196,7 @@ static int __time_critical_func(mc_do_state)(uint8_t ch) {
                 case 2:
                 case 3: return 0x00;
                 case 4: return 0x27;
-                case 5: return 0xFF; 
+                case 5: return 0xFF;
             }
         } else if (cmd == 0x21) { // MCP Game ID
             if (byte_count == game_id_length + 4)
@@ -214,33 +214,33 @@ static int __time_critical_func(mc_do_state)(uint8_t ch) {
             }
         } else if (cmd == 0x22) { // MCP Prv Channel
             switch (byte_count) {
-                case 2: 
+                case 2:
                 case 3: return 0x00;
                 case 4: return 0x20;
-                case 5: mc_pro_command = MCP_PRV_CH; return 0xFF; 
+                case 5: mc_pro_command = MCP_PRV_CH; return 0xFF;
             }
         } else if (cmd == 0x23) { // MCP Nxt Channel
-            switch (byte_count) {
-                case 2: 
-                case 3: return 0x00;
-                case 4: return 0x20;
-                case 5: mc_pro_command = MCP_NXT_CH; return 0xFF; 
-            }
-        } else if (cmd == 0x24) { // MCP Prv Card
-            
-            switch (byte_count) {
-                case 2: 
-                case 3: return 0x00;
-                case 4: return 0x20;
-                case 5: mc_pro_command = MCP_PRV_CARD; return 0xFF; 
-            }
-        } else if (cmd == 0x25) { // MCP Nxt Card
-            
             switch (byte_count) {
                 case 2:
                 case 3: return 0x00;
                 case 4: return 0x20;
-                case 5: mc_pro_command = MCP_NXT_CARD; return 0xFF; 
+                case 5: mc_pro_command = MCP_NXT_CH; return 0xFF;
+            }
+        } else if (cmd == 0x24) { // MCP Prv Card
+
+            switch (byte_count) {
+                case 2:
+                case 3: return 0x00;
+                case 4: return 0x20;
+                case 5: mc_pro_command = MCP_PRV_CARD; return 0xFF;
+            }
+        } else if (cmd == 0x25) { // MCP Nxt Card
+
+            switch (byte_count) {
+                case 2:
+                case 3: return 0x00;
+                case 4: return 0x20;
+                case 5: mc_pro_command = MCP_NXT_CARD; return 0xFF;
             }
         } else {
             DPRINTF("Received unknown command: %u\n", ch);
@@ -342,7 +342,7 @@ static void my_gpio_set_irq_enabled_with_callback(uint gpio, uint32_t events, bo
     if (enabled) irq_set_enabled(IO_IRQ_BANK0, true);
 }
 
-void ps1_memory_card_main(void) {    
+void ps1_memory_card_main(void) {
     multicore_lockout_victim_init();
 
     init_pio();

@@ -38,6 +38,12 @@ uint8_t CardResponse2[8];
 uint8_t CardResponse3[8];
 uint8_t hostkey[9];
 
+static bool request_keystore_reset = false;
+enum {
+    AUTH_STATE_IDLE,
+    AUTH_STATE_WAIT_CONFIRM
+} auth_state = AUTH_STATE_IDLE;
+
 void __time_critical_func(desEncrypt)(void *key, void *data) {
     DesContext dc;
     desInit(&dc, (uint8_t *)key, 8);
@@ -452,10 +458,13 @@ inline __attribute__((always_inline)) void __time_critical_func(ps2_mc_auth_card
     mc_respond(XOR8(CardResponse3));
     receiveOrNextCmd(&_);
     mc_respond(term);
+
+    auth_state = AUTH_STATE_WAIT_CONFIRM;
 }
 
-inline __attribute__((always_inline)) void __time_critical_func(ps2_mc_auth_dummy14)(void) {
+inline __attribute__((always_inline)) void __time_critical_func(ps2_mc_auth_ack)(void) {
     uint8_t _ = 0;
+    auth_state = AUTH_STATE_IDLE;
     /* dummy 14 */
     mc_respond(0x2B);
     receiveOrNextCmd(&_);
@@ -505,7 +514,7 @@ inline __attribute__((always_inline)) void __time_critical_func(ps2_mc_auth)(voi
     mc_respond(0xFF);
 
     receiveOrNextCmd(&subcmd);
-    //    log("MC Auth: %02X\n", subcmd);
+    log(LOG_TRACE, "MC Auth: %02X\n", subcmd);
     switch (subcmd) {
         case 0x0: ps2_mc_auth_probe(); break;
         case 0x1: ps2_mc_auth_getIv(); break;
@@ -527,7 +536,7 @@ inline __attribute__((always_inline)) void __time_critical_func(ps2_mc_auth)(voi
         case 0x11: ps2_mc_auth_cardResponse2(); break;
         case 0x12: ps2_mc_auth_dummy12(); break;
         case 0x13: ps2_mc_auth_cardResponse3(); break;
-        case 0x14: ps2_mc_auth_dummy14(); break;
+        case 0x14: ps2_mc_auth_ack(); break;
         default:
             // log("unknown %02X -> %02X\n", ch, subcmd);
             break;
@@ -553,4 +562,26 @@ inline __attribute__((always_inline)) void __time_critical_func(ps2_mc_auth_keyS
     log(LOG_TRACE, "Switching to CEX\n");
     if (PS2_VARIANT_RETAIL == settings_get_ps2_variant())
         key = cex_key;
+}
+
+inline __attribute__((always_inline)) void __time_critical_func(ps2_mc_auth_reset)(void) {
+    uint8_t _ = 0U;
+    if (auth_state == AUTH_STATE_WAIT_CONFIRM) {
+        log(LOG_ERROR, "MG Auth failed!!\n");
+        auth_state = AUTH_STATE_IDLE;
+        request_keystore_reset = true;
+    }
+    mc_respond(0xFF);
+    receiveOrNextCmd(&_);
+    mc_respond(0x2B);
+    receiveOrNextCmd(&_);
+    mc_respond(term);
+}
+
+bool ps2_mc_auth_keyStoreResetRequired() {
+    return request_keystore_reset;
+}
+
+void ps2_mc_auth_keyStoreResetAck() {
+    request_keystore_reset = false;
 }

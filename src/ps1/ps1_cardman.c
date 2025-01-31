@@ -5,6 +5,7 @@
 #include <stdio.h>
 #include <string.h>
 #include <stdlib.h>
+#include "card_config.h"
 
 #include "ps1_mc_data_interface.h"
 #include "sd.h"
@@ -32,7 +33,7 @@ static int fd = -1;
 
 static int card_idx;
 static int card_chan;
-static char folder_name[MAX_GAME_ID_LENGTH];
+static char folder_name[MAX_FOLDER_NAME_LENGTH];
 static ps1_cardman_state_t cardman_state;
 
 static bool try_set_boot_card() {
@@ -67,6 +68,8 @@ static bool try_set_game_id_card() {
     card_idx = PS1_CARD_IDX_SPECIAL;
     card_chan = CHAN_MIN;
     cardman_state = PS1_CM_STATE_GAMEID;
+    card_config_get_card_folder(parent_id, folder_name, sizeof(folder_name));
+
     snprintf(folder_name, sizeof(folder_name), "%s", parent_id);
 
     return true;
@@ -106,16 +109,15 @@ static bool try_set_prev_named_card() {
 }
 
 void ps1_cardman_init(void) {
-    if (!try_set_boot_card())
-        if (!try_set_game_id_card())
-            set_default_card();
+    if (!try_set_boot_card() && !try_set_game_id_card())
+        set_default_card();
 }
 
 int ps1_cardman_read_sector(int sector, void *buf128) {
     if (fd < 0)
         return -1;
 
-    if (sd_seek(fd, sector * BLOCK_SIZE) != 0)
+    if (sd_seek(fd, sector * BLOCK_SIZE, SEEK_SET) != 0)
         return -2;
 
     if (sd_read(fd, buf128, BLOCK_SIZE) != BLOCK_SIZE)
@@ -128,7 +130,7 @@ int ps1_cardman_write_sector(int sector, void *buf512) {
     if (fd < 0)
         return -1;
 
-    if (sd_seek(fd, sector * BLOCK_SIZE) != 0)
+    if (sd_seek(fd, sector * BLOCK_SIZE, SEEK_SET) != 0)
         return -1;
 
     if (sd_write(fd, buf512, BLOCK_SIZE) != BLOCK_SIZE)
@@ -143,10 +145,10 @@ void ps1_cardman_flush(void) {
 }
 
 static void ensuredirs(void) {
-    char cardpath[32];
-    
+    char cardpath[64];
+
     snprintf(cardpath, sizeof(cardpath), "MemoryCards/PS1/%s", folder_name);
-    
+
     sd_mkdir("MemoryCards");
     sd_mkdir("MemoryCards/PS1");
     sd_mkdir(cardpath);
@@ -163,7 +165,7 @@ static void genblock(size_t pos, void *buf) {
 }
 
 void ps1_cardman_open(void) {
-    char path[64];
+    char path[96];
     sd_init();
     ensuredirs();
 
@@ -199,7 +201,7 @@ void ps1_cardman_open(void) {
     }
 
     printf("Switching to card path = %s\n", path);
-    
+
     if (!sd_exists(path)) {
         fd = sd_open(path, O_RDWR | O_CREAT | O_TRUNC);
 
@@ -212,16 +214,12 @@ void ps1_cardman_open(void) {
         for (size_t pos = 0; pos < CARD_SIZE; pos += BLOCK_SIZE) {
             genblock(pos, flushbuf);
 #if WITH_PSRAM
-            if (!settings_get_sd_mode()) {
-                psram_write_dma(pos, flushbuf, BLOCK_SIZE, NULL);
-            }
+            psram_write_dma(pos, flushbuf, BLOCK_SIZE, NULL);
 #endif
             if (sd_write(fd, flushbuf, BLOCK_SIZE) != BLOCK_SIZE)
                 fatal("cannot init memcard");
 #if WITH_PSRAM
-            if (!settings_get_sd_mode()) {
-                psram_wait_for_dma();
-            }
+            psram_wait_for_dma();
 #endif
         }
         sd_flush(fd);
@@ -244,15 +242,12 @@ void ps1_cardman_open(void) {
         printf("reading card.... ");
         uint64_t cardprog_start = time_us_64();
 #if WITH_PSRAM
-        if (!settings_get_sd_mode()) {
+        for (size_t pos = 0; pos < CARD_SIZE; pos += BLOCK_SIZE) {
+            if (sd_read(fd, flushbuf, BLOCK_SIZE) != BLOCK_SIZE)
+                fatal("cannot read memcard");
 
-            for (size_t pos = 0; pos < CARD_SIZE; pos += BLOCK_SIZE) {
-                if (sd_read(fd, flushbuf, BLOCK_SIZE) != BLOCK_SIZE)
-                    fatal("cannot read memcard");
-                
-                psram_write_dma(pos, flushbuf, BLOCK_SIZE, NULL);
-                psram_wait_for_dma();
-            }
+            psram_write_dma(pos, flushbuf, BLOCK_SIZE, NULL);
+            psram_wait_for_dma();
         }
 #endif
         ps1_mc_data_interface_card_changed();
@@ -273,19 +268,22 @@ void ps1_cardman_close(void) {
 }
 
 void ps1_cardman_next_channel(void) {
+    uint8_t max_chan = card_config_get_max_channels(folder_name, (cardman_state == PS1_CM_STATE_BOOT) ? "BootCard" : folder_name);
     switch (cardman_state) {
         case PS1_CM_STATE_NAMED:
         case PS1_CM_STATE_BOOT:
         case PS1_CM_STATE_GAMEID:
         case PS1_CM_STATE_NORMAL:
             card_chan += 1;
-            if (card_chan > CHAN_MAX)
+            if (card_chan > max_chan)
                 card_chan = CHAN_MIN;
             break;
     }
 }
 
 void ps1_cardman_prev_channel(void) {
+    uint8_t max_chan = card_config_get_max_channels(folder_name, (cardman_state == PS1_CM_STATE_BOOT) ? "BootCard" : folder_name);
+
     switch (cardman_state) {
         case PS1_CM_STATE_NAMED:
         case PS1_CM_STATE_BOOT:
@@ -293,7 +291,7 @@ void ps1_cardman_prev_channel(void) {
         case PS1_CM_STATE_NORMAL:
             card_chan -= 1;
             if (card_chan < CHAN_MIN)
-                card_chan = CHAN_MAX;
+                card_chan = max_chan;
             break;
     }
 }
@@ -301,10 +299,8 @@ void ps1_cardman_prev_channel(void) {
 void ps1_cardman_next_idx(void) {
     switch (cardman_state) {
         case PS1_CM_STATE_NAMED:
-            if (!try_set_prev_named_card())
-                if (!try_set_boot_card())
-                    if (!try_set_game_id_card())
-                        set_default_card();
+            if (!try_set_prev_named_card() && !try_set_boot_card() && !try_set_game_id_card())
+                set_default_card();
             break;
         case PS1_CM_STATE_BOOT:
             if (!try_set_game_id_card())
@@ -339,10 +335,8 @@ void ps1_cardman_prev_idx(void) {
             card_idx -= 1;
             card_chan = CHAN_MIN;
             if (card_idx <= PS1_CARD_IDX_SPECIAL) {
-                if (!try_set_game_id_card())
-                    if (!try_set_boot_card())
-                        if (!try_set_next_named_card())
-                            set_default_card();
+                if (!try_set_game_id_card() && !try_set_boot_card() && !try_set_next_named_card())
+                    set_default_card();
             } else {
                 snprintf(folder_name, sizeof(folder_name), "Card%d", card_idx);
             }

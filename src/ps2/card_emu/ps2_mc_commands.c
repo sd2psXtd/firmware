@@ -254,7 +254,7 @@ inline __attribute__((always_inline)) void __time_critical_func(ps2_mc_cmd_readD
     uint8_t _ = 0U;
     /* read data */
     uint8_t sz;
-    volatile ps2_mcdi_page_t* page;
+    volatile ps2_mcdi_page_t* page = NULL;
     uint8_t ck = 0;
     uint8_t b = 0xFF;
     last_response = time_us_64();
@@ -376,15 +376,6 @@ inline __attribute__((always_inline)) void __time_critical_func(ps2_mc_cmd_erase
 }
 
 inline __attribute__((always_inline)) void __time_critical_func(ps2_mc_cmd_0xBF)(void) {
-    uint8_t _ = 0U;
-    mc_respond(0xFF);
-    receiveOrNextCmd(&_);
-    mc_respond(0x2B);
-    receiveOrNextCmd(&_);
-    mc_respond(term);
-}
-
-inline __attribute__((always_inline)) void __time_critical_func(ps2_mc_cmd_0xF3)(void) {
     uint8_t _ = 0U;
     mc_respond(0xFF);
     receiveOrNextCmd(&_);

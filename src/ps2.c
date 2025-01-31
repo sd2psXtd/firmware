@@ -1,4 +1,6 @@
+#include "card_emu/ps2_mc_auth.h"
 #include "keystore.h"
+#include "led.h"
 #if WITH_GUI
 #include "gui.h"
 #include "input.h"
@@ -63,6 +65,9 @@ bool ps2_task(void) {
     input_task();
     oled_task();
 #endif
+#if WITH_LED
+    led_task();
+#endif
     log(LOG_TRACE, "%s after GUI\n", __func__);
 #ifdef FEAT_PS2_MMCE
     ps2_mmceman_fs_run();
@@ -72,6 +77,15 @@ bool ps2_task(void) {
     if (ps2_cardman_is_accessible()) {
         ps2_history_tracker_task();
         ps2_mc_data_interface_task();
+    }
+
+    if (ps2_mc_auth_keyStoreResetRequired()
+        && ps2_cardman_is_idle()) {
+        keystore_reset();
+        ps2_mc_auth_keyStoreResetAck();
+#if WITH_GUI
+        gui_request_refresh();
+#endif
     }
 
     if ((settings_get_mode() == MODE_PS1) && (ps2_cardman_is_idle()))

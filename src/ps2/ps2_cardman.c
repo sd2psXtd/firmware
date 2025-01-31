@@ -21,6 +21,7 @@
 #include "sd.h"
 #include "settings.h"
 #include "util.h"
+#include "card_config.h"
 
 #if LOG_LEVEL_PS2_CM == 0
     #define log(x...)
@@ -40,6 +41,9 @@ static int sector_count = -1;
 #if WITH_PSRAM
 #define SECTOR_COUNT_8MB (PS2_CARD_SIZE_8M / BLOCK_SIZE)
 uint8_t available_sectors[SECTOR_COUNT_8MB / 8];  // bitmap
+#define PSRAM_AVAILABLE true
+#else
+#define PSRAM_AVAILABLE false
 #endif
 static uint8_t flushbuf[BLOCK_SIZE];
 int cardman_fd = -1;
@@ -56,7 +60,7 @@ static int card_chan;
 static bool needs_update;
 static uint32_t card_size;
 static cardman_cb_t cardman_cb;
-static char folder_name[MAX_GAME_ID_LENGTH];
+static char folder_name[MAX_FOLDER_NAME_LENGTH];
 static char cardhome[CARD_HOME_LENGTH];
 static uint64_t cardprog_start;
 static int cardman_sectors_done;
@@ -98,7 +102,9 @@ static bool try_set_game_id_card() {
     card_idx = PS2_CARD_IDX_SPECIAL;
     card_chan = CHAN_MIN;
     cardman_state = PS2_CM_STATE_GAMEID;
-    snprintf(folder_name, sizeof(folder_name), "%s", parent_id);
+    card_config_get_card_folder(parent_id, folder_name, sizeof(folder_name));
+    if (folder_name[0] == 0x00)
+        snprintf(folder_name, sizeof(folder_name), "%s", parent_id);
 
     return true;
 }
@@ -107,7 +113,7 @@ int ps2_cardman_read_sector(int sector, void *buf512) {
     if (cardman_fd < 0)
         return -1;
 
-    if (sd_seek64_set(cardman_fd, sector * BLOCK_SIZE) != 0)
+    if (sd_seek(cardman_fd, sector * BLOCK_SIZE, SEEK_SET) != 0)
         return -1;
 
     if (sd_read(cardman_fd, buf512, BLOCK_SIZE) != BLOCK_SIZE)
@@ -153,7 +159,7 @@ int ps2_cardman_write_sector(int sector, void *buf512) {
     if (cardman_fd < 0)
         return -1;
 
-    if (sd_seek64_set(cardman_fd, sector * BLOCK_SIZE) != 0)
+    if (sd_seek(cardman_fd, sector * BLOCK_SIZE, SEEK_SET) != 0)
         return -1;
 
     if (sd_write(cardman_fd, buf512, BLOCK_SIZE) != BLOCK_SIZE)
@@ -186,7 +192,7 @@ void ps2_cardman_flush(void) {
 }
 
 static void ensuredirs(void) {
-    char cardpath[33];
+    char cardpath[CARD_HOME_LENGTH + MAX_FOLDER_NAME_LENGTH + 2];
 
     switch (settings_get_ps2_variant()) {
         case PS2_VARIANT_COH:
@@ -394,13 +400,13 @@ static void ps2_cardman_continue(void) {
     if (cardman_operation == CARDMAN_OPEN) {
         uint64_t slice_start = time_us_64();
 
-        if (settings_get_sd_mode() || card_size > PS2_CARD_SIZE_8M) {
+        if (!PSRAM_AVAILABLE || card_size > PS2_CARD_SIZE_8M) {
             uint64_t end = time_us_64();
             log(LOG_INFO, "took = %.2f s; SD read speed = %.2f kB/s\n", (end - cardprog_start) / 1e6, 1000000.0 * card_size / (end - cardprog_start) / 1024);
             if (cardman_cb)
                 cardman_cb(100, true);
             cardman_operation = CARDMAN_IDLE;
-        
+
         } else {
 #if WITH_PSRAM
             log(LOG_TRACE, "%s:%u\n", __func__, __LINE__);
@@ -421,7 +427,7 @@ static void ps2_cardman_continue(void) {
                 }
 
                 size_t pos = sector_idx * BLOCK_SIZE;
-                if (sd_seek64(cardman_fd, pos, 0) != 0)
+                if (sd_seek(cardman_fd, pos, 0) != 0)
                     fatal("cannot read memcard\nseek");
 
                 if (sd_read(cardman_fd, flushbuf, BLOCK_SIZE) != BLOCK_SIZE)
@@ -464,7 +470,7 @@ static void ps2_cardman_continue(void) {
 
                 break;
             }
-            if (settings_get_sd_mode() || (settings_get_ps2_cardsize() > 8)) {
+            if (!PSRAM_AVAILABLE || (settings_get_ps2_cardsize() > 8)) {
                 genblock(cardprog_pos, flushbuf);
                 sd_write(cardman_fd, flushbuf, BLOCK_SIZE);
             } else {
@@ -488,6 +494,7 @@ static void ps2_cardman_continue(void) {
 
             cardman_sectors_done++;
         }
+        sd_flush(cardman_fd);
 
     } else if (cardman_cb) {
         cardman_cb(100, true);
@@ -495,7 +502,7 @@ static void ps2_cardman_continue(void) {
 }
 
 void ps2_cardman_open(void) {
-    char path[64];
+    char path[256];
 
     needs_update = false;
 
@@ -535,7 +542,10 @@ void ps2_cardman_open(void) {
     ps2_mc_data_interface_card_changed();
 
     if (!sd_exists(path)) {
-        card_size = settings_get_ps2_cardsize() * 1024 * 1024;
+        card_size = card_config_get_ps2_cardsize(folder_name, (cardman_state == PS2_CM_STATE_BOOT) ? "BootCard" : folder_name) * 1024 * 1024;
+        if (card_size == 0U) {
+            card_size = settings_get_ps2_cardsize() * 1024 * 1024;
+        }
         cardman_operation = CARDMAN_CREATE;
         cardman_fd = sd_open(path, O_RDWR | O_CREAT | O_TRUNC);
         cardman_sectors_done = 0;
@@ -543,7 +553,7 @@ void ps2_cardman_open(void) {
         if (card_size > PS2_CARD_SIZE_8M) {
             ps2_mc_data_interface_set_sdmode(true);
         } else {
-            ps2_mc_data_interface_set_sdmode(settings_get_sd_mode());
+            ps2_mc_data_interface_set_sdmode(!PSRAM_AVAILABLE);
         }
 
         if (cardman_fd < 0)
@@ -588,7 +598,7 @@ void ps2_cardman_open(void) {
             case PS2_CARD_SIZE_1M:
             case PS2_CARD_SIZE_2M:
             case PS2_CARD_SIZE_4M:
-            case PS2_CARD_SIZE_8M: ps2_mc_data_interface_set_sdmode(settings_get_sd_mode()); break;
+            case PS2_CARD_SIZE_8M: ps2_mc_data_interface_set_sdmode(!PSRAM_AVAILABLE); break;
             case PS2_CARD_SIZE_16M:
             case PS2_CARD_SIZE_32M:
             case PS2_CARD_SIZE_64M: ps2_mc_data_interface_set_sdmode(true); break;
@@ -621,26 +631,35 @@ void ps2_cardman_close(void) {
 }
 
 void ps2_cardman_set_channel(uint16_t chan_num) {
+    uint8_t max_chan = card_config_get_max_channels(folder_name, (cardman_state == PS2_CM_STATE_BOOT) ? "BootCard" : folder_name);
     if (chan_num != card_chan)
         needs_update = true;
-    if (chan_num <= CHAN_MAX && chan_num >= CHAN_MIN) {
+    if (chan_num <= max_chan && chan_num >= CHAN_MIN) {
         card_chan = chan_num;
     }
     snprintf(folder_name, sizeof(folder_name), "Card%d", card_idx);
 }
 
 void ps2_cardman_next_channel(void) {
+    uint8_t max_chan = card_config_get_max_channels(folder_name, (cardman_state == PS2_CM_STATE_BOOT) ? "BootCard" : folder_name);
     card_chan += 1;
-    if (card_chan > CHAN_MAX)
+    if (card_chan > max_chan)
         card_chan = CHAN_MIN;
     needs_update = true;
 }
 
 void ps2_cardman_prev_channel(void) {
+    uint8_t max_chan = card_config_get_max_channels(folder_name, (cardman_state == PS2_CM_STATE_BOOT) ? "BootCard" : folder_name);
     card_chan -= 1;
     if (card_chan < CHAN_MIN)
-        card_chan = CHAN_MAX;
+        card_chan = max_chan;
     needs_update = true;
+}
+
+//TEMP
+void ps2_cardman_switch_bootcard(void) {
+    if (try_set_boot_card())
+        needs_update = true;
 }
 
 void ps2_cardman_set_idx(uint16_t idx_num) {
@@ -656,7 +675,9 @@ void ps2_cardman_set_idx(uint16_t idx_num) {
 void ps2_cardman_next_idx(void) {
     switch (cardman_state) {
         case PS2_CM_STATE_NAMED:
-            if (!try_set_prev_named_card() && !try_set_boot_card() && !try_set_game_id_card())
+            if (!try_set_prev_named_card()
+                && !try_set_boot_card()
+                && !try_set_game_id_card())
                 set_default_card();
             break;
         case PS2_CM_STATE_BOOT:
@@ -715,14 +736,17 @@ void ps2_cardman_set_gameid(const char *const card_game_id) {
     if (!settings_get_ps2_game_id())
         return;
 
-    char new_folder_name[MAX_GAME_ID_LENGTH];
+    char new_folder_name[MAX_FOLDER_NAME_LENGTH] = {};
     if (card_game_id[0]) {
-        snprintf(new_folder_name, sizeof(new_folder_name), "%s", card_game_id);
+        card_config_get_card_folder(card_game_id, new_folder_name, sizeof(new_folder_name));
+        if (new_folder_name[0] == 0x00)
+            snprintf(new_folder_name, sizeof(new_folder_name), "%s", card_game_id);
+        log(LOG_TRACE, "Folder: %s\n", new_folder_name);
         if ((strcmp(new_folder_name, folder_name) != 0) || (PS2_CM_STATE_GAMEID != cardman_state)) {
             card_idx = PS2_CARD_IDX_SPECIAL;
             cardman_state = PS2_CM_STATE_GAMEID;
             card_chan = CHAN_MIN;
-            snprintf(folder_name, sizeof(folder_name), "%s", card_game_id);
+            memcpy(folder_name, new_folder_name, sizeof(folder_name));
             needs_update = true;
         }
     }
@@ -785,7 +809,7 @@ bool __time_critical_func(ps2_cardman_is_accessible)(void) {
     // SD: / IDLE   => X
     // SD: / CREATE => X
     // SD: / OPEN   => X
-    if ((card_size > PS2_CARD_SIZE_8M) || (settings_get_sd_mode()))
+    if ((card_size > PS2_CARD_SIZE_8M) || (!PSRAM_AVAILABLE))
         return (cardman_operation == CARDMAN_IDLE);
     else
         return true;

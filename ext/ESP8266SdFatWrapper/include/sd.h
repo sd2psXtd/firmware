@@ -4,6 +4,21 @@
 #include <stdbool.h>
 #include <stdint.h>
 
+#define SEEK_SET 0
+#define SEEK_CUR 1
+#define SEEK_END 2
+
+/** Symbolic link */
+#define FIO_S_IFLNK 0x4000
+/** Regular file */
+#define FIO_S_IFREG 0x2000
+/** Directory */
+#define FIO_S_IFDIR 0x1000
+/** Others read permission */
+#define FIO_S_IROTH 0x0004
+/** Others write permission */
+#define FIO_S_IWOTH 0x0002
+
 typedef struct ps2_fileio_stat_t
 {
     unsigned int mode;
@@ -32,8 +47,8 @@ int sd_close(int fd);
 void sd_flush(int fd);
 int sd_read(int fd, void *buf, size_t count);
 int sd_write(int fd, void *buf, size_t count);
-int sd_seek(int fd, uint64_t pos);
-size_t sd_tell(int fd);
+int sd_seek(int fd, int32_t offset, int whence);
+uint32_t sd_tell(int fd);
 int sd_getStat(int fd, sd_file_stat_t* const sd_stat);
 
 int sd_filesize(int fd);
@@ -43,11 +58,6 @@ int sd_exists(const char *path);
 int sd_remove(const char* path);
 int sd_rmdir(const char* path);
 
-//TODO: cleanup and merge 64bit variant
-int sd_seek64(int fd, int64_t offset, int whence);
-int sd_seek64_set(int fd, uint64_t pos);
-uint64_t sd_tell64(int fd);
-
 int sd_get_stat(int fd, ps2_fileio_stat_t* const ps2_fileio_stat);
 
 int sd_iterate_dir(int dir, int it);
@@ -56,3 +66,5 @@ bool sd_is_dir(int fd);
 int sd_fd_is_open(int fd);
 
 uint64_t sd_filesize64(int fd);
+int sd_seek64(int fd, int64_t offset, int whence);
+uint64_t sd_tell64(int fd);

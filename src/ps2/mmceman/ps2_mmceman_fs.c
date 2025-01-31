@@ -33,7 +33,9 @@ void ps2_mmceman_fs_init(void)
 {
     op_data.rv = 0;
     op_data.fd = 0;
-    op_data.it_fd = 0;
+    //op_data.it_fd = 0;
+
+    memset(op_data.it_fd, -1, 16);
     op_data.flags = 0;
 
     op_data.filesize = 0;
@@ -215,8 +217,8 @@ void ps2_mmceman_fs_run(void)
                 op_data.read_ahead.valid = 0;
             }
 
-            sd_seek64(op_data.fd, op_data.offset, op_data.whence);
-            op_data.position = sd_tell64(op_data.fd);
+            sd_seek(op_data.fd, op_data.offset, op_data.whence);
+            op_data.position = sd_tell(op_data.fd);
 
             mmceman_fs_operation = MMCEMAN_FS_NONE;
         break;
@@ -259,14 +261,14 @@ void ps2_mmceman_fs_run(void)
 
         case MMCEMAN_FS_DOPEN:
             op_data.fd = sd_open((const char*)op_data.buffer[0], 0x0);
-            op_data.it_fd = -1; //clear itr stat
+            op_data.it_fd[op_data.fd] = -1; //clear itr stat
             mmceman_fs_operation = MMCEMAN_FS_NONE;
         break;
 
         case MMCEMAN_FS_DCLOSE:
-            if (op_data.it_fd > 0) {
-                sd_close(op_data.it_fd); //if iterated on
-                op_data.it_fd = -1;
+            if (op_data.it_fd[op_data.fd] > 0) {
+                sd_close(op_data.it_fd[op_data.fd]); //if iterated on
+                op_data.it_fd[op_data.fd] = -1;
             }
 
             if (op_data.fd > 0) {
@@ -277,11 +279,12 @@ void ps2_mmceman_fs_run(void)
         break;
 
         case MMCEMAN_FS_DREAD:
-            op_data.it_fd = sd_iterate_dir(op_data.fd, op_data.it_fd);
+            //TODO: rework dir iteration
+            op_data.it_fd[op_data.fd] = sd_iterate_dir(op_data.fd, op_data.it_fd[op_data.fd]);
 
-            if (op_data.it_fd != -1) {
-                sd_get_stat(op_data.it_fd, (ps2_fileio_stat_t*)&op_data.fileio_stat);
-                op_data.length = sd_get_name(op_data.it_fd, (char*)&op_data.buffer[0], 128);
+            if (op_data.it_fd[op_data.fd] != -1) {
+                sd_get_stat(op_data.it_fd[op_data.fd], (ps2_fileio_stat_t*)&op_data.fileio_stat);
+                op_data.length = sd_get_name(op_data.it_fd[op_data.fd], (char*)&op_data.buffer[0], 128);
 
                 op_data.length++;
                 op_data.buffer[0][op_data.length] = '\0'; //add null term
@@ -310,11 +313,13 @@ void ps2_mmceman_fs_run(void)
 
         case MMCEMAN_FS_RESET:
             //SD max files
-            for (int i = 0; i < 8; i++) {
+            for (int i = 0; i < 16; i++) {
                 if (i != cardman_fd) {
                     sd_close(i);
                 }
             }
+
+            memset(op_data.it_fd, -1, 16);
 
             //Reset mmceman_fs
             ps2_mmceman_fs_init();

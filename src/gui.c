@@ -26,6 +26,7 @@
 #include "ps1/ps1_cardman.h"
 #include "ps1/ps1_dirty.h"
 #include "ps1/ps1_memory_card.h"
+#include "ps1/ps1_mc_data_interface.h"
 #include "ps2/card_emu/ps2_memory_card.h"
 #include "ps2/ps2_cardman.h"
 #include "ps2/ps2_dirty.h"
@@ -47,7 +48,7 @@ static lv_obj_t *scr_switch_nag, *scr_card_switch, *scr_main, *scr_menu, *menu, 
 static lv_style_t style_inv, src_main_label_style;
 static lv_anim_t src_main_animation_template;
 static lv_obj_t *scr_main_idx_lbl, *scr_main_channel_lbl, *src_main_title_lbl, *lbl_channel, *lbl_ps1_autoboot, *lbl_ps1_game_id, *lbl_ps2_autoboot,
-    *lbl_ps2_cardsize, *lbl_ps2_variant, *lbl_ps2_game_id, *lbl_civ_err, *auto_off_lbl, *contrast_lbl, *vcomh_lbl, *lbl_mode;
+    *lbl_ps2_cardsize, *lbl_ps2_variant, *lbl_ps2_game_id, *lbl_civ_err, *auto_off_lbl, *contrast_lbl, *vcomh_lbl, *lbl_mode, *lbl_scrn_flip;
 
 static struct {
     uint8_t value;
@@ -449,6 +450,15 @@ static void evt_go_back(lv_event_t *event) {
     lv_event_stop_bubbling(event);
 }
 
+static void evt_screen_flip(lv_event_t *event) {
+    bool current = settings_get_display_flipped();
+    settings_set_display_flipped(!current);
+    oled_flip(!current);
+    input_flip();
+    lv_label_set_text(lbl_scrn_flip, !current ? "Yes" : "No");
+    lv_event_stop_bubbling(event);
+}
+
 static void evt_ps1_autoboot(lv_event_t *event) {
     bool current = settings_get_ps1_autoboot();
     settings_set_ps1_autoboot(!current);
@@ -500,6 +510,7 @@ static void evt_do_civ_deploy(lv_event_t *event) {
     } else {
         lv_label_set_text(lbl_civ_err, keystore_error(ret));
     }
+    refresh_gui = true;
 }
 
 static void evt_switch_to_ps1(lv_event_t *event) {
@@ -577,9 +588,9 @@ static void create_main_screen(void) {
     /* Main screen listing current memcard, status, etc */
     scr_main = ui_scr_create();
     lv_obj_add_event_cb(scr_main, evt_scr_main, LV_EVENT_ALL, NULL);
-
+    main_header = ui_header_create(scr_main, "");
     if (settings_get_mode() == MODE_PS1) {
-        main_header = ui_header_create(scr_main, "PS1 Memory Card");
+        lv_label_set_text(main_header, "PS1 Memory Card");
     } else {
         update_ps2_main_header();
     }
@@ -800,6 +811,11 @@ static void create_menu_screen(void) {
         vcomh_lbl = ui_label_create(cont, NULL);
         ui_menu_set_load_page_event(menu, cont, vcomh_page);
         ui_set_display_vcomh(settings_get_display_vcomh());
+
+        cont = ui_menu_cont_create_nav(display_page);
+        ui_label_create_grow(cont, "Flip");
+        lbl_scrn_flip = ui_label_create(cont, settings_get_display_flipped() ? " Yes" : " No");
+        lv_obj_add_event_cb(cont, evt_screen_flip, LV_EVENT_CLICKED, NULL);
     }
 
     /* ps1 */
@@ -994,12 +1010,13 @@ static void create_ui(void) {
 
 static void update_activity(void) {
     static uint64_t last_update = 0U;
+    static bool write_occured = false;
     static bool visible = false;
     uint64_t time = time_us_64();
-    if ((time - last_update) > 500 * 1000) {
+    write_occured |= (ps1_mc_data_interface_write_occured() || ps2_mc_data_interface_write_occured());
+    if ((time - last_update) > 200 * 1000) {
         // TODO: Causes a 31ms delay that causes issues with mmce fs
-        if (ps1_dirty_activity || ps2_mc_data_interface_write_occured()) {
-            // log(LOG_INFO, "ps2_dirty_activity\n");
+        if (write_occured) {
             input_flush();
             if (!visible) {
                 lv_obj_clear_flag(g_activity_frame, LV_OBJ_FLAG_HIDDEN);
@@ -1009,7 +1026,9 @@ static void update_activity(void) {
         } else if (visible) {
             lv_obj_add_flag(g_activity_frame, LV_OBJ_FLAG_HIDDEN);
             last_update = time;
+            visible = false;
         }
+        write_occured = false;
     }
 }
 
@@ -1134,8 +1153,11 @@ void gui_task(void) {
             snprintf(card_channel_s, sizeof(card_channel_s), "%d", displayed_card_channel);
             lv_label_set_text(scr_main_channel_lbl, card_channel_s);
 
-            card_config_read_channel_name(folder_name, cardman_state == PS1_CM_STATE_BOOT ? "BootCard" : folder_name, card_channel_s, card_name,
-                                          sizeof(card_name));
+            card_config_read_channel_name(folder_name,
+                                            cardman_state == PS1_CM_STATE_BOOT ? "BootCard" : folder_name,
+                                            card_channel_s,
+                                            card_name,
+                                            sizeof(card_name));
             if (!card_name[0] && cardman_state == PS1_CM_STATE_GAMEID) {
                 game_db_get_current_name(card_name);
             }
@@ -1155,6 +1177,7 @@ void gui_task(void) {
             gui_do_ps1_card_switch();
         }
         refresh_gui = false;
+        update_activity();
     } else {
         static int displayed_card_idx = -1;
         static int displayed_card_channel = -1;
@@ -1168,6 +1191,7 @@ void gui_task(void) {
             displayed_card_channel = ps2_cardman_get_channel();
             folder_name = ps2_cardman_get_folder_name();
             cardman_state = ps2_cardman_get_state();
+            update_ps2_main_header();
             memset(card_name, 0, sizeof(card_name));
 
             switch (cardman_state) {
@@ -1184,8 +1208,11 @@ void gui_task(void) {
             snprintf(card_channel_s, sizeof(card_channel_s), "%d", displayed_card_channel);
             lv_label_set_text(scr_main_channel_lbl, card_channel_s);
 
-            card_config_read_channel_name(folder_name, cardman_state == PS2_CM_STATE_BOOT ? "BootCard" : folder_name, card_channel_s, card_name,
-                                          sizeof(card_name));
+            card_config_read_channel_name(folder_name,
+                                            cardman_state == PS2_CM_STATE_BOOT ? "BootCard" : folder_name,
+                                            card_channel_s,
+                                            card_name,
+                                            sizeof(card_name));
             if (!card_name[0] && cardman_state == PS2_CM_STATE_GAMEID) {
                 game_db_get_current_name(card_name);
             }

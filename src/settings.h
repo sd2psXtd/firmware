@@ -3,6 +3,7 @@
 #include <stdbool.h>
 #include <stdint.h>
 
+void settings_load_sd(void);
 void settings_init(void);
 
 int settings_get_ps1_card(void);
@@ -55,7 +56,6 @@ uint8_t settings_get_display_timeout(void);
 uint8_t settings_get_display_contrast(void);
 uint8_t settings_get_display_vcomh(void);
 bool    settings_get_display_flipped(void);
-bool settings_get_sd_mode();
 void settings_set_display_timeout(uint8_t display_timeout);
 void settings_set_display_contrast(uint8_t display_contrast);
 void settings_set_display_vcomh(uint8_t display_vcomh);

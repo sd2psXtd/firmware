@@ -105,6 +105,11 @@ static void oled_power_on(void) {
     have_oled = 1;
 }
 
+
+void oled_flip(bool flip) {
+    ssd1306_flip_display(&oled_disp, flip);
+}
+
 void oled_task(void) {
     uint8_t display_timeout = settings_get_display_timeout();
     if (!display_timeout)

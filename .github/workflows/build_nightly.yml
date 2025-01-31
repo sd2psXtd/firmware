@@ -21,7 +21,7 @@ jobs:
     #needs: create_release
     strategy:
       matrix:
-        target: [SD2PSX, SD2PSXlite, PMC+, PMCZero]
+        target: [SD2PSX, SD2PSXlite, PMC+, PMCZero, PSXMemCard]
         debug: [ON, OFF]
         include:
           - debug: ON
@@ -38,6 +38,8 @@ jobs:
             filename: pmc+
           - target: PMCZero
             filename: pmczero
+          - target: PSXMemCard
+            filename: psxmemcard
     steps:
     - uses: actions/checkout@v4
       with:
