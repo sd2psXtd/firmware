@@ -1,10 +1,25 @@
 ; largely based on https://github.com/dangiu/PicoMemcard/blob/pmc%2B/release/psxSPI.pio
 
-.define PUBLIC PIN_PSX_ACK 16
-.define PUBLIC PIN_PSX_SEL 17
-.define PUBLIC PIN_PSX_CLK 18
-.define PUBLIC PIN_PSX_CMD 19
-.define PUBLIC PIN_PSX_DAT 20
+; INJECTION
+.define PUBLIC PIN_PSX_ACK ${PIN_PSX_ACK}
+.define PUBLIC PIN_PSX_SEL ${PIN_PSX_SEL}
+.define PUBLIC PIN_PSX_CLK ${PIN_PSX_CLK}
+.define PUBLIC PIN_PSX_CMD ${PIN_PSX_CMD}
+.define PUBLIC PIN_PSX_DAT ${PIN_PSX_DAT}
+
+; SD2PSX
+;.define PUBLIC PIN_PSX_ACK 16
+;.define PUBLIC PIN_PSX_SEL 17
+;.define PUBLIC PIN_PSX_CLK 18
+;.define PUBLIC PIN_PSX_CMD 19
+;.define PUBLIC PIN_PSX_DAT 20
+
+; BitFunX (?)
+;.define PUBLIC PIN_PSX_ACK 9
+;.define PUBLIC PIN_PSX_SEL 7
+;.define PUBLIC PIN_PSX_CLK 8
+;.define PUBLIC PIN_PSX_CMD 6
+;.define PUBLIC PIN_PSX_DAT 5
 
 .program cmd_reader
     wait 0 gpio PIN_PSX_SEL  ; wait for SEL

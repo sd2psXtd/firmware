@@ -2,3 +2,6 @@ build
 .vscode
 keys.c
 .cache
+gamedbps*.dat
+src/version/version.c
+*.uf2

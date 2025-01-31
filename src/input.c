@@ -5,9 +5,12 @@
 #include "hardware/timer.h"
 
 #include "config.h"
-#include "gui.h"
 
+#if WITH_GUI
+#include "gui.h"
+#include "oled.h"
 #include "lvgl.h"
+#endif
 
 #define HOLD_START_MS 250
 #define HOLD_END_MS 500
@@ -45,6 +48,16 @@ static void input_scan(void) {
     /* if no pin changes within the debounce interval, commit these changes to pin_state */
     if (debounce && time_us_64() - debounce_start > DEBOUNCE_MS * 1000) {
         debounce = 0;
+#if WITH_GUI
+        if (buttons[0].raw || buttons[1].raw) {
+            oled_update_last_action_time();
+
+            /* if one of the buttons was pressed, but display is off, ignore the input and wake it up first */
+            if (!oled_is_powered_on())
+                return;
+        }
+#endif
+
         for (int i = 0; i < 2; ++i)
             buttons[i].state = buttons[i].raw;
     }
@@ -96,8 +109,9 @@ static void input_process(void) {
         if (!buttons[i].state)
             buttons[i].suppressed = 0;
     }
-}
 
+}
+#if WITH_GUI
 void input_update_display(lv_obj_t *line) {
     static lv_point_t line_points[2] = { {0, DISPLAY_HEIGHT-1}, {0, DISPLAY_HEIGHT-1} };
     lv_obj_add_flag(line, LV_OBJ_FLAG_HIDDEN);
@@ -124,6 +138,13 @@ void input_update_display(lv_obj_t *line) {
         }
     }
 }
+#endif
+
+void input_flip(void) {
+    for (int i = 0; i < 2; ++i) {
+        buttons[i].pin = (buttons[i].pin == PIN_BTN_LEFT) ? PIN_BTN_RIGHT : PIN_BTN_LEFT;
+    }
+}
 
 void input_init(void) {
     gpio_set_dir(PIN_BTN_LEFT, 0);
@@ -147,8 +168,8 @@ void input_flush(void) {
     last_pressed = 0;
 }
 
-int input_is_down(int idx) {
-    return buttons[idx].state;
+int input_is_down_raw(int idx) {
+    return buttons[idx].raw;
 }
 
 int input_is_any_down(void) {

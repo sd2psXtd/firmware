@@ -3,6 +3,7 @@ cmake_minimum_required(VERSION 3.12)
 find_package(Git QUIET)
 
 if(Git_FOUND AND EXISTS "${SCRIPT_WORKING_DIR}/../../.git")
+    execute_process(COMMAND ${GIT_EXECUTABLE} fetch origin --tags --force WORKING_DIRECTORY ${SCRIPT_WORKING_DIR})
     execute_process(COMMAND ${GIT_EXECUTABLE} describe --tags --exact-match HEAD --exclude=latest --exclude=nightly
                     OUTPUT_VARIABLE SD2PSX_VERSION WORKING_DIRECTORY ${SCRIPT_WORKING_DIR}
                     OUTPUT_STRIP_TRAILING_WHITESPACE)
@@ -29,5 +30,6 @@ file(READ ${SCRIPT_TEMPLATE} template_file)
 string(REPLACE "@SD2PSX_VERSION@" ${SD2PSX_VERSION} template_file "${template_file}")
 string(REPLACE "@SD2PSX_COMMIT@" ${SD2PSX_COMMIT} template_file "${template_file}")
 string(REPLACE "@SD2PSX_BRANCH@" ${SD2PSX_BRANCH} template_file "${template_file}")
+string(REPLACE "@VARIANT@" ${VARIANT} template_file "${template_file}")
 
 file(WRITE ${SCRIPT_OUTPUT_FILE} "${template_file}")

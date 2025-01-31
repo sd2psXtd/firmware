@@ -1,5 +1,9 @@
 #pragma once
 
+#include <ctype.h>
+
+#include "hardware/timer.h"
+
 static inline uint64_t __time_critical_func(RAM_time_us_64)() {
     // Need to make sure that the upper 32 bits of the timer
     // don't change, so read that first
@@ -17,3 +21,5 @@ static inline uint64_t __time_critical_func(RAM_time_us_64)() {
     } while (true);
     return ((uint64_t) hi << 32u) | lo;
 }
+
+bool try_set_named_card_folder(const char *cards_dir, int it_idx, char *folder_name, size_t folder_name_size);

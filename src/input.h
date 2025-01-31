@@ -1,12 +1,17 @@
 #pragma once
 
+#if WITH_GUI
 #include "lvgl.h"
+#endif
 
+void input_flip(void);
 void input_init(void);
 void input_task(void);
+#if WITH_GUI
 void input_update_display(lv_obj_t *line);
+#endif
 int input_get_pressed(void);
-int input_is_down(int idx);
+int input_is_down_raw(int idx);
 void input_flush(void);
 int input_is_any_down(void);
 

@@ -13,6 +13,7 @@
 void ps1_memory_card_main(void);
 void ps1_memory_card_enter(void);
 void ps1_memory_card_exit(void);
+void ps1_memory_card_unload(void);
 
 uint8_t ps1_memory_card_get_ode_command(void);
 void ps1_memory_card_reset_ode_command(void);

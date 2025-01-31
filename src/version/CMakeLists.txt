@@ -3,6 +3,7 @@ add_custom_target(sd2psx_version_generator ALL
                         -D SCRIPT_TEMPLATE=${CMAKE_CURRENT_SOURCE_DIR}/template/version.c 
                         -D SCRIPT_WORKING_DIR=${CMAKE_CURRENT_SOURCE_DIR}
                         -D SCRIPT_OUTPUT_FILE=${CMAKE_CURRENT_BINARY_DIR}/version.c
+                        -D VARIANT=${VARIANT}
                         -P ${CMAKE_CURRENT_SOURCE_DIR}/script.cmake
                     BYPRODUCTS ${CMAKE_CURRENT_BINARY_DIR}/version.c)
 
