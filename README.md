@@ -122,7 +122,7 @@ Possible values are:
 Support for different MMCE devices that share the same MCU has been added:
 
 - **PicoMemcard+/PicoMemcardZero:** DIY devices by dangiu (see [here](https://github.com/dangiu/PicoMemcard?tab=readme-ov-file#picomemcard-using-memory-card)) without PSRAM. Use *PMC+* or *PMCZero* firmware variant.
-- **PSXMemCard:** A commercial device by BitFunX sharing the same architecture as *PMC+*. Use *PMC+* firmware variant.
+- **PSXMemCard:** A commercial device by BitFunX sharing the same architecture as *PMC+*. Use *psxmemcard+* firmware variant.
 - **PSXMemCard Gen2:** A commercial device by BitFunX, sharing the same architecture as *sd2psx*. Use *sd2psx* firmware variant.
 
 For each device, follow the flashing instructions provided by the creator, using the corresponding *sd2psXtd* firmware file.
@@ -133,6 +133,7 @@ There are some configuration values that can be modified on a per card base with
 
 *Note 1: The `CardSize` setting is only used for PS2 cards and can only be either of `1`, `2`, `4`, `8`, `16`, `32`, `64`.*
 *Note 2: The BOOT folder should contain a file named `BootCard.ini`*
+*Note 3: Make sure there is an empty line at the end of the ini file.*
 
 ```ini
 [ChannelName]
@@ -166,6 +167,7 @@ SCXS-23456=FolderName2
 ```
 
 *Note: Be aware: Long folder names may not be displayed correctly and may result in stuttering of MMCE games due to scrolling.*
+*Note 2: Make sure there is an empty line at the end of the ini file.*
 
 ## Special Thanks to...
 
