@@ -117,6 +117,8 @@ Possible values are:
 | Variant       | `RETAIL`, `PROTO`, `ARCADE`           |
 | FlippedScreen | `ON`, `OFF`                           |
 
+*Note: Make sure there is an empty line at the end of the ini file.*
+
 ## General: Support for Other RP2040-Based MMCE Devices
 
 Support for different MMCE devices that share the same MCU has been added:
