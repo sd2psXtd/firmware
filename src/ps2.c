@@ -74,10 +74,11 @@ bool ps2_task(void) {
     log(LOG_TRACE, "%s mmcefs\n", __func__);
 #endif
 
-    if (ps2_cardman_is_accessible()) {
+    if (ps2_cardman_is_accessible())
         ps2_history_tracker_task();
+
+    if (ps2_cardman_is_idle())
         ps2_mc_data_interface_task();
-    }
 
     if (ps2_mc_auth_keyStoreResetRequired()
         && ps2_cardman_is_idle()) {
