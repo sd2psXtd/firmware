@@ -57,7 +57,6 @@ static serialized_settings_t serialized_settings;
 static int tempmode;
 static const char settings_path[] = "/.sd2psx/settings.ini";
 
-static void settings_update(void);
 static void settings_update_part(void *settings_ptr, uint32_t sz);
 static void settings_serialize(void);
 
@@ -215,6 +214,16 @@ static void settings_reset(void) {
         fatal("failed to reset settings");
 }
 
+void settings_load_sd(void) {
+    sd_init();
+    if (sd_exists(settings_path)) {
+        printf("Reading settings from %s\n", settings_path);
+        settings_deserialize();
+    } else {
+        settings_serialize();
+    }
+}
+
 void settings_init(void) {
     printf("Settings - init\n");
     if (wear_leveling_init() == WEAR_LEVELING_FAILED) {
@@ -232,19 +241,8 @@ void settings_init(void) {
         settings_reset();
     }
 
-    sd_init();
-    if (sd_exists(settings_path)) {
-        printf("Reading settings from %s\n", settings_path);
-        settings_deserialize();
-    } else {
-        settings_serialize();
-    }
 
     tempmode = settings.sys_flags & SETTINGS_SYS_FLAGS_PS2_MODE;
-}
-
-static void settings_update(void) {
-    wear_leveling_write(0, &settings, sizeof(settings));
 }
 
 static void settings_update_part(void *settings_ptr, uint32_t sz) {
@@ -407,11 +405,7 @@ void settings_set_ps1_game_id(bool enabled) {
 }
 
 bool settings_get_ps2_autoboot(void) {
-#ifdef WITH_GUI
     return (settings.ps2_flags & SETTINGS_PS2_FLAGS_AUTOBOOT);
-#else
-    return true;
-#endif
 }
 
 void settings_set_ps2_autoboot(bool autoboot) {

@@ -1,3 +1,4 @@
+#include "card_emu/ps2_mc_auth.h"
 #include "keystore.h"
 #include "led.h"
 #if WITH_GUI
@@ -76,6 +77,15 @@ bool ps2_task(void) {
     if (ps2_cardman_is_accessible()) {
         ps2_history_tracker_task();
         ps2_mc_data_interface_task();
+    }
+
+    if (ps2_mc_auth_keyStoreResetRequired()
+        && ps2_cardman_is_idle()) {
+        keystore_reset();
+        ps2_mc_auth_keyStoreResetAck();
+#if WITH_GUI
+        gui_request_refresh();
+#endif
     }
 
     if ((settings_get_mode() == MODE_PS1) && (ps2_cardman_is_idle()))

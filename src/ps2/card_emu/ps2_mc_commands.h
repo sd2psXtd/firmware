@@ -16,7 +16,7 @@
 #define PS2_SIO2_CMD_COMMIT_DATA        0x81
 #define PS2_SIO2_CMD_ERASE              0x82
 #define PS2_SIO2_CMD_BF                 0xBF
-#define PS2_SIO2_CMD_F3                 0xF3
+#define PS2_SIO2_CMD_AUTH_RESET         0xF3
 #define PS2_SIO2_CMD_KEY_SELECT         0xF7
 #define PS2_SIO2_CMD_AUTH               0xF0
 #define PS2_SIO2_CMD_SESSION_KEY_0      0xF1
@@ -36,5 +36,3 @@ extern void ps2_mc_cmd_readData(void);
 extern void ps2_mc_cmd_commitData(void);
 extern void ps2_mc_cmd_erase(void);
 extern void ps2_mc_cmd_0xBF(void);
-extern void ps2_mc_cmd_0xF3(void);
-

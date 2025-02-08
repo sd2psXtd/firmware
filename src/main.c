@@ -172,6 +172,7 @@ int main() {
     while (1) {
         if (settings_get_mode() == MODE_PS2) {
             ps2_init();
+            settings_load_sd();
             while (1) {
                 debug_task();
                 if (!ps2_task())
@@ -181,6 +182,7 @@ int main() {
 
         } else {
             ps1_init();
+            settings_load_sd();
             while (1) {
                 debug_task();
                 if (!ps1_task())

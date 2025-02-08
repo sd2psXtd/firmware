@@ -47,7 +47,7 @@ void __time_critical_func(ps1_mc_data_interface_start_dma)(uint32_t page) {
 
 
 
-void __time_critical_func(ps1_mc_data_interface_setup_read_page)(uint32_t page, bool readahead) {
+void __time_critical_func(ps1_mc_data_interface_setup_read_page)(uint32_t page) {
 #if WITH_PSRAM
         ps1_mc_data_interface_start_dma(page);
 #endif

@@ -7,6 +7,7 @@
 #include "ps2/card_emu/ps2_mc_data_interface.h"
 #include "ps1/ps1_dirty.h"
 #include "ps2/mmceman/ps2_mmceman_fs.h"
+#include "settings.h"
 
 #define LED_R           (25U)
 #define LED_G           (24U)
@@ -33,7 +34,7 @@ void led_task(void) {
     static bool red_active = false, green_active = false, blue_active = false;
 
     green_active |= !ps2_mmceman_fs_idle();
-    blue_active |= (ps1_mc_data_interface_write_occured() || ps2_mc_data_interface_write_occured());
+    blue_active |= (settings_get_mode() == MODE_PS2) ? ps2_mc_data_interface_write_occured() : ps1_mc_data_interface_write_occured();
 
     if (time - last_refresh > LED_REFRESH_US) {
         gpio_put(LED_R, red_active);
@@ -45,6 +46,4 @@ void led_task(void) {
         blue_active = false;
         last_refresh = time;
     }
-
-
 }

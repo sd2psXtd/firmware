@@ -14,7 +14,8 @@ It provides the same functionality as the official stable firmware and extends i
 - **PS1:** PSRAM support
 - **General:** Settings file
 - **General:** Support for other RP2040-based MMCE devices
-- **General:** Channel naming
+- **General:** Per Card Config
+- **General:** Game2Folder mapping
 
 ## PS2: Game ID Switching
 
@@ -53,7 +54,7 @@ While in general this should be safe behavior, if *sd2psx* is used mainly in PS1
 
 ## PS2: Instant Card Availability
 
-If using 8MB cards, *sd2psXtd* firmware exposes the card to the PS2 while it is still being transferred to PSRAM. This enables using FMCB/PS2BBL at boot time without additional waiting scripts.  
+If using 8MB cards, *sd2psXtd* firmware exposes the card to the PS2 while it is still being transferred to PSRAM. This enables using FMCB/PS2BBL at boot time without additional waiting scripts.
 Very helpful for PlayStation 2 models with simpler OSDSYS programs, that result on faster boot times (like PSX DESR and Arcade PS2)
 
 ## PS2: 1-64 MB Card Size Support
@@ -65,7 +66,7 @@ Support for card sizes between 1 and 64 MB has been added. Cards larger than 8 M
 
 ## PS2: Support for Developer, Arcade and Prototype PS2s
 
-PS2 memory cards have been used in variations of PS2 like: *DevKits*, *TestKits*, *Arcades* and *Prototypes*.  
+PS2 memory cards have been used in variations of PS2 like: *DevKits*, *TestKits*, *Arcades* and *Prototypes*.
 
 *sd2psXtd* firmware supports these devices by configuring the variant within the PS2 settings.
 
@@ -126,9 +127,12 @@ Support for different MMCE devices that share the same MCU has been added:
 
 For each device, follow the flashing instructions provided by the creator, using the corresponding *sd2psXtd* firmware file.
 
-## General: Channel Naming
+## General: Per Card Config
 
-Channels can be named by adding a `CardX.ini` file to a card folder, where `X` is the card index.
+There are some configuration values that can be modified on a per card base within a config file named  `CardX.ini` in a card folder, where `X` is the card index.
+
+*Note 1: The `CardSize` setting is only used for PS2 cards and can only be either of `1`, `2`, `4`, `8`, `16`, `32`, `64`.*
+*Note 2: The BOOT folder should contain a file named `BootCard.ini`*
 
 ```ini
 [ChannelName]
@@ -140,7 +144,28 @@ Channels can be named by adding a `CardX.ini` file to a card folder, where `X` i
 6=Channel 6 Name
 7=Channel 7 Name
 8=Channel 8 Name
+[Settings]
+MaxChannels=8
+CardSize=8
 ```
+
+
+## General: Game2Folder mapping
+
+There are some games, that share save data for multiple game ids (like the Singstar series etc). For these cases, a custom game to folder mapping can be created.
+
+If a game with a mapped id is loaded, instead of using the game id based folder, the mapped folder is used for storing the card.
+
+The mapping needs to be defined in ```.sd2psx/Game2Folder.ini``` in the following way:
+
+```ini
+[PS1]
+SCXS-12345=FolderName1
+[PS2]
+SCXS-23456=FolderName2
+```
+
+*Note: Be aware: Long folder names may not be displayed correctly and may result in stuttering of MMCE games due to scrolling.*
 
 ## Special Thanks to...
 

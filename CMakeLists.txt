@@ -3,7 +3,7 @@ cmake_minimum_required(VERSION 3.12)
 set(PICO_SDK_PATH ${CMAKE_CURRENT_SOURCE_DIR}/ext/pico-sdk)
 include(pico_sdk_import.cmake)
 
-project(SD2PSX LANGUAGES C CXX ASM)
+project(SD2PSXTD LANGUAGES C CXX ASM)
 
 pico_sdk_init()
 
