@@ -122,7 +122,7 @@ Possible values are:
 Support for different MMCE devices that share the same MCU has been added:
 
 - **PicoMemcard+/PicoMemcardZero:** DIY devices by dangiu (see [here](https://github.com/dangiu/PicoMemcard?tab=readme-ov-file#picomemcard-using-memory-card)) without PSRAM. Use *PMC+* or *PMCZero* firmware variant.
-- **PSXMemCard:** A commercial device by BitFunX sharing the same architecture as *PMC+*. Use *PMC+* firmware variant.
+- **PSXMemCard:** A commercial device by BitFunX sharing the same architecture as *PMC+*. Use *psxmemcard* firmware variant.
 - **PSXMemCard Gen2:** A commercial device by BitFunX, sharing the same architecture as *sd2psx*. Use *sd2psx* firmware variant.
 
 For each device, follow the flashing instructions provided by the creator, using the corresponding *sd2psXtd* firmware file.
