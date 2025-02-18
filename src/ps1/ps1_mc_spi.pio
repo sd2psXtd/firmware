@@ -36,12 +36,15 @@
 .wrap_target
     pull block               ; pull a byte to send, blocking
 
-    ; trigger ACK
-    nop side 1 [5]
+    ; trigger ACK for 551 Cycles
+    set x, 25  side 1
+ack:
+    nop [7]
+    nop [7]
     nop [5]
-    nop side 0
+    jmp x-- ack
 
-    set x, 7
+    set x, 7 side 0
 sendbit:
     wait 1 gpio PIN_PSX_CLK  ; wait for clock to rise
     wait 0 gpio PIN_PSX_CLK  ; wait for falling clock edge
@@ -49,9 +52,10 @@ sendbit:
     jmp x-- sendbit
 .wrap
 
+
 % c-sdk {
 
-#define SLOW_CLKDIV 50	// 125MHz divided down to 2.5 MHz - we need this so we don't count clocks not meant for us on systems like the PS2
+#define PS1_CLKDIV 1
 
 static inline void cmd_reader_program_init(PIO pio, uint sm, uint offset) {
     pio_sm_config c = cmd_reader_program_get_default_config(offset);
@@ -65,7 +69,24 @@ static inline void cmd_reader_program_init(PIO pio, uint sm, uint offset) {
     sm_config_set_in_shift(&c, true, true, 8);
     sm_config_set_fifo_join(&c, PIO_FIFO_JOIN_RX);
 
-    sm_config_set_clkdiv_int_frac(&c, SLOW_CLKDIV, 0x00);
+    sm_config_set_clkdiv_int_frac(&c, PS1_CLKDIV, 0x00);
+
+    pio_sm_init(pio, sm, offset, &c);
+}
+
+static inline void controller_program_init(PIO pio, uint sm, uint offset) {
+    pio_sm_config c = cmd_reader_program_get_default_config(offset);
+
+    sm_config_set_in_pins(&c, PIN_PSX_DAT);
+    pio_sm_set_consecutive_pindirs(pio, sm, PIN_PSX_DAT, 1, false);
+    pio_sm_set_consecutive_pindirs(pio, sm, PIN_PSX_SEL, 1, false);
+    pio_sm_set_consecutive_pindirs(pio, sm, PIN_PSX_CLK, 1, false);
+
+    /* shift ISR to right, autopush every 8 bits */
+    sm_config_set_in_shift(&c, true, true, 8);
+    sm_config_set_fifo_join(&c, PIO_FIFO_JOIN_RX);
+
+    sm_config_set_clkdiv_int_frac(&c, PS1_CLKDIV, 0x00);
 
     pio_sm_init(pio, sm, offset, &c);
 }
@@ -95,7 +116,7 @@ static inline void dat_writer_program_init(PIO pio, uint sm, uint offset) {
     sm_config_set_out_shift(&c, true, true, 8);
     sm_config_set_fifo_join(&c, PIO_FIFO_JOIN_TX);
 
-    sm_config_set_clkdiv_int_frac(&c, SLOW_CLKDIV, 0x00);
+    sm_config_set_clkdiv_int_frac(&c, PS1_CLKDIV, 0x00);
 
     pio_sm_init(pio, sm, offset, &c);
 }
