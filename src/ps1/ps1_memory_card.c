@@ -5,6 +5,7 @@
 #include "pico/multicore.h"
 #include "ps1_mc_data_interface.h"
 #include "string.h"
+#include <stdbool.h>
 #include <stdint.h>
 
 #include "config.h"
@@ -35,21 +36,26 @@ typedef struct {
     uint32_t sm;
 } pio_t;
 
-static pio_t cmd_reader, dat_writer;
+static pio_t cmd_reader, dat_writer, cntrl_reader;
 static volatile int mc_exit_request, mc_exit_response, mc_enter_request, mc_enter_response;
+
+enum { RECEIVE_RESET, RECEIVE_EXIT, RECEIVE_OK };
+
 
 
 static void __time_critical_func(reset_pio)(void) {
-    pio_set_sm_mask_enabled(pio0, (1 << cmd_reader.sm) | (1 << dat_writer.sm), false);
-    pio_restart_sm_mask(pio0, (1 << cmd_reader.sm) | (1 << dat_writer.sm));
+    pio_set_sm_mask_enabled(pio0, (1 << cmd_reader.sm) | (1 << dat_writer.sm) | (1 << cntrl_reader.sm), false);
+    pio_restart_sm_mask(pio0, (1 << cmd_reader.sm) | (1 << dat_writer.sm) | (1 << cntrl_reader.sm));
 
     pio_sm_exec(pio0, cmd_reader.sm, pio_encode_jmp(cmd_reader.offset));
     pio_sm_exec(pio0, dat_writer.sm, pio_encode_jmp(dat_writer.offset));
+    pio_sm_exec(pio0, cntrl_reader.sm, pio_encode_jmp(cntrl_reader.offset));
 
     pio_sm_clear_fifos(pio0, cmd_reader.sm);
+    pio_sm_clear_fifos(pio0, cntrl_reader.sm);
     pio_sm_drain_tx_fifo(pio0, dat_writer.sm);
 
-    pio_enable_sm_mask_in_sync(pio0, (1 << cmd_reader.sm) | (1 << dat_writer.sm));
+    pio_enable_sm_mask_in_sync(pio0, (1 << cmd_reader.sm) | (1 << dat_writer.sm) | (1 << cntrl_reader.sm));
 
     reset = 1;
 }
@@ -73,8 +79,12 @@ static void __time_critical_func(init_pio)(void) {
     dat_writer.offset = pio_add_program(pio0, &dat_writer_program);
     dat_writer.sm = pio_claim_unused_sm(pio0, true);
 
+    cntrl_reader.offset = pio_add_program(pio0, &cmd_reader_program);
+    cntrl_reader.sm = pio_claim_unused_sm(pio0, true);
+
     cmd_reader_program_init(pio0, cmd_reader.sm, cmd_reader.offset);
     dat_writer_program_init(pio0, dat_writer.sm, dat_writer.offset);
+    controller_program_init(pio0, cntrl_reader.sm, cntrl_reader.offset);
 }
 
 static void __time_critical_func(card_deselected)(uint gpio, uint32_t event_mask) {
@@ -90,6 +100,18 @@ static uint8_t __time_critical_func(recv_cmd)(uint8_t* cmd) {
             return RECEIVE_RESET;
     }
     *cmd = (pio_sm_get(pio0, cmd_reader.sm) >> 24);
+    return RECEIVE_OK;
+}
+
+
+static uint8_t __time_critical_func(recv_cntrl)(uint8_t* cmd) {
+    while (pio_sm_is_rx_fifo_empty(pio0, cntrl_reader.sm) && pio_sm_is_rx_fifo_empty(pio0, cntrl_reader.sm))  {
+        if (mc_exit_request)
+            return RECEIVE_EXIT;
+        if (reset)
+            return RECEIVE_RESET;
+    }
+    *cmd = (pio_sm_get(pio0, cntrl_reader.sm) >> 24);
     return RECEIVE_OK;
 }
 
@@ -291,170 +313,76 @@ static void __time_critical_func(mc_mmce_next_index)(void) {
     mc_pro_command = MCP_NXT_CARD;
 }
 
-//static int __time_critical_func(mc_do_state)(uint8_t ch) {
-//    static uint8_t payload[256];
-//    if (byte_count >= sizeof(payload))
-//        return -1;
-//    payload[byte_count++] = ch;
-//
-//    if (byte_count == 1) {
-//        /* First byte - determine the device the command is for */
-//        if (ch == 0x81)
-//            return flag;
-//    } else if (payload[0] == 0x81) {
-//        /* Command for the memory card */
-//        uint8_t cmd = payload[1];
-//
-//        if (cmd == 'S') {
-//            /* Memory card status */
-//            switch (byte_count) {
-//                case 2: return 0x5A;
-//                case 3: return 0x5D;
-//                case 4: return 0x5C;
-//                case 5: return 0x5D;
-//                case 6: return 0x04;
-//                case 7: return 0x00;
-//                case 8: return 0x00;
-//                case 9: return 0x80;
-//            }
-//        } else if (cmd == 'R') {
-//            /* Memory card read */
-//            #define MSB (payload[4])
-//            #define LSB (payload[5])
-//            #define PAGE (MSB * 256 + LSB)
-//            #define ADDR (PAGE * 128)
-//            #define OFF (byte_count - 10)
-//
-//            static uint8_t chk;
-//
-//            switch (byte_count) {
-//                case 2: return 0x5A;
-//                case 3: return 0x5D;
-//                case 4: return 0x00;
-//                case 5: return MSB;
-//                case 6: return 0x5C;
-//                case 7: return 0x5D;
-//                case 8: return MSB;
-//                case 9:
-//                    chk = MSB ^ LSB;
-//                    ps1_mc_data_interface_setup_read_page(PAGE);
-//                    return LSB;
-//                case 10 ... 137: {
-//                    ps1_mc_data_interface_wait_for_byte(OFF);
-//                    curr_page = ps1_mc_data_interface_get_page(PAGE);
-//                    chk ^= curr_page[OFF];
-//                    return curr_page[OFF];
-//                }
-//                case 138: return chk;
-//                case 139: {
-//                    curr_page = NULL;
-//                    QPRINTF("Done Reading sector %u\n", PAGE);
-//                    return 0x47;
-//                }
-//            }
-//
-//            #undef MSB
-//            #undef LSB
-//            #undef ADDR
-//            #undef OFF
-//            #undef PAGE
-//        } else if (cmd == 'W') {
-//            /* Memory card write */
-//            #define MSB (payload[4])
-//            #define LSB (payload[5])
-//            #define PAGE (MSB * 256 + LSB)
-//            #define ADDR (PAGE * 128 + byte_count - 7)
-//
-//            static uint8_t chk;
-//
-//            switch (byte_count) {
-//                case 2: flag = 0; return 0x5A;
-//                case 3: return 0x5D;
-//                case 4: return 0x00;
-//                case 5: return MSB;
-//                case 6: return LSB;
-//                case 7: chk = MSB ^ LSB; // fallthrough
-//                case 8 ... 134: {
-//                    ps1_mc_data_interface_write_byte(ADDR, payload[byte_count - 1]);
-//                    chk ^= payload[byte_count - 1];
-//                    return payload[byte_count - 1];
-//                }
-//                case 135: return 0x5C;
-//                case 136: return 0x5D;
-//                case 137: {
-//                    if (chk == payload[byte_count - 3]) {
-//                        ps1_mc_data_interface_write_mc(PAGE);
-//                        return 0x47;
-//                    } else
-//                        return 0x4E;
-//                }
-//            }
-//
-//            #undef MSB
-//            #undef LSB
-//            #undef ADDR
-//        }
-//        // Memcard Pro Commands after this line
-//        // See https://gitlab.com/chriz2600/ps1-game-id-transmission
-//        else if (cmd == 0x20) {   // MCP Ping Command
-//            switch (byte_count) {
-//                case 2:
-//                case 3: return 0x00;
-//                case 4: return 0x27;
-//                case 5: return 0xFF;
-//            }
-//        } else if (cmd == 0x21) { // MCP Game ID
-//            if (byte_count == game_id_length + 4)
-//            {
-//                game_db_extract_title_id(&payload[4], received_game_id, game_id_length, sizeof(received_game_id));
-//                if (!game_db_sanity_check_title_id(received_game_id))
-//                    memset(received_game_id, 0, sizeof(received_game_id));
-//                mc_pro_command = MCP_GAME_ID;
-//            }
-//            switch (byte_count) {
-//                case 2: memset(received_game_id, 0, sizeof(received_game_id)); return 0x00;
-//                case 3: return 0x00;
-//                case 4: game_id_length = payload[byte_count - 1]; return 0x00;
-//                case 5 ... 255: return payload[byte_count - 1];
-//            }
-//        } else if (cmd == 0x22) { // MCP Prv Channel
-//            switch (byte_count) {
-//                case 2:
-//                case 3: return 0x00;
-//                case 4: return 0x20;
-//                case 5: mc_pro_command = MCP_PRV_CH; return 0xFF;
-//            }
-//        } else if (cmd == 0x23) { // MCP Nxt Channel
-//            switch (byte_count) {
-//                case 2:
-//                case 3: return 0x00;
-//                case 4: return 0x20;
-//                case 5: mc_pro_command = MCP_NXT_CH; return 0xFF;
-//            }
-//        } else if (cmd == 0x24) { // MCP Prv Card
-//
-//            switch (byte_count) {
-//                case 2:
-//                case 3: return 0x00;
-//                case 4: return 0x20;
-//                case 5: mc_pro_command = MCP_PRV_CARD; return 0xFF;
-//            }
-//        } else if (cmd == 0x25) { // MCP Nxt Card
-//
-//            switch (byte_count) {
-//                case 2:
-//                case 3: return 0x00;
-//                case 4: return 0x20;
-//                case 5: mc_pro_command = MCP_NXT_CARD; return 0xFF;
-//            }
-//        } else {
-//            DPRINTF("Received unknown command: %u\n", ch);
-//        }
-//    }
-//
-//    return -1;
-//}
-//
+/**
+  01h  Hi-Z  Controller address
+  42h  idlo  Receive ID bit0..7 (variable) and Send Read Command (ASCII "B")
+  TAP  idhi  Receive ID bit8..15 (usually/always 5Ah)
+  MOT  swlo  Receive Digital Switches bit0..7
+  MOT  swhi  Receive Digital Switches bit8..15
+  --------
+
+  Switch Bits:
+  0   Select Button    (0=Pressed, 1=Released)
+  1   L3/Joy-button    (0=Pressed, 1=Released/None/Disabled) ;analog mode only
+  2   R3/Joy-button    (0=Pressed, 1=Released/None/Disabled) ;analog mode only
+  3   Start Button     (0=Pressed, 1=Released)
+  4   Joypad Up        (0=Pressed, 1=Released)
+  5   Joypad Right     (0=Pressed, 1=Released)
+  6   Joypad Down      (0=Pressed, 1=Released)
+  7   Joypad Left      (0=Pressed, 1=Released)
+
+
+  8   L2 Button        (0=Pressed, 1=Released) (Lower-left shoulder)
+  9   R2 Button        (0=Pressed, 1=Released) (Lower-right shoulder)
+  10  L1 Button        (0=Pressed, 1=Released) (Upper-left shoulder)
+  11  R1 Button        (0=Pressed, 1=Released) (Upper-right shoulder)
+  12  /\ Button        (0=Pressed, 1=Released) (Triangle, upper button)
+  13  () Button        (0=Pressed, 1=Released) (Circle, right button)
+  14  >< Button        (0=Pressed, 1=Released) (Cross, lower button)
+  15  [] Button        (0=Pressed, 1=Released) (Square, left button)
+ */
+static void __time_critical_func(mc_read_controller)(void) {
+    static uint8_t prevCommand = 0;
+    uint8_t controller_in[5];
+    uint8_t _;
+    for (uint8_t i = 0; i < 5; i++) {
+        recv_cntrl(&controller_in[i]);
+    }
+    #define HOTKEYS 0b0000000000001111
+    #define BTN_UP  0b00010000
+    #define BTN_DWN 0b01000000
+    #define BTN_LFT 0b10000000
+    #define BTN_RGT 0b00100000
+
+    uint16_t buttons = (controller_in[3] << 8) | controller_in[4];
+    if (!(buttons & HOTKEYS)) {
+        log(LOG_TRACE, "PS1:    Hotkey pressed\n");
+        if (prevCommand == 0) {
+            if (!(controller_in[3]&BTN_UP)) {
+                log(LOG_TRACE, "PS1:    Up pressed\n");
+                prevCommand = MCP_NXT_CARD;
+            } else if (!(controller_in[3]&BTN_DWN)) {
+                log(LOG_TRACE, "PS1:    Down pressed\n");
+                prevCommand = MCP_PRV_CARD;
+            } else if (!(controller_in[3]&BTN_LFT)) {
+                log(LOG_TRACE, "PS1:    Left pressed\n");
+                prevCommand = MCP_PRV_CH;
+            } else if (!(controller_in[3]&BTN_RGT)) {
+                log(LOG_TRACE, "PS1:    Right pressed\n");
+                prevCommand = MCP_NXT_CH;
+            }
+        }
+    } else if (prevCommand != 0){
+        log(LOG_TRACE, "PS1:    Previous command: %u\n", prevCommand);
+        mc_pro_command = prevCommand;
+        prevCommand = 0;
+    }
+
+    while (true) {
+        receiveOrNextCmd(&_);
+        recv_cntrl(&_);
+    }
+}
 
 static void __time_critical_func(mc_main_loop)(void) {
     flag = 8;
@@ -483,7 +411,6 @@ static void __time_critical_func(mc_main_loop)(void) {
 
 
         if (0x81 == ch) { /* Command is for MC - process! */
-//            log(LOG_TRACE, "PS1: Command for MC\n");
             ps1_mc_respond(flag);
             int ret = recv_cmd(&ch);
             if (ret == RECEIVE_RESET)
@@ -501,11 +428,12 @@ static void __time_critical_func(mc_main_loop)(void) {
                 case 0x25: mc_mmce_next_index(); break;
                 default: log(LOG_WARN, "Unknown command: 0x%.02x\n", ch); break;
             }
+        } else if (0x01 == ch) {
+            mc_read_controller();
         } else {
-            /* If the command sequence is not to be processed (e.g. controller command or unknown) or the are leftover bytes */
+            /* If the command sequence is not to be processed (e.g. unknown) or the are leftover bytes */
             while (recv_cmd(&ch) == RECEIVE_OK){
                 tight_loop_contents();
-                //log(LOG_TRACE, "PS1: Ignoring command: 0x%.02x\n", ch);
             }
         }
 
