@@ -42,7 +42,6 @@ static volatile int mc_exit_request, mc_exit_response, mc_enter_request, mc_ente
 enum { RECEIVE_RESET, RECEIVE_EXIT, RECEIVE_OK };
 
 
-
 static void __time_critical_func(reset_pio)(void) {
     pio_set_sm_mask_enabled(pio0, (1 << cmd_reader.sm) | (1 << dat_writer.sm) | (1 << cntrl_reader.sm), false);
     pio_restart_sm_mask(pio0, (1 << cmd_reader.sm) | (1 << dat_writer.sm) | (1 << cntrl_reader.sm));
@@ -149,6 +148,7 @@ static void __time_critical_func(mc_cmd_get_card_id)(void) {
     ps1_mc_respond(0x00); receiveOrNextCmd(&_);
     ps1_mc_respond(0x80); receiveOrNextCmd(&_);
 }
+
 /*
   Send Reply Comment
   81h  N/A   Memory card address
@@ -165,12 +165,12 @@ static void __time_critical_func(mc_cmd_get_card_id)(void) {
   00h  CHK   Receive Checksum (MSB xor LSB xor Data bytes)
   00h  47h   Receive Memory End Byte (should be always 47h="G"=Good for Read)
   */
-static void __time_critical_func(mc_cmd_read)(void) {
+static void __time_critical_func(mc_cmd_read)(bool long_read) {
     uint8_t page_msb = 0U, page_lsb = 0U;
     uint8_t offset = 0;
     uint8_t chk = 0;
+    uint16_t page = 0U;
     uint8_t _;
-    //log(LOG_TRACE, "PS1:    Read command\n");
 
     ps1_mc_respond(0x5A);       receiveOrNextCmd(&_);
     ps1_mc_respond(0x5D);       receiveOrNextCmd(&_);
@@ -180,16 +180,21 @@ static void __time_critical_func(mc_cmd_read)(void) {
     ps1_mc_respond(0x5C);       receiveOrNextCmd(&_);
     ps1_mc_respond(0x5D);       receiveOrNextCmd(&_);
     ps1_mc_respond(page_msb);   receiveOrNextCmd(&_);
-    log(LOG_TRACE, "PS1:    Read page %u\n", (page_msb * 256) + page_lsb);
-    ps1_mc_data_interface_setup_read_page((page_msb * 256) + page_lsb);
+    page = (page_msb << 8) | page_lsb;
+    log(LOG_TRACE, "PS1:    Read page %u\n", page);
+    ps1_mc_data_interface_setup_read_page(page);
     ps1_mc_respond(page_lsb);   receiveOrNextCmd(&_);
-    curr_page = ps1_mc_data_interface_get_page((page_msb * 256) + page_lsb);
-    for (offset = 0; offset < 128; offset++) {
-        ps1_mc_data_interface_wait_for_byte(offset);
-        ps1_mc_respond(curr_page[offset]);
-        chk ^= curr_page[offset];
-        receiveOrNextCmd(&_)
-    }
+    do {
+        curr_page = ps1_mc_data_interface_get_page(page);
+        for (offset = 0; offset < 128; offset++) {
+            ps1_mc_data_interface_wait_for_byte(offset);
+            ps1_mc_respond(curr_page[offset]);
+            chk ^= curr_page[offset];
+            receiveOrNextCmd(&_)
+        }
+        page++;
+        ps1_mc_data_interface_setup_read_page(page);
+    } while (long_read);
     ps1_mc_respond(chk);        receiveOrNextCmd(&_);
     ps1_mc_respond(0x47);
     curr_page = NULL;
@@ -237,11 +242,9 @@ static void __time_critical_func(mc_cmd_write)(void) {
     ps1_mc_respond(0x5C);           receiveOrNextCmd(&_);
     ps1_mc_respond(0x5D);           receiveOrNextCmd(&_);
     if (in == chk) {
-        log(LOG_TRACE, "PS1:    Write OK Page %u\n", (page_msb * 256) + page_lsb);
         ps1_mc_data_interface_write_mc((page_msb * 256) + page_lsb);
         ps1_mc_respond(0x47);       //receiveOrNextCmd(&_);
     } else {
-        log(LOG_TRACE, "PS1:    Write FAIL Page %u\n", (page_msb * 256) + page_lsb);
         ps1_mc_respond(0x4E);       //receiveOrNextCmd(&_);
     }
 }
@@ -267,11 +270,8 @@ static void __time_critical_func(mc_mmce_set_game_id)(void) {
     for (uint8_t i = 0; i < length; i++) {
         ps1_mc_respond(prev);   receiveOrNextCmd(&game_id[i]);
         prev = game_id[i];
-        log(LOG_TRACE, "PS1:    Game ID %u: %c\n", i, (char)game_id[i]);
     }
-    log(LOG_TRACE, "PS1:    Game ID: %s\n", game_id);
     game_db_extract_title_id(game_id, received_game_id, length, sizeof(received_game_id));
-    log(LOG_TRACE, "PS1:    Extracted ID: %s\n", received_game_id);
     if (!game_db_sanity_check_title_id(received_game_id))
         memset(received_game_id, 0, sizeof(received_game_id));
     mc_pro_command = MCP_GAME_ID;
@@ -341,33 +341,32 @@ static void __time_critical_func(mc_mmce_next_index)(void) {
   14  >< Button        (0=Pressed, 1=Released) (Cross, lower button)
   15  [] Button        (0=Pressed, 1=Released) (Square, left button)
  */
-static void __time_critical_func(mc_read_controller)(void) {
+static void mc_read_controller(void) {
     static uint8_t prevCommand = 0;
     uint8_t controller_in[5];
     uint8_t _;
     for (uint8_t i = 0; i < 5; i++) {
         recv_cntrl(&controller_in[i]);
     }
-    #define HOTKEYS 0b0000000000001111
+    #define HOTKEYS 0b00001111
     #define BTN_UP  0b00010000
     #define BTN_DWN 0b01000000
     #define BTN_LFT 0b10000000
     #define BTN_RGT 0b00100000
+    #define IS_PRESSED(x,y) ((x&y) == 0)
 
-    uint16_t buttons = (controller_in[3] << 8) | controller_in[4];
-    if (!(buttons & HOTKEYS)) {
-        log(LOG_TRACE, "PS1:    Hotkey pressed\n");
+    if (IS_PRESSED(controller_in[4], HOTKEYS)) {
         if (prevCommand == 0) {
-            if (!(controller_in[3]&BTN_UP)) {
+            if (IS_PRESSED(controller_in[3], BTN_UP)) {
                 log(LOG_TRACE, "PS1:    Up pressed\n");
                 prevCommand = MCP_NXT_CARD;
-            } else if (!(controller_in[3]&BTN_DWN)) {
+            } else if (IS_PRESSED(controller_in[3], BTN_DWN)) {
                 log(LOG_TRACE, "PS1:    Down pressed\n");
                 prevCommand = MCP_PRV_CARD;
-            } else if (!(controller_in[3]&BTN_LFT)) {
+            } else if (IS_PRESSED(controller_in[3], BTN_LFT)) {
                 log(LOG_TRACE, "PS1:    Left pressed\n");
                 prevCommand = MCP_PRV_CH;
-            } else if (!(controller_in[3]&BTN_RGT)) {
+            } else if (IS_PRESSED(controller_in[3], BTN_RGT)) {
                 log(LOG_TRACE, "PS1:    Right pressed\n");
                 prevCommand = MCP_NXT_CH;
             }
@@ -418,7 +417,8 @@ static void __time_critical_func(mc_main_loop)(void) {
 
             switch (ch) {
                 case 'S': mc_cmd_get_card_id(); break;
-                case 'R': mc_cmd_read(); break;
+                case 'R': mc_cmd_read(false); break;
+                case 'B': mc_cmd_read(true); break;
                 case 'W': mc_cmd_write(); break;
                 case 0x20: mc_mmce_ping(); break;
                 case 0x21: mc_mmce_set_game_id(); break;
