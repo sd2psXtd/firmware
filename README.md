@@ -12,6 +12,8 @@ It provides the same functionality as the official stable firmware and extends i
 - **PS2:** Support for developer (`DTL-H` & `DTL-T`), Arcade (`COH-H`) and Prototype (`EB`?) models is available.
 - **PS1:** BootCard mechanics
 - **PS1:** PSRAM support
+- **PS1:** Card Switch Controller Combo Support
+- **PS1:** Super fast FreePSXBoot
 - **General:** Settings file
 - **General:** Support for other RP2040-based MMCE devices
 - **General:** Per Card Config
@@ -70,11 +72,11 @@ PS2 memory cards have been used in variations of PS2 like: *DevKits*, *TestKits*
 
 *sd2psXtd* firmware supports these devices by configuring the variant within the PS2 settings.
 
-These PlayStation 2 variations use different magicgate keysets to ensure their memory cards are inaccessible in other devices (eg: Opening developer memory card on normal PS2). that's why SD2PSX has to actively support them
+These PlayStation 2 variations use different magicgate keysets to ensure their memory cards are inaccessible in other devices (e.g., opening a developer memory card on a normal PS2). This is why SD2PSX must actively support them.
 
 > [!NOTE]
 > **Devkit/DTL-H owners**:
-> as you may notice, SD2PSX has no `DEVELOPER` mode, this is because sd2psxtd is mimicking the behavior of licensed retail card. to use the device on developer hardware, set the card on `RETAIL` mode [^1]
+> as you may notice, SD2PSX has no `DEVELOPER` mode, this is because sd2psxtd is mimicking the behavior of licensed retail card. To use the device on developer hardware, set the card to `RETAIL` mode [^1]
 
 [^1]: Devkits: official retail memory cards use developer magicgate by default until the console actively requests to use retail magicgate with a dedicated command
 
@@ -85,6 +87,25 @@ If BootCard functionality is activated, the PS1 starts with BootCards at startup
 ## PS1: PSRAM Support
 
 *sd2psXtd* firmware allows PS1 cards to be served from PSRAM. While this is mainly an under-the-hood change, it provides more flexibility in RAM usage.
+
+## PS1: Card Switch Controller Combo Support
+
+
+Controller Button Mapping for Card and Channel Switching
+
+The following button combinations are used to perform card and channel switches:
+
+- L1 + R1 + L2 + R2 + Up: Switch to the Next Card
+- L1 + R1 + L2 + R2 + Down: Switch to the Previous Card
+- L1 + R1 + L2 + R2 + Right: Switch to the Next Channel
+- L1 + R1 + L2 + R2 + Left: Switch to the Previous Channel
+
+These mappings require that all four buttons (L1, R1, L2, R2) are held down in combination with one of the directional inputs.
+
+## PS1: Super fast FreePSXBoot
+
+*sd2psXtd* allows super fast booting of FreePSXBoot by using some non standard card communication.
+Please note: This is only possible using a special FreePSXBoot Version provided at https://sd2psXtd.github.io
 
 ## General: Settings File
 
@@ -117,6 +138,8 @@ Possible values are:
 | Variant       | `RETAIL`, `PROTO`, `ARCADE`           |
 | FlippedScreen | `ON`, `OFF`                           |
 
+*Note: Make sure there is an empty line at the end of the ini file.*
+
 ## General: Support for Other RP2040-Based MMCE Devices
 
 Support for different MMCE devices that share the same MCU has been added:
@@ -133,6 +156,7 @@ There are some configuration values that can be modified on a per card base with
 
 *Note 1: The `CardSize` setting is only used for PS2 cards and can only be either of `1`, `2`, `4`, `8`, `16`, `32`, `64`.*
 *Note 2: The BOOT folder should contain a file named `BootCard.ini`*
+*Note 3: Make sure there is an empty line at the end of the ini file.*
 
 ```ini
 [ChannelName]
@@ -166,6 +190,7 @@ SCXS-23456=FolderName2
 ```
 
 *Note: Be aware: Long folder names may not be displayed correctly and may result in stuttering of MMCE games due to scrolling.*
+*Note 2: Make sure there is an empty line at the end of the ini file.*
 
 ## Special Thanks to...
 
