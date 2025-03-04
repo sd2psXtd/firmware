@@ -400,13 +400,12 @@ static void ps2_cardman_continue(void) {
     if (cardman_operation == CARDMAN_OPEN) {
         uint64_t slice_start = time_us_64();
 
-        if (!PSRAM_AVAILABLE || card_size > PS2_CARD_SIZE_8M) {
+        if (ps2_mc_data_interface_get_sdmode()) {
             uint64_t end = time_us_64();
             log(LOG_INFO, "took = %.2f s; SD read speed = %.2f kB/s\n", (end - cardprog_start) / 1e6, 1000000.0 * card_size / (end - cardprog_start) / 1024);
             if (cardman_cb)
                 cardman_cb(100, true);
             cardman_operation = CARDMAN_IDLE;
-
         } else {
 #if WITH_PSRAM
             log(LOG_TRACE, "%s:%u\n", __func__, __LINE__);
@@ -470,7 +469,7 @@ static void ps2_cardman_continue(void) {
 
                 break;
             }
-            if (!PSRAM_AVAILABLE || (settings_get_ps2_cardsize() > 8)) {
+            if (ps2_mc_data_interface_get_sdmode()) {
                 genblock(cardprog_pos, flushbuf);
                 sd_write(cardman_fd, flushbuf, BLOCK_SIZE);
             } else {
@@ -809,7 +808,7 @@ bool __time_critical_func(ps2_cardman_is_accessible)(void) {
     // SD: / IDLE   => X
     // SD: / CREATE => X
     // SD: / OPEN   => X
-    if ((card_size > PS2_CARD_SIZE_8M) || (!PSRAM_AVAILABLE))
+    if (ps2_mc_data_interface_get_sdmode())
         return (cardman_operation == CARDMAN_IDLE);
     else
         return true;
