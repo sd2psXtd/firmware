@@ -1,5 +1,5 @@
 
-add_library(sd_fat STATIC    
+add_library(sd_fat STATIC
             ${CMAKE_CURRENT_SOURCE_DIR}/ESP8266SdFat/src/common/FmtNumber.cpp
             ${CMAKE_CURRENT_SOURCE_DIR}/ESP8266SdFat/src/common/FsCache.cpp
             ${CMAKE_CURRENT_SOURCE_DIR}/ESP8266SdFat/src/common/FsDateTime.cpp
@@ -36,19 +36,20 @@ add_library(sd_fat STATIC
             ${CMAKE_CURRENT_SOURCE_DIR}/ESP8266SdFat/src/SdCard/SdCardInfo.cpp
             ${CMAKE_CURRENT_SOURCE_DIR}/ESP8266SdFat/src/SdCard/SdSpiCard.cpp
             ${CMAKE_CURRENT_SOURCE_DIR}/ESP8266SdFatWrapper/src/sd.cpp
+            ${CMAKE_CURRENT_SOURCE_DIR}/ESP8266SdFatWrapper/src/sdBd.cpp
             ${CMAKE_CURRENT_SOURCE_DIR}/ESP8266SdFatWrapper/src/SPI.cpp
 )
 
-target_include_directories(sd_fat 
+target_include_directories(sd_fat
                         PRIVATE
                             ${CMAKE_CURRENT_SOURCE_DIR}/ESP8266SdFatWrapper/src
-                        PUBLIC 
+                        PUBLIC
                             ${CMAKE_CURRENT_SOURCE_DIR}/ESP8266SdFatWrapper/include
                             ${CMAKE_CURRENT_SOURCE_DIR}/ESP8266SdFat/src
                             ${CMAKE_CURRENT_SOURCE_DIR}/ESP8266SdFat/extras/attic)
 
-target_link_libraries(sd_fat 
-        PUBLIC 
+target_link_libraries(sd_fat
+        PUBLIC
             pico_stdlib
             hardware_spi)
 
@@ -69,3 +70,5 @@ target_compile_definitions(mcfat PRIVATE MAX_FDHANDLES=0x1)
 add_library(inih STATIC ${CMAKE_CURRENT_SOURCE_DIR}/inih/ini.c)
 target_link_libraries(inih PRIVATE sd_fat)
 target_include_directories(inih PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/inih)
+
+add_subdirectory(${CMAKE_CURRENT_SOURCE_DIR}/no-OS-FatFS-SD-SDIO-SPI-Rpi-Pico/src)

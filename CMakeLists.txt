@@ -52,6 +52,9 @@ add_executable(${TARGET_NAME}
     src/wear_leveling/wear_leveling_rp2040_flash.c
 
     ext/fnv/hash_64a.c
+
+    src/usb/usb_descriptors.c
+    src/usb/msc_handler.c
 )
 
 target_compile_definitions(
@@ -61,6 +64,7 @@ target_compile_definitions(
 
 target_include_directories(${TARGET_NAME} PUBLIC
     ext/fnv
+    src/usb
 )
 
 target_link_libraries(${TARGET_NAME}
@@ -76,6 +80,9 @@ target_link_libraries(${TARGET_NAME}
         ps1_card
         ps2_card
         sd_fat
+
+  tinyusb_device
+  tinyusb_board
 )
 
 add_dependencies(${TARGET_NAME} gamedb)

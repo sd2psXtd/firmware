@@ -27,7 +27,8 @@ void settings_set_ps2_variant(int x);
 enum {
     MODE_PS1 = 0,
     MODE_PS2 = 1,
-    MODE_TEMP_PS1 = 2
+    MODE_TEMP_PS1 = 2,
+    MODE_USB = 3
 };
 
 enum {

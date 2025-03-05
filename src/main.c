@@ -1,4 +1,8 @@
+#include <stdint.h>
 #include <stdio.h>
+#include "bsp/board.h"
+#include "class/cdc/cdc_device.h"
+#include "device/usbd.h"
 #include "led.h"
 #include "pico/stdio.h"
 #include "pico/stdlib.h"
@@ -6,6 +10,7 @@
 #include "pico/multicore.h"
 #include "hardware/clocks.h"
 #include "hardware/structs/bus_ctrl.h"
+#include "tusb.h"
 
 #if WITH_GUI
 #include "oled.h"
@@ -45,8 +50,28 @@ static void check_bootloader_reset(void) {
         sleep_ms(1);
     }
 
-    if (input_is_down_raw(0) || input_is_down_raw(1))
+    if (input_is_down_raw(0))
         reset_usb_boot(0, 0);
+}
+bool usbMode = false;
+
+static void check_usb_device_mode(void) {
+
+    /* make sure at least DEBOUNCE interval passes or we won't get inputs */
+    for (int i = 0; i < 2 * DEBOUNCE_MS; ++i) {
+        input_task();
+        sleep_ms(1);
+    }
+
+    if (input_is_down_raw(1)) {
+        sd_block_init();
+        // Initialize TinyUSB stack
+        board_init();
+        tusb_init();
+        stdio_usb_init();
+        settings_set_mode(MODE_USB);
+
+    }
 }
 
 static void debug_task(void) {
@@ -146,6 +171,8 @@ int main() {
     clock_configure(clk_peri, 0, CLOCKS_CLK_PERI_CTRL_AUXSRC_VALUE_CLK_SYS, mhz * 1000000, mhz * 1000000);
 
 #if DEBUG_USB_UART
+    board_init();
+    tusb_init();
     stdio_usb_init();
 #else
     stdio_uart_init_full(UART_PERIPH, UART_BAUD, UART_TX, UART_RX);
@@ -168,12 +195,22 @@ int main() {
 #if WITH_LED
     led_init();
 #endif
+    check_usb_device_mode();
 
     while (1) {
-        if (settings_get_mode() == MODE_PS2) {
+        if (settings_get_mode() == MODE_USB) {
+            #if WITH_GUI
+                gui_init();
+            #endif
+            tud_task();
+            debug_task();
+            gui_task();
+            continue;
+        } else if (settings_get_mode() == MODE_PS2) {
             ps2_init();
             settings_load_sd();
             while (1) {
+                tud_task();
                 debug_task();
                 if (!ps2_task())
                     break;

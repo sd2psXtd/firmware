@@ -361,7 +361,9 @@ void settings_set_ps1_boot_channel(int chan) {
 }
 
 int settings_get_mode(void) {
-    if ((settings.sys_flags & SETTINGS_SYS_FLAGS_PS2_MODE) != tempmode)
+    if (tempmode == MODE_USB)
+        return MODE_USB;
+    else if ((settings.sys_flags & SETTINGS_SYS_FLAGS_PS2_MODE) != tempmode)
         return MODE_PS1;
     else
         return settings.sys_flags & SETTINGS_SYS_FLAGS_PS2_MODE;
@@ -371,6 +373,10 @@ void settings_set_mode(int mode) {
     if (mode == MODE_TEMP_PS1) {
         tempmode = MODE_TEMP_PS1;
         DPRINTF("Setting PS1 Tempmode\n");
+        return;
+    } else if (mode == MODE_USB) {
+        tempmode = MODE_USB;
+        DPRINTF("Setting USB Tempmode\n");
         return;
     } else if (mode != MODE_PS1 && mode != MODE_PS2)
         return;

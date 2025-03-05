@@ -68,3 +68,12 @@ int sd_fd_is_open(int fd);
 uint64_t sd_filesize64(int fd);
 int sd_seek64(int fd, int64_t offset, int whence);
 uint64_t sd_tell64(int fd);
+
+
+//------------------------------------- BLOCK ACCESS
+
+bool sd_block_init();
+int sd_block_getStatus(void);
+int sd_block_getSize(uint32_t* blockCount, uint16_t* blockSize);
+int sd_block_readBlock(uint32_t block, uint8_t* dst);
+int sd_block_writeBlock(uint32_t block, const uint8_t* src);
