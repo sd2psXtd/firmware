@@ -9,7 +9,7 @@
 #include "pico/multicore.h"
 
 #include "flashmap.h"
-#include "pico/platform.h"
+#include "pico.h"
 #include "sd.h"
 #include "settings.h"
 

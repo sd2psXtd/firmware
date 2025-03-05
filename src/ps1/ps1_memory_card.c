@@ -14,6 +14,8 @@
 #include "ps1/ps1_memory_card.h"
 #include "game_db/game_db.h"
 
+#include "hardware/structs/iobank0.h"
+
 static uint64_t us_startup;
 
 static size_t byte_count;
@@ -457,13 +459,14 @@ static gpio_irq_callback_t callbacks[NUM_CORES];
 
 static void __time_critical_func(RAM_gpio_acknowledge_irq)(uint gpio, uint32_t events) {
     check_gpio_param(gpio);
+
     iobank0_hw->intr[gpio / 8] = events << (4 * (gpio % 8));
 }
 
 static void __time_critical_func(RAM_gpio_default_irq_handler)(void) {
     uint core = get_core_num();
     gpio_irq_callback_t callback = callbacks[core];
-    io_irq_ctrl_hw_t *irq_ctrl_base = core ? &iobank0_hw->proc1_irq_ctrl : &iobank0_hw->proc0_irq_ctrl;
+    io_bank0_irq_ctrl_hw_t *irq_ctrl_base = core ? &iobank0_hw->proc1_irq_ctrl : &iobank0_hw->proc0_irq_ctrl;
     for (uint gpio = 0; gpio < NUM_BANK0_GPIOS; gpio+=8) {
         uint32_t events8 = irq_ctrl_base->ints[gpio >> 3u];
         // note we assume events8 is 0 for non-existent GPIO

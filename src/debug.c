@@ -8,7 +8,7 @@
 #if WITH_GUI
 #include "oled.h"
 #endif
-#include "pico/platform.h"
+#include "pico.h"
 
 const char *log_level_str[] = {
     " ",

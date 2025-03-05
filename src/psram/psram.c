@@ -1,5 +1,5 @@
 #include "config.h"
-#include "pico/platform.h"
+#include "pico.h"
 #include "psram.h"
 
 #include "pico/critical_section.h"
