@@ -394,14 +394,6 @@ static void __time_critical_func(mc_main_loop)(void) {
 
     while (1) {
         uint8_t ch = 0x00;
-
-        //while (!reset && !reset && !reset && !reset && !reset) {
-        //    if (mc_exit_request) {
-        //        mc_exit_response = 1;
-        //        return;
-        //    }
-        //}
-
         uint8_t received = recv_cmd(&ch);
 
         if (received == RECEIVE_EXIT) {
@@ -436,6 +428,8 @@ static void __time_critical_func(mc_main_loop)(void) {
             }
         } else if (0x01 == ch) {
             mc_read_controller();
+        } else if (0x21 == ch) {
+            ps1_mc_respond(0x00);
         } else {
             /* If the command sequence is not to be processed (e.g. unknown) or the are leftover bytes */
             while (recv_cmd(&ch) == RECEIVE_OK){
