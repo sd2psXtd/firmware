@@ -68,7 +68,7 @@ static uint32_t cardprog_pos;
 
 static ps2_cardman_state_t cardman_state;
 
-static enum { CARDMAN_CREATE, CARDMAN_OPEN, CARDMAN_IDLE } cardman_operation;
+static enum { CARDMAN_CREATE, CARDMAN_OPEN, CARDMAN_IDLE, CARDMAN_UNKNOWN } cardman_operation = CARDMAN_UNKNOWN;
 
 static bool try_set_boot_card() {
     if (!settings_get_ps2_autoboot())
@@ -808,8 +808,10 @@ bool __time_critical_func(ps2_cardman_is_accessible)(void) {
     // SD: / IDLE   => X
     // SD: / CREATE => X
     // SD: / OPEN   => X
-    if (ps2_mc_data_interface_get_sdmode())
-        return (cardman_operation == CARDMAN_IDLE);
+    if (cardman_operation == CARDMAN_UNKNOWN)
+        return false;
+    else if (ps2_mc_data_interface_get_sdmode())
+        return (cardman_operation != CARDMAN_CREATE);
     else
         return true;
 }
@@ -823,7 +825,7 @@ void ps2_cardman_init(void) {
     if (!try_set_boot_card())
         set_default_card();
 
-    cardman_operation = CARDMAN_IDLE;
+    cardman_operation = CARDMAN_UNKNOWN;
 }
 
 void ps2_cardman_task(void) {
