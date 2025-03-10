@@ -92,31 +92,22 @@ static void __time_critical_func(card_deselected)(uint gpio, uint32_t event_mask
         reset_pio();
 }
 
-static uint8_t __time_critical_func(recv_cmd)(uint8_t* cmd) {
-    while (pio_sm_is_rx_fifo_empty(pio0, cmd_reader.sm) && pio_sm_is_rx_fifo_empty(pio0, cmd_reader.sm))  {
+static uint8_t __time_critical_func(recv_cmd)(uint8_t* cmd, uint32_t sm) {
+    while (pio_sm_is_rx_fifo_empty(pio0, sm) && pio_sm_is_rx_fifo_empty(pio0, sm))  {
         if (mc_exit_request)
             return RECEIVE_EXIT;
         if (reset)
             return RECEIVE_RESET;
     }
-    *cmd = (pio_sm_get(pio0, cmd_reader.sm) >> 24);
+    *cmd = (pio_sm_get(pio0, sm) >> 24);
     return RECEIVE_OK;
 }
 
-
-static uint8_t __time_critical_func(recv_cntrl)(uint8_t* cmd) {
-    while (pio_sm_is_rx_fifo_empty(pio0, cntrl_reader.sm) && pio_sm_is_rx_fifo_empty(pio0, cntrl_reader.sm))  {
-        if (mc_exit_request)
-            return RECEIVE_EXIT;
-        if (reset)
-            return RECEIVE_RESET;
-    }
-    *cmd = (pio_sm_get(pio0, cntrl_reader.sm) >> 24);
-    return RECEIVE_OK;
-}
+#define recv_cntrl(cmd) recv_cmd(cmd, cntrl_reader.sm)
+#define recv_mc(cmd)    recv_cmd(cmd, cmd_reader.sm)
 
 #define receiveOrNextCmd(cmd)          \
-    if (recv_cmd(cmd) == RECEIVE_RESET) \
+    if (recv_cmd(cmd, cmd_reader.sm) == RECEIVE_RESET) \
     return;
 
 
@@ -139,7 +130,6 @@ static void __time_critical_func(ps1_mc_respond)(uint8_t ch) {
 
 static void __time_critical_func(mc_cmd_get_card_id)(void) {
     uint8_t _;
-    log(LOG_TRACE, "PS1:    Card ID\n");
     ps1_mc_respond(0x5A); receiveOrNextCmd(&_);
     ps1_mc_respond(0x5D); receiveOrNextCmd(&_);
     ps1_mc_respond(0x5C); receiveOrNextCmd(&_);
@@ -182,7 +172,6 @@ static void __time_critical_func(mc_cmd_read)(bool long_read) {
     ps1_mc_respond(0x5D);       receiveOrNextCmd(&_);
     ps1_mc_respond(page_msb);   receiveOrNextCmd(&_);
     page = (page_msb << 8) | page_lsb;
-    log(LOG_TRACE, "PS1:    Read page %u\n", page);
     ps1_mc_data_interface_setup_read_page(page);
     ps1_mc_respond(page_lsb);   receiveOrNextCmd(&_);
     do {
@@ -223,7 +212,6 @@ static void __time_critical_func(mc_cmd_write)(void) {
     uint8_t prev;
     uint8_t chk = 0;
     uint8_t _;
-    log(LOG_TRACE, "PS1:    Write command\n");
 
     flag = 0;
 
@@ -244,9 +232,9 @@ static void __time_critical_func(mc_cmd_write)(void) {
     ps1_mc_respond(0x5D);           receiveOrNextCmd(&_);
     if (in == chk) {
         ps1_mc_data_interface_write_mc((page_msb * 256) + page_lsb);
-        ps1_mc_respond(0x47);       //receiveOrNextCmd(&_);
+        ps1_mc_respond(0x47);
     } else {
-        ps1_mc_respond(0x4E);       //receiveOrNextCmd(&_);
+        ps1_mc_respond(0x4E);
     }
 }
 
@@ -344,12 +332,14 @@ static void __time_critical_func(mc_mmce_next_index)(void) {
  */
 static void mc_read_controller(void) {
     static uint8_t prevCommand = 0;
-    uint8_t controller_in[5];
+    uint8_t controller_in[2];
     uint8_t _ = 0x00;
     receiveOrNextCmd(&_);
     if (_ == (uint8_t)'B') {    // Only reactive to "read buttons" command
-
-        for (uint8_t i = 0; i < 5; i++) {
+        recv_cntrl(&_);
+        recv_cntrl(&_);
+        recv_cntrl(&_);
+        for (uint8_t i = 0; i < 2; i++) {
             recv_cntrl(&controller_in[i]);
         }
         #define HOTKEYS 0b00001111
@@ -359,24 +349,19 @@ static void mc_read_controller(void) {
         #define BTN_RGT 0b00100000
         #define IS_PRESSED(x,y) ((x&y) == 0)
 
-        if (IS_PRESSED(controller_in[4], HOTKEYS)) {
+        if (IS_PRESSED(controller_in[1], HOTKEYS)) {
             if (prevCommand == 0) {
-                if (IS_PRESSED(controller_in[3], BTN_UP)) {
-                    log(LOG_TRACE, "PS1:    Up pressed\n");
+                if (IS_PRESSED(controller_in[0], BTN_UP)) {
                     prevCommand = MCP_NXT_CARD;
-                } else if (IS_PRESSED(controller_in[3], BTN_DWN)) {
-                    log(LOG_TRACE, "PS1:    Down pressed\n");
+                } else if (IS_PRESSED(controller_in[0], BTN_DWN)) {
                     prevCommand = MCP_PRV_CARD;
-                } else if (IS_PRESSED(controller_in[3], BTN_LFT)) {
-                    log(LOG_TRACE, "PS1:    Left pressed\n");
+                } else if (IS_PRESSED(controller_in[0], BTN_LFT)) {
                     prevCommand = MCP_PRV_CH;
-                } else if (IS_PRESSED(controller_in[3], BTN_RGT)) {
-                    log(LOG_TRACE, "PS1:    Right pressed\n");
+                } else if (IS_PRESSED(controller_in[0], BTN_RGT)) {
                     prevCommand = MCP_NXT_CH;
                 }
             }
         } else if (prevCommand != 0){
-            log(LOG_TRACE, "PS1:    Previous command: %u\n", prevCommand);
             mc_pro_command = prevCommand;
             prevCommand = 0;
         }
@@ -394,7 +379,7 @@ static void __time_critical_func(mc_main_loop)(void) {
 
     while (1) {
         uint8_t ch = 0x00;
-        uint8_t received = recv_cmd(&ch);
+        uint8_t received = recv_mc(&ch);
 
         if (received == RECEIVE_EXIT) {
             mc_exit_response = 1;
@@ -406,10 +391,9 @@ static void __time_critical_func(mc_main_loop)(void) {
             continue;
         }
 
-
         if (0x81 == ch) { /* Command is for MC - process! */
             ps1_mc_respond(flag);
-            int ret = recv_cmd(&ch);
+            int ret = recv_mc(&ch);
             if (ret == RECEIVE_RESET)
                 continue;
 
@@ -424,7 +408,7 @@ static void __time_critical_func(mc_main_loop)(void) {
                 case 0x23: mc_mmce_next_channel(); break;
                 case 0x24: mc_mmce_prev_index(); break;
                 case 0x25: mc_mmce_next_index(); break;
-                default: log(LOG_WARN, "Unknown command: 0x%.02x\n", ch); break;
+                default: DPRINTF("Unknown command: 0x%.02x\n", ch); break;
             }
         } else if (0x01 == ch) {
             mc_read_controller();
@@ -432,7 +416,7 @@ static void __time_critical_func(mc_main_loop)(void) {
             ps1_mc_respond(0x00);
         } else {
             /* If the command sequence is not to be processed (e.g. unknown) or the are leftover bytes */
-            while (recv_cmd(&ch) == RECEIVE_OK){
+            while (recv_mc(&ch) == RECEIVE_OK){
                 tight_loop_contents();
             }
         }
