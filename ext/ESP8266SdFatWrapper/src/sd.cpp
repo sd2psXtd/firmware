@@ -12,7 +12,9 @@ extern "C" {
 
 #include <stdio.h>
 
-#define NUM_FILES 16
+#ifndef NUM_FILES
+    #define NUM_FILES 16
+#endif
 
 static SdFat sd;
 static File files[NUM_FILES + 1];

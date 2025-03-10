@@ -1,5 +1,5 @@
 
-add_library(sd_fat STATIC    
+add_library(sd_fat STATIC
             ${CMAKE_CURRENT_SOURCE_DIR}/ESP8266SdFat/src/common/FmtNumber.cpp
             ${CMAKE_CURRENT_SOURCE_DIR}/ESP8266SdFat/src/common/FsCache.cpp
             ${CMAKE_CURRENT_SOURCE_DIR}/ESP8266SdFat/src/common/FsDateTime.cpp
@@ -39,20 +39,26 @@ add_library(sd_fat STATIC
             ${CMAKE_CURRENT_SOURCE_DIR}/ESP8266SdFatWrapper/src/SPI.cpp
 )
 
-target_include_directories(sd_fat 
+target_include_directories(sd_fat
                         PRIVATE
                             ${CMAKE_CURRENT_SOURCE_DIR}/ESP8266SdFatWrapper/src
-                        PUBLIC 
+                        PUBLIC
                             ${CMAKE_CURRENT_SOURCE_DIR}/ESP8266SdFatWrapper/include
                             ${CMAKE_CURRENT_SOURCE_DIR}/ESP8266SdFat/src
                             ${CMAKE_CURRENT_SOURCE_DIR}/ESP8266SdFat/extras/attic)
 
-target_link_libraries(sd_fat 
-        PUBLIC 
+target_link_libraries(sd_fat
+        PUBLIC
             pico_stdlib
             hardware_spi)
 
 target_link_libraries(sd_fat PRIVATE sd2psx_common)
+
+if (WITH_PSRAM)
+    target_compile_definitions(sd_fat PRIVATE NUM_FILES=16)
+else()
+    target_compile_definitions(sd_fat PRIVATE NUM_FILES=8)
+endif()
 
 
 add_library(ssd1306 STATIC ${CMAKE_CURRENT_SOURCE_DIR}/ssd1306/ssd1306.c)
