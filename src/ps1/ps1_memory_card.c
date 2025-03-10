@@ -16,7 +16,6 @@
 
 static uint64_t us_startup;
 
-static size_t byte_count;
 #if LOG_LEVEL_PS1_MC == 0
     #define log(x...)
 #else
@@ -346,43 +345,48 @@ static void __time_critical_func(mc_mmce_next_index)(void) {
 static void mc_read_controller(void) {
     static uint8_t prevCommand = 0;
     uint8_t controller_in[5];
-    uint8_t _;
-    for (uint8_t i = 0; i < 5; i++) {
-        recv_cntrl(&controller_in[i]);
-    }
-    #define HOTKEYS 0b00001111
-    #define BTN_UP  0b00010000
-    #define BTN_DWN 0b01000000
-    #define BTN_LFT 0b10000000
-    #define BTN_RGT 0b00100000
-    #define IS_PRESSED(x,y) ((x&y) == 0)
+    uint8_t _ = 0x00;
+    receiveOrNextCmd(&_);
+    if (_ == (uint8_t)'B') {    // Only reactive to "read buttons" command
 
-    if (IS_PRESSED(controller_in[4], HOTKEYS)) {
-        if (prevCommand == 0) {
-            if (IS_PRESSED(controller_in[3], BTN_UP)) {
-                log(LOG_TRACE, "PS1:    Up pressed\n");
-                prevCommand = MCP_NXT_CARD;
-            } else if (IS_PRESSED(controller_in[3], BTN_DWN)) {
-                log(LOG_TRACE, "PS1:    Down pressed\n");
-                prevCommand = MCP_PRV_CARD;
-            } else if (IS_PRESSED(controller_in[3], BTN_LFT)) {
-                log(LOG_TRACE, "PS1:    Left pressed\n");
-                prevCommand = MCP_PRV_CH;
-            } else if (IS_PRESSED(controller_in[3], BTN_RGT)) {
-                log(LOG_TRACE, "PS1:    Right pressed\n");
-                prevCommand = MCP_NXT_CH;
-            }
+        for (uint8_t i = 0; i < 5; i++) {
+            recv_cntrl(&controller_in[i]);
         }
-    } else if (prevCommand != 0){
-        log(LOG_TRACE, "PS1:    Previous command: %u\n", prevCommand);
-        mc_pro_command = prevCommand;
-        prevCommand = 0;
+        #define HOTKEYS 0b00001111
+        #define BTN_UP  0b00010000
+        #define BTN_DWN 0b01000000
+        #define BTN_LFT 0b10000000
+        #define BTN_RGT 0b00100000
+        #define IS_PRESSED(x,y) ((x&y) == 0)
+
+        if (IS_PRESSED(controller_in[4], HOTKEYS)) {
+            if (prevCommand == 0) {
+                if (IS_PRESSED(controller_in[3], BTN_UP)) {
+                    log(LOG_TRACE, "PS1:    Up pressed\n");
+                    prevCommand = MCP_NXT_CARD;
+                } else if (IS_PRESSED(controller_in[3], BTN_DWN)) {
+                    log(LOG_TRACE, "PS1:    Down pressed\n");
+                    prevCommand = MCP_PRV_CARD;
+                } else if (IS_PRESSED(controller_in[3], BTN_LFT)) {
+                    log(LOG_TRACE, "PS1:    Left pressed\n");
+                    prevCommand = MCP_PRV_CH;
+                } else if (IS_PRESSED(controller_in[3], BTN_RGT)) {
+                    log(LOG_TRACE, "PS1:    Right pressed\n");
+                    prevCommand = MCP_NXT_CH;
+                }
+            }
+        } else if (prevCommand != 0){
+            log(LOG_TRACE, "PS1:    Previous command: %u\n", prevCommand);
+            mc_pro_command = prevCommand;
+            prevCommand = 0;
+        }
+
+        while (true) {
+            receiveOrNextCmd(&_);
+            recv_cntrl(&_);
+        }
     }
 
-    while (true) {
-        receiveOrNextCmd(&_);
-        recv_cntrl(&_);
-    }
 }
 
 static void __time_critical_func(mc_main_loop)(void) {
