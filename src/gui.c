@@ -434,15 +434,21 @@ void evt_menu_page(lv_event_t *event) {
     }
 }
 
-static void update_ps2_main_header(void) {
-    if (!ps2_magicgate)
-        lv_label_set_text(main_header, "PS2: No CIV!");
-    else if (PS2_VARIANT_RETAIL == settings_get_ps2_variant())
-        lv_label_set_text(main_header, "PS2 Memory Card");
-    else if (PS2_VARIANT_PROTO == settings_get_ps2_variant())
-        lv_label_set_text(main_header, "Prototype Card");
-    else if (PS2_VARIANT_COH == settings_get_ps2_variant())
-        lv_label_set_text(main_header, "Security Dongle");
+static void update_main_header(void) {
+    if (settings_get_mode() == MODE_PS1) {
+        lv_label_set_text(main_header, "PS1 Memory Card");
+    } else if (settings_get_mode() == MODE_PS2){
+        if (!ps2_magicgate)
+            lv_label_set_text(main_header, "PS2: No CIV!");
+        else if (PS2_VARIANT_RETAIL == settings_get_ps2_variant())
+            lv_label_set_text(main_header, "PS2 Memory Card");
+        else if (PS2_VARIANT_PROTO == settings_get_ps2_variant())
+            lv_label_set_text(main_header, "Prototype Card");
+        else if (PS2_VARIANT_COH == settings_get_ps2_variant())
+            lv_label_set_text(main_header, "Security Dongle");
+    } else {
+        lv_label_set_text(main_header, "USB Mode");
+    }
 }
 
 static void evt_go_back(lv_event_t *event) {
@@ -530,7 +536,7 @@ static void evt_switch_variant(lv_event_t *event) {
 
     ps2_cardman_set_variant(variant);
 
-    update_ps2_main_header();
+    update_main_header();
 
     {
         if (settings_get_ps2_variant() == PS2_VARIANT_RETAIL)
@@ -556,7 +562,7 @@ static void evt_switch_to_ps2(lv_event_t *event) {
     gui_request_refresh();
     keystore_init();
 
-    update_ps2_main_header();
+    update_main_header();
 
     /* start at the main screen */
     UI_GOTO_SCREEN(scr_main);
@@ -589,11 +595,7 @@ static void create_main_screen(void) {
     scr_main = ui_scr_create();
     lv_obj_add_event_cb(scr_main, evt_scr_main, LV_EVENT_ALL, NULL);
     main_header = ui_header_create(scr_main, "");
-    if (settings_get_mode() == MODE_PS1) {
-        lv_label_set_text(main_header, "PS1 Memory Card");
-    } else {
-        update_ps2_main_header();
-    }
+    update_main_header();
 
     ui_label_create_at(scr_main, 0, 24, "Card");
 
@@ -1178,7 +1180,7 @@ void gui_task(void) {
         }
         refresh_gui = false;
         update_activity();
-    } else {
+    } else if (settings_get_mode() == MODE_PS2){
         static int displayed_card_idx = -1;
         static int displayed_card_channel = -1;
         static ps2_cardman_state_t cardman_state = PS2_CM_STATE_NORMAL;
@@ -1191,7 +1193,7 @@ void gui_task(void) {
             displayed_card_channel = ps2_cardman_get_channel();
             folder_name = ps2_cardman_get_folder_name();
             cardman_state = ps2_cardman_get_state();
-            update_ps2_main_header();
+            update_main_header();
             memset(card_name, 0, sizeof(card_name));
 
             switch (cardman_state) {
@@ -1244,6 +1246,8 @@ void gui_task(void) {
         }
 
         update_activity();
+    } else {
+
     }
 
     gui_tick();
