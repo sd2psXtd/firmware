@@ -14,7 +14,7 @@
 #include "ps1_cardman.h"
 #include "ps1_dirty.h"
 #include "ps1_memory_card.h"
-#include "ps1_odeman.h"
+#include "ps1_mmce.h"
 
 
 void ps1_init() {
@@ -42,7 +42,7 @@ void ps1_init() {
 }
 
 bool ps1_task() {
-    ps1_odeman_task();
+    ps1_mmce_task();
     ps1_dirty_task();
 
 #if WITH_GUI

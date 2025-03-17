@@ -3,7 +3,7 @@
 #include "pico/time.h"
 #include "ps1_memory_card.h"
 #include "ps1_cardman.h"
-#include "ps1_odeman.h"
+#include "ps1_mmce.h"
 #include "debug.h"
 #include "game_db/game_db.h"
 
@@ -26,7 +26,7 @@ static uint64_t mmce_switching_timeout = 0;
 static char received_game_id[MAX_GAME_ID_LENGTH];
 
 
-void ps1_odeman_task(void) {
+void ps1_mmce_task(void) {
     if (mmce_command != 0U) {
 
         switch (mmce_command) {

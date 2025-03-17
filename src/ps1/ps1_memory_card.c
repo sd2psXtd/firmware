@@ -4,7 +4,7 @@
 #include "pico/platform.h"
 #include "pico/multicore.h"
 #include "ps1_mc_data_interface.h"
-#include "ps1_odeman.h"
+#include "ps1_mmce.h"
 #include "string.h"
 #include <stdbool.h>
 #include <stdint.h>
