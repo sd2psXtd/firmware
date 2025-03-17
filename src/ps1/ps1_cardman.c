@@ -35,6 +35,7 @@ static int card_idx;
 static int card_chan;
 static char folder_name[MAX_FOLDER_NAME_LENGTH];
 static ps1_cardman_state_t cardman_state;
+static bool needs_update;
 
 static bool try_set_boot_card() {
     if (!settings_get_ps1_autoboot())
@@ -168,6 +169,7 @@ void ps1_cardman_open(void) {
     char path[96];
     sd_init();
     ensuredirs();
+    needs_update = false;
 
     switch (cardman_state) {
         case PS1_CM_STATE_BOOT:
@@ -259,6 +261,10 @@ void ps1_cardman_open(void) {
     }
 }
 
+bool ps1_cardman_needs_update(void) {
+    return needs_update;
+}
+
 void ps1_cardman_close(void) {
     if (fd < 0)
         return;
@@ -279,6 +285,8 @@ void ps1_cardman_next_channel(void) {
                 card_chan = CHAN_MIN;
             break;
     }
+
+    needs_update = true;
 }
 
 void ps1_cardman_prev_channel(void) {
@@ -294,6 +302,7 @@ void ps1_cardman_prev_channel(void) {
                 card_chan = max_chan;
             break;
     }
+    needs_update = true;
 }
 
 void ps1_cardman_next_idx(void) {
@@ -317,6 +326,7 @@ void ps1_cardman_next_idx(void) {
             snprintf(folder_name, sizeof(folder_name), "Card%d", card_idx);
             break;
     }
+    needs_update = true;
 }
 
 void ps1_cardman_prev_idx(void) {
@@ -342,6 +352,7 @@ void ps1_cardman_prev_idx(void) {
             }
             break;
     }
+    needs_update = true;
 }
 
 int ps1_cardman_get_idx(void) {
@@ -352,9 +363,23 @@ int ps1_cardman_get_channel(void) {
     return card_chan;
 }
 
-void ps1_cardman_set_ode_idx(void) {
-    if ((!try_set_game_id_card())) {
-        set_default_card();
+void ps1_cardman_set_game_id(const char* card_game_id) {
+    if (!settings_get_ps1_game_id())
+        return;
+
+    char new_folder_name[MAX_FOLDER_NAME_LENGTH] = {};
+    if (card_game_id[0]) {
+        card_config_get_card_folder(card_game_id, new_folder_name, sizeof(new_folder_name));
+        if (new_folder_name[0] == 0x00)
+            snprintf(new_folder_name, sizeof(new_folder_name), "%s", card_game_id);
+        //log(LOG_TRACE, "Folder: %s\n", new_folder_name);
+        if ((strcmp(new_folder_name, folder_name) != 0) || (PS1_CM_STATE_GAMEID != cardman_state)) {
+            card_idx = PS1_CARD_IDX_SPECIAL;
+            cardman_state = PS1_CM_STATE_GAMEID;
+            card_chan = CHAN_MIN;
+            memcpy(folder_name, new_folder_name, sizeof(folder_name));
+            needs_update = true;
+        }
     }
 }
 

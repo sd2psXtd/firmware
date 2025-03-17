@@ -4,6 +4,7 @@
 #include "pico/platform.h"
 #include "pico/multicore.h"
 #include "ps1_mc_data_interface.h"
+#include "ps1_odeman.h"
 #include "string.h"
 #include <stdbool.h>
 #include <stdint.h>
@@ -27,10 +28,6 @@ static uint64_t us_startup;
 static volatile int reset;
 static uint8_t flag;
 static uint8_t* curr_page = NULL;
-
-static char received_game_id[0x10];
-static volatile uint8_t mc_pro_command;
-
 
 typedef struct {
     uint32_t offset;
@@ -248,7 +245,8 @@ static void __time_critical_func(mc_mmce_ping)(void) {
 
 static void __time_critical_func(mc_mmce_set_game_id)(void) {
     uint8_t length = 0;
-    uint8_t game_id[256] = {0};
+    uint8_t game_id[UINT8_MAX] = {0};
+    char received_game_id[16];
     uint8_t prev = 0;
     uint8_t _;
     memset(received_game_id, 0, sizeof(received_game_id));
@@ -260,10 +258,12 @@ static void __time_critical_func(mc_mmce_set_game_id)(void) {
         ps1_mc_respond(prev);   receiveOrNextCmd(&game_id[i]);
         prev = game_id[i];
     }
+    /*
     game_db_extract_title_id(game_id, received_game_id, length, sizeof(received_game_id));
     if (!game_db_sanity_check_title_id(received_game_id))
         memset(received_game_id, 0, sizeof(received_game_id));
-    mc_pro_command = MCP_GAME_ID;
+    mc_pro_command = MCP_GAME_ID;*/
+    ps1_mmce_set_gameid(game_id);
 }
 
 static void __time_critical_func(mc_mmce_prev_channel)(void) {
@@ -272,7 +272,7 @@ static void __time_critical_func(mc_mmce_prev_channel)(void) {
     ps1_mc_respond(0x00);   receiveOrNextCmd(&_);
     ps1_mc_respond(0x20);   receiveOrNextCmd(&_);
     ps1_mc_respond(0xFF);   receiveOrNextCmd(&_);
-    mc_pro_command = MCP_PRV_CH;
+    ps1_mmce_prev_ch(false);
 }
 
 static void __time_critical_func(mc_mmce_next_channel)(void) {
@@ -281,7 +281,7 @@ static void __time_critical_func(mc_mmce_next_channel)(void) {
     ps1_mc_respond(0x00);   receiveOrNextCmd(&_);
     ps1_mc_respond(0x20);   receiveOrNextCmd(&_);
     ps1_mc_respond(0xFF);   receiveOrNextCmd(&_);
-    mc_pro_command = MCP_NXT_CH;
+    ps1_mmce_next_ch(false);
 }
 
 static void __time_critical_func(mc_mmce_prev_index)(void) {
@@ -290,7 +290,7 @@ static void __time_critical_func(mc_mmce_prev_index)(void) {
     ps1_mc_respond(0x00);   receiveOrNextCmd(&_);
     ps1_mc_respond(0x20);   receiveOrNextCmd(&_);
     ps1_mc_respond(0xFF);   receiveOrNextCmd(&_);
-    mc_pro_command = MCP_PRV_CARD;
+    ps1_mmce_prev_idx(false);
 }
 
 static void __time_critical_func(mc_mmce_next_index)(void) {
@@ -299,7 +299,7 @@ static void __time_critical_func(mc_mmce_next_index)(void) {
     ps1_mc_respond(0x00);   receiveOrNextCmd(&_);
     ps1_mc_respond(0x20);   receiveOrNextCmd(&_);
     ps1_mc_respond(0xFF);   receiveOrNextCmd(&_);
-    mc_pro_command = MCP_NXT_CARD;
+    ps1_mmce_next_idx(false);
 }
 
 /**
@@ -362,7 +362,20 @@ static void mc_read_controller(void) {
                 }
             }
         } else if (prevCommand != 0){
-            mc_pro_command = prevCommand;
+            switch (prevCommand) {
+                case MCP_NXT_CARD:
+                    ps1_mmce_next_idx(false);
+                    break;
+                case MCP_PRV_CARD:
+                    ps1_mmce_prev_idx(false);
+                    break;
+                case MCP_NXT_CH:
+                    ps1_mmce_next_ch(false);
+                    break;
+                case MCP_PRV_CH:
+                    ps1_mmce_prev_ch(false);
+                    break;
+            }
             prevCommand = 0;
         }
 
@@ -519,19 +532,6 @@ void ps1_memory_card_enter(void) {
     {}
     mc_enter_request = mc_enter_response = 0;
     memcard_running = 1;
-    mc_pro_command = 0;
-}
-
-void ps1_memory_card_reset_ode_command(void) {
-    mc_pro_command = 0;
-}
-
-uint8_t ps1_memory_card_get_ode_command(void) {
-    return mc_pro_command;
-}
-
-const char* ps1_memory_card_get_game_id(void) {
-    return received_game_id;
 }
 
 void ps1_memory_card_unload(void) {

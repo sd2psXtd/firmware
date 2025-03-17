@@ -2,6 +2,7 @@
 
 #include <debug.h>
 #include <game_db/game_db.h>
+#include <ps1/ps1_odeman.h>
 #include <ps2/card_emu/ps2_mc_data_interface.h>
 #include <ps2/mmceman/ps2_mmceman.h>
 #include <ps2/history_tracker/ps2_history_tracker.h>
@@ -332,23 +333,12 @@ static void evt_scr_main(lv_event_t *event) {
         // TODO: if there was a card op recently (1s timeout?), should refuse to switch
         // TODO: ps1 support here
         if (key == INPUT_KEY_PREV || key == INPUT_KEY_NEXT || key == INPUT_KEY_BACK || key == INPUT_KEY_ENTER) {
-            uint8_t prevChannel, prevIdx;
             if (settings_get_mode() == MODE_PS1) {
-                ps1_cardman_state_t prevState = ps1_cardman_get_state();
-                prevChannel = ps1_cardman_get_channel();
-                prevIdx = ps1_cardman_get_idx();
-
                 switch (key) {
-                    case INPUT_KEY_PREV: ps1_cardman_prev_channel(); break;
-                    case INPUT_KEY_NEXT: ps1_cardman_next_channel(); break;
-                    case INPUT_KEY_BACK: ps1_cardman_prev_idx(); break;
-                    case INPUT_KEY_ENTER: ps1_cardman_next_idx(); break;
-                }
-                if ((prevChannel != ps1_cardman_get_channel()) || (prevIdx != ps1_cardman_get_idx()) || (prevState != ps1_cardman_get_state())) {
-                    ps1_memory_card_exit();
-                    ps1_cardman_close();
-                    switching_card = 1;
-                    log(LOG_INFO, "new PS1 card=%d chan=%d\n", ps1_cardman_get_idx(), ps1_cardman_get_channel());
+                    case INPUT_KEY_PREV: ps1_mmce_prev_ch(true); break;
+                    case INPUT_KEY_NEXT: ps1_mmce_next_ch(true); break;
+                    case INPUT_KEY_BACK: ps1_mmce_prev_idx(true); break;
+                    case INPUT_KEY_ENTER: ps1_mmce_next_idx(true); break;
                 }
             } else {
                 switch (key) {
