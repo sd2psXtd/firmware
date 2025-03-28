@@ -28,6 +28,7 @@ static uint64_t us_startup;
 static volatile int reset;
 static uint8_t flag;
 static uint8_t* curr_page = NULL;
+static bool ps2_multitap = false;
 
 typedef struct {
     uint32_t offset;
