@@ -145,6 +145,7 @@ endif()
 set_target_properties(sd2psx_common PROPERTIES PICO_TARGET_LINKER_SCRIPT ${CMAKE_SOURCE_DIR}/memmap_custom.ld)
 
 pico_add_extra_outputs(${TARGET_NAME})
+set_property(TARGET ${TARGET_NAME} APPEND_STRING PROPERTY LINK_FLAGS "-Wl,--print-memory-usage")
 
 
 
