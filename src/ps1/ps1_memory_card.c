@@ -425,13 +425,14 @@ static void __time_critical_func(mc_main_loop)(void) {
             }
         } else if (0x01 == ch) {
             mc_read_controller();
-        } else if (0x21 == ch) {
+        } else if ((0x21 == ch) && !ps2_multitap) {
             ps1_mc_respond(0x00);
-        } else {
-            /* If the command sequence is not to be processed (e.g. unknown) or the are leftover bytes */
-            while (recv_mc(&ch) == RECEIVE_OK){
-                tight_loop_contents();
+            if ((recv_mc(&ch) != RECEIVE_RESET)
+                && (ch == 0x21)) {      // PS2 multitap is also sending 0x21 as configuration command
+                ps2_multitap = true;
             }
+
+        } else {
         }
 
     }
