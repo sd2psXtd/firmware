@@ -382,6 +382,11 @@ void ps1_cardman_set_game_id(const char* card_game_id) {
         }
     }
 }
+//TEMP
+void ps1_cardman_switch_bootcard(void) {
+    if (try_set_boot_card())
+        needs_update = true;
+}
 
 const char* ps1_cardman_get_folder_name(void) {
     return folder_name;

@@ -259,11 +259,7 @@ static void __time_critical_func(mc_mmce_set_game_id)(void) {
         ps1_mc_respond(prev);   receiveOrNextCmd(&game_id[i]);
         prev = game_id[i];
     }
-    /*
-    game_db_extract_title_id(game_id, received_game_id, length, sizeof(received_game_id));
-    if (!game_db_sanity_check_title_id(received_game_id))
-        memset(received_game_id, 0, sizeof(received_game_id));
-    mc_pro_command = MCP_GAME_ID;*/
+
     ps1_mmce_set_gameid(game_id);
 }
 
@@ -348,6 +344,7 @@ static void mc_read_controller(void) {
         #define BTN_DWN 0b01000000
         #define BTN_LFT 0b10000000
         #define BTN_RGT 0b00100000
+        #define BTN_SEL 0b00000001
         #define IS_PRESSED(x,y) ((x&y) == 0)
 
         if (IS_PRESSED(controller_in[1], HOTKEYS)) {
@@ -360,6 +357,8 @@ static void mc_read_controller(void) {
                     prevCommand = MCP_PRV_CH;
                 } else if (IS_PRESSED(controller_in[0], BTN_RGT)) {
                     prevCommand = MCP_NXT_CH;
+                } else if (IS_PRESSED(controller_in[0], BTN_SEL)) {
+                    prevCommand = MCP_SWITCH_BOOTCARD;
                 }
             }
         } else if (prevCommand != 0){
@@ -375,6 +374,9 @@ static void mc_read_controller(void) {
                     break;
                 case MCP_PRV_CH:
                     ps1_mmce_prev_ch(false);
+                    break;
+                case MCP_SWITCH_BOOTCARD:
+                    ps1_mmce_switch_bootcard(false);
                     break;
             }
             prevCommand = 0;

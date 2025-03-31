@@ -52,6 +52,10 @@ void ps1_mmce_task(void) {
                 DPRINTF("Received prev chan.\n");
                 ps1_cardman_prev_channel();
                 break;
+            case MCP_SWITCH_BOOTCARD:
+                DPRINTF("Received switch boot card.\n");
+                ps1_cardman_switch_bootcard();
+                break;
             default:
                 DPRINTF("Invalid ODE Command received.");
                 break;
@@ -115,4 +119,9 @@ void ps1_mmce_next_idx(bool delay) {
 void ps1_mmce_prev_idx(bool delay) {
     mmce_switching_timeout = time_us_64() + (delay ? 1500 * 1000 : 0);
     mmce_command = MCP_PRV_CARD;
+}
+
+void ps1_mmce_switch_bootcard(bool delay) {
+    mmce_switching_timeout = time_us_64() + (delay ? 1500 * 1000 : 0);
+    mmce_command = MCP_SWITCH_BOOTCARD;
 }
