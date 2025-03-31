@@ -106,8 +106,8 @@ static uint8_t __time_critical_func(recv_cmd)(uint8_t* cmd, uint32_t sm) {
 
 #define receiveOrNextCmd(cmd)          \
     if (recv_cmd(cmd, cmd_reader.sm) == RECEIVE_RESET) \
-    return;
-
+    {/*DPRINTF("Reset at %s:%u\n", __func__, __LINE__);*/ \
+    return;}
 
 static void __time_critical_func(ps1_mc_respond)(uint8_t ch) {
     pio_sm_put_blocking(pio0, dat_writer.sm, ~ch & 0xFF);
@@ -393,6 +393,9 @@ static void __time_critical_func(mc_main_loop)(void) {
 
     while (1) {
         uint8_t ch = 0x00;
+
+        while (!reset) {}
+        reset = 0;
         uint8_t received = recv_mc(&ch);
 
         if (received == RECEIVE_EXIT) {
@@ -401,7 +404,6 @@ static void __time_critical_func(mc_main_loop)(void) {
         }
         /* If this ch belongs to the next command sequence */
         if (received == RECEIVE_RESET) {
-            reset = 0;
             continue;
         }
 
