@@ -437,7 +437,7 @@ static void __time_critical_func(mc_main_loop)(void) {
                 continue;
 
             if (0x53 == ch) {
-                ps1_mc_respond(0xF0);
+                ps1_mc_respond(0x0F);
             } else if (ch == 0x21) {      // PS2 multitap is also sending 0x21 as configuration command
                 ps2_multitap = true;
             }
