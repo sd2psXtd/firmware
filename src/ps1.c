@@ -8,7 +8,10 @@
 
 #if WITH_GUI
 #include "gui.h"
+#include "input.h"
 #include "oled.h"
+#elif PMC_BUTTONS
+#include "input.h"
 #endif
 #include "ps1.h"
 #include "ps1_cardman.h"
@@ -16,6 +19,28 @@
 #include "ps1_memory_card.h"
 #include "ps1_mmce.h"
 
+
+#ifdef PMC_BUTTONS
+static void ps1_update_buttons(void) {
+    int button = input_get_pressed();
+    switch (button) {
+        case INPUT_KEY_BACK:
+            ps1_mmce_prev_idx(false);
+            printf("prev idx\n");
+            break;
+        case INPUT_KEY_NEXT:
+            ps1_mmce_next_idx(false);
+            printf("next idx\n");
+            break;
+        case INPUT_KEY_BOOT:
+            ps1_mmce_switch_bootcard(false);
+            printf("switch bootcard\n");
+            break;
+        default:
+            break;
+    }
+}
+#endif
 
 void ps1_init() {
     printf("starting in PS1 mode\n");
@@ -49,6 +74,9 @@ bool ps1_task() {
     gui_task();
     input_task();
     oled_task();
+#elif PMC_BUTTONS
+    input_task();
+    ps1_update_buttons();
 #endif
 #if WITH_LED
     led_task();

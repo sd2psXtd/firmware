@@ -15,6 +15,12 @@
 #define HOLD_START_MS 250
 #define HOLD_END_MS 500
 
+#ifdef PMC_BUTTONS
+    #define BTN_CNT 3
+#else
+    #define BTN_CNT 2
+#endif
+
 typedef struct {
     uint8_t pin;
     uint8_t raw;
@@ -24,9 +30,12 @@ typedef struct {
     uint8_t suppressed;
 } btn_t;
 
-static btn_t buttons[2] = {
+static btn_t buttons[BTN_CNT] = {
     { .pin = PIN_BTN_LEFT },
-    { .pin = PIN_BTN_RIGHT }
+    { .pin = PIN_BTN_RIGHT },
+#ifdef PMC_BUTTONS
+    { .pin = PIN_BTN_BOOT }
+#endif
 };
 
 static int last_pressed;
@@ -35,8 +44,12 @@ static void input_scan(void) {
     static uint64_t debounce_start;
     static int debounce;
 
-    for (int i = 0; i < 2; ++i) {
+    for (int i = 0; i < BTN_CNT; ++i) {
+#ifndef PMC_BUTTONS
         int state = !gpio_get(buttons[i].pin);
+#else
+        int state =!gpio_get(buttons[i].pin);
+#endif
         /* restart debounce if the pin state changed */
         if (buttons[i].raw != state) {
             debounce = 1;
@@ -58,7 +71,7 @@ static void input_scan(void) {
         }
 #endif
 
-        for (int i = 0; i < 2; ++i)
+        for (int i = 0; i < BTN_CNT; ++i)
             buttons[i].state = buttons[i].raw;
     }
 }
@@ -67,7 +80,7 @@ static void input_process(void) {
     uint64_t timer = time_us_64();
 
     /* if the button got held down during this update, start tracking the hold start timer for it */
-    for (int i = 0; i < 2; ++i)
+    for (int i = 0; i < BTN_CNT; ++i)
         if (buttons[i].state && !buttons[i].prev_state)
             buttons[i].hold_start = timer;
 
@@ -79,7 +92,7 @@ static void input_process(void) {
         }
     }
 
-    for (int i = 0; i < 2; ++i) {
+    for (int i = 0; i < BTN_CNT; ++i) {
         if (!buttons[i].suppressed) {
             uint64_t diff = timer - buttons[i].hold_start;
 
@@ -88,22 +101,25 @@ static void input_process(void) {
                 if (diff > HOLD_END_MS * 1000) {
                     if (i == 0)
                         last_pressed = INPUT_KEY_BACK;
-                    else
+                    else if (i == 1)
                         last_pressed = INPUT_KEY_ENTER;
+                    else
+                        last_pressed = INPUT_KEY_BOOT;
                     buttons[i].suppressed = 1;
                 }
             }
-
+#ifndef PMC_BUTTONS
             /* if the button was released faster than HOLD_START_MS it's a press */
             if (!buttons[i].state && buttons[i].prev_state) {
                 if (diff < HOLD_START_MS * 1000) {
                     last_pressed = (i == 0) ? INPUT_KEY_PREV : INPUT_KEY_NEXT;
                 }
             }
+#endif
         }
-        }
+    }
 
-    for (int i = 0; i < 2; ++i) {
+    for (int i = 0; i < BTN_CNT; ++i) {
         buttons[i].prev_state = buttons[i].state;
         /* un-suppress buttons that get released */
         if (!buttons[i].state)
@@ -118,7 +134,7 @@ void input_update_display(lv_obj_t *line) {
 
     uint64_t timer = time_us_64();
 
-    for (int i = 0; i < 2; ++i) {
+    for (int i = 0; i < BTN_CNT; ++i) {
         if (!buttons[i].suppressed && buttons[i].state) {
             uint64_t diff = timer - buttons[i].hold_start;
             if (diff > HOLD_START_MS * 1000) {
@@ -141,7 +157,7 @@ void input_update_display(lv_obj_t *line) {
 #endif
 
 void input_flip(void) {
-    for (int i = 0; i < 2; ++i) {
+    for (int i = 0; i < BTN_CNT; ++i) {
         buttons[i].pin = (buttons[i].pin == PIN_BTN_LEFT) ? PIN_BTN_RIGHT : PIN_BTN_LEFT;
     }
 }
@@ -149,8 +165,15 @@ void input_flip(void) {
 void input_init(void) {
     gpio_set_dir(PIN_BTN_LEFT, 0);
     gpio_set_dir(PIN_BTN_RIGHT, 0);
+#ifndef PMC_BUTTONS
     gpio_pull_up(PIN_BTN_LEFT);
     gpio_pull_up(PIN_BTN_RIGHT);
+#else
+    gpio_set_dir(PIN_BTN_BOOT, 0);
+    gpio_pull_down(PIN_BTN_LEFT);
+    gpio_pull_down(PIN_BTN_RIGHT);
+    gpio_pull_down(PIN_BTN_BOOT);
+#endif
 }
 
 void input_task(void) {
@@ -173,5 +196,9 @@ int input_is_down_raw(int idx) {
 }
 
 int input_is_any_down(void) {
-    return buttons[0].state || buttons[1].state;
+    return buttons[0].state || buttons[1].state
+        #ifdef PMC_BUTTONS
+        || buttons[2].state;
+        #endif
+        ;
 }

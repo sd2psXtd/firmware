@@ -21,4 +21,5 @@ enum {
     INPUT_KEY_ENTER = 52,
     INPUT_KEY_BACK = 53,
     INPUT_KEY_MENU = 54,
+    INPUT_KEY_BOOT = 55
 };

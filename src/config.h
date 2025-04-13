@@ -6,6 +6,9 @@
 #ifndef PIN_BTN_RIGHT
     #define PIN_BTN_RIGHT 21
 #endif
+#ifndef PIN_BTN_BOOT
+    #define PIN_BTN_BOOT 11
+#endif
 
 // SD2PSX
 #ifndef UART_TX
