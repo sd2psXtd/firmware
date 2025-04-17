@@ -33,17 +33,15 @@ void ps1_init() {
     uint64_t start = time_us_64();
 #if WITH_GUI
     gui_do_ps1_card_switch();
-#else
+#endif
     ps1_cardman_open();
     ps1_memory_card_enter();
-#endif
     uint64_t end = time_us_64();
     printf("DONE! (%d us)\n", (int)(end - start));
 }
 
 bool ps1_task() {
     ps1_mmce_task();
-    ps1_dirty_task();
 
 #if WITH_GUI
     gui_task();
