@@ -109,4 +109,13 @@ bool ps1_mc_data_interface_write_occured(void) {
 
 void ps1_mc_data_interface_task(void) {
     write_occured = false;
+
+    ps1_dirty_task();
+}
+
+void ps1_mc_data_interface_flush(void) {
+    while ( ps1_dirty_activity > 0
+    ) {
+        ps1_mc_data_interface_task();
+    }
 }

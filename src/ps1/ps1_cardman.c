@@ -21,6 +21,13 @@
 
 #include "hardware/timer.h"
 
+#if LOG_LEVEL_PS1_CM == 0
+    #define log(x...)
+#else
+    #define log(level, fmt, x...) LOG_PRINT(LOG_LEVEL_PS1_CM, level, fmt, ##x)
+#endif
+
+
 #define CARD_SIZE (128 * 1024)
 #define BLOCK_SIZE 128
 static uint8_t flushbuf[BLOCK_SIZE];
@@ -202,7 +209,7 @@ void ps1_cardman_open(void) {
             break;
     }
 
-    printf("Switching to card path = %s\n", path);
+    log(LOG_INFO, "Switching to card path = %s\n", path);
 
     if (!sd_exists(path)) {
         fd = sd_open(path, O_RDWR | O_CREAT | O_TRUNC);
@@ -210,7 +217,7 @@ void ps1_cardman_open(void) {
         if (fd < 0)
             fatal("cannot open for creating new card");
 
-        printf("create new image at %s... ", path);
+        log(LOG_INFO, "create new image at %s... ", path);
         uint64_t cardprog_start = time_us_64();
 
         for (size_t pos = 0; pos < CARD_SIZE; pos += BLOCK_SIZE) {
@@ -229,10 +236,10 @@ void ps1_cardman_open(void) {
         ps1_mc_data_interface_card_changed();
 
         uint64_t end = time_us_64();
-        printf("OK!\n");
+        log(LOG_INFO, "OK!\n");
 
 
-        printf("took = %.2f s; SD write speed = %.2f kB/s\n", (end - cardprog_start) / 1e6,
+        log(LOG_INFO, "took = %.2f s; SD write speed = %.2f kB/s\n", (end - cardprog_start) / 1e6,
             1000000.0 * CARD_SIZE / (end - cardprog_start) / 1024);
     } else {
         fd = sd_open(path, O_RDWR);
@@ -241,7 +248,7 @@ void ps1_cardman_open(void) {
             fatal("cannot open card");
 
         /* read 8 megs of card image */
-        printf("reading card.... ");
+        log(LOG_INFO, "reading card.... ");
         uint64_t cardprog_start = time_us_64();
 #if WITH_PSRAM
         for (size_t pos = 0; pos < CARD_SIZE; pos += BLOCK_SIZE) {
@@ -254,9 +261,9 @@ void ps1_cardman_open(void) {
 #endif
         ps1_mc_data_interface_card_changed();
         uint64_t end = time_us_64();
-        printf("OK!\n");
+        log(LOG_INFO, "OK!\n");
 
-        printf("took = %.2f s; SD read speed = %.2f kB/s\n", (end - cardprog_start) / 1e6,
+        log(LOG_INFO, "took = %.2f s; SD read speed = %.2f kB/s\n", (end - cardprog_start) / 1e6,
             1000000.0 * CARD_SIZE / (end - cardprog_start) / 1024);
     }
 }

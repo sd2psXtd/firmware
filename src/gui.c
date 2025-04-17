@@ -75,10 +75,8 @@ static struct {
 } vcomh_options[3];
 
 static int have_oled;
-static int switching_card;
 static bool waiting_card;
 static int current_progress;
-static uint64_t switching_card_timeout;
 static bool refresh_gui;
 static bool installing_exploit;
 
@@ -347,10 +345,6 @@ static void evt_scr_main(lv_event_t *event) {
                     case INPUT_KEY_BACK: ps2_mmceman_prev_idx(true); break;
                     case INPUT_KEY_ENTER: ps2_mmceman_next_idx(true); break;
                 }
-            }
-
-            if (switching_card == 1) {
-                switching_card_timeout = time_us_64() + 1500 * 1000;
             }
         }
     }
@@ -1082,12 +1076,6 @@ void gui_do_ps1_card_switch(void) {
     log(LOG_INFO, "switching the card now!\n");
 
     oled_update_last_action_time();
-
-    uint64_t start = time_us_64();
-    ps1_cardman_open();
-    ps1_memory_card_enter();
-    uint64_t end = time_us_64();
-    log(LOG_INFO, "full card switch took = %.2f s\n", (end - start) / 1e6);
 }
 
 void gui_do_ps2_card_switch(void) {
@@ -1164,10 +1152,6 @@ void gui_task(void) {
             }
         }
 
-        if (switching_card && switching_card_timeout < time_us_64() && !input_is_any_down()) {
-            switching_card = 0;
-            gui_do_ps1_card_switch();
-        }
         refresh_gui = false;
         update_activity();
     } else if (settings_get_mode() == MODE_PS2){
@@ -1228,11 +1212,6 @@ void gui_task(void) {
             }
 
             refresh_gui = false;
-        }
-
-        if (switching_card && switching_card_timeout < time_us_64() && !input_is_any_down()) {
-            switching_card = 0;
-            gui_do_ps2_card_switch();
         }
 
         update_activity();

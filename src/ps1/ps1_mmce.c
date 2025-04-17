@@ -1,6 +1,7 @@
 
 #include <input.h>
 #include "pico/time.h"
+#include "ps1_mc_data_interface.h"
 #include "ps1_memory_card.h"
 #include "ps1_cardman.h"
 #include "ps1_mmce.h"
@@ -69,7 +70,11 @@ void ps1_mmce_task(void) {
         && (ps1_cardman_needs_update())) {
 
         ps1_memory_card_exit();
+        ps1_mc_data_interface_flush();
         ps1_cardman_close();
+#ifdef WITH_GUI
+        gui_do_ps1_card_switch();
+#endif
 
         sleep_ms(CARD_SWITCH_DELAY_MS); // This delay is required, so ODE can register the card change
 

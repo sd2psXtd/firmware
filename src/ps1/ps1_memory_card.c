@@ -396,7 +396,12 @@ static void __time_critical_func(mc_main_loop)(void) {
     while (1) {
         uint8_t ch = 0x00;
 
-        while (!reset) {}
+        while (!reset && !reset && !reset && !reset && !reset) {
+            if (mc_exit_request) {
+                mc_exit_response = 1;
+                return;
+            }
+        }
         reset = 0;
         uint8_t received = recv_mc(&ch);
 
