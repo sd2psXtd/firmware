@@ -31,6 +31,7 @@
 
 #define BLOCK_SIZE   (512)
 
+#define CARD_HOME_CONQUEST   "MemoryCards/SC2"
 #define CARD_HOME_ARCADE     "MemoryCards/COH"
 #define CARD_HOME_PS2        "MemoryCards/PS2"
 #define CARD_HOME_PROTO      "MemoryCards/PROT"
@@ -196,6 +197,9 @@ static void ensuredirs(void) {
 
     switch (settings_get_ps2_variant()) {
         case PS2_VARIANT_COH:
+            snprintf(cardhome, sizeof(cardhome), CARD_HOME_CONQUEST);
+            break;
+        case PS2_VARIANT_CONQUEST_CARD:
             snprintf(cardhome, sizeof(cardhome), CARD_HOME_ARCADE);
             break;
         case PS2_VARIANT_PROTO:

@@ -85,6 +85,7 @@ void __time_critical_func(generateIvSeedNonce)() {
             keysource = ps2_keysource;
             key = prt_key;
             break;
+        case PS2_VARIANT_CONQUEST_CARD:
         case PS2_VARIANT_RETAIL:
         default:
             keysource = ps2_keysource;
@@ -549,6 +550,7 @@ inline __attribute__((always_inline)) void __time_critical_func(ps2_mc_auth)(voi
   * the ideal approach is just to respond to this command, but never expect it.
   * retail SECRMAN expects an answer to this, but the others wont.
   * arcade cards support this command but dont perform a key change bc they were not intended to do so.
+  * retail and special SECRMAN will pass a subcmd with a value of 0x1 to this command. however, arcade SECRMAN sends 0x3. this needs more investigation
   */
 inline __attribute__((always_inline)) void __time_critical_func(ps2_mc_auth_keySelect)(void) {
     // TODO: it fails to get detected at all when ps2_magicgate==0, check if it's intentional
