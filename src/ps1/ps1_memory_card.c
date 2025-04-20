@@ -333,9 +333,13 @@ static void mc_read_controller(void) {
     uint8_t _ = 0x00;
     receiveOrNextCmd(&_);
     if (_ == (uint8_t)'B') {    // Only reactive to "read buttons" command
+        recv_cntrl(&_); // Hi-Z
         recv_cntrl(&_);
+        if ((_== 0x00) || (_ == 0xFF))
+            return;
         recv_cntrl(&_);
-        recv_cntrl(&_);
+        if (_ != 0x5A)
+            return;
         for (uint8_t i = 0; i < 2; i++) {
             recv_cntrl(&controller_in[i]);
         }
