@@ -98,6 +98,8 @@ static int parse_card_configuration(void *user, const char *section, const char 
             _s->ps2_variant = PS2_VARIANT_PROTO;
         } else if (strcmp(value, "ARCADE") == 0) {
             _s->ps2_variant = PS2_VARIANT_COH;
+        } else if (strcmp(value, "CONQUEST") == 0) {
+            _s->ps2_variant = PS2_VARIANT_CONQUEST_CARD;
         }
     } else if (MATCH("General", "Mode")
         && (strcmp(value, "PS2") == 0) != ((_s->sys_flags & SETTINGS_SYS_FLAGS_PS2_MODE) > 0)) {
@@ -182,6 +184,9 @@ static void settings_serialize(void) {
                 break;
             case PS2_VARIANT_COH:
                 written = snprintf(line_buffer, 256, "Variant=ARCADE\n" );
+                break;
+            case PS2_VARIANT_CONQUEST_CARD:
+                written = snprintf(line_buffer, 256, "Variant=CONQUEST\n" );
                 break;
             case PS2_VARIANT_RETAIL:
             default:

@@ -96,6 +96,9 @@ static void card_config_get_ini_name(const char* card_folder, const char* card_b
             case PS2_VARIANT_COH:
                 snprintf(config_path, MAX_CFG_PATH_LENGTH, "MemoryCards/COH/%s/%s.ini", card_folder, card_base);
             break;
+            case PS2_VARIANT_CONQUEST_CARD:
+                snprintf(config_path, MAX_CFG_PATH_LENGTH, "MemoryCards/SC2/%s/%s.ini", card_folder, card_base);
+            break;
             case PS2_VARIANT_RETAIL:
             default:
                 snprintf(config_path, MAX_CFG_PATH_LENGTH, "MemoryCards/PS2/%s/%s.ini", card_folder, card_base);
@@ -189,6 +192,9 @@ void card_config_get_card_folder(const char* game_id, char* card_folder, size_t 
             break;
             case PS2_VARIANT_COH:
                 snprintf(mode, sizeof(mode), "COH");
+            break;
+            case PS2_VARIANT_CONQUEST_CARD:
+                snprintf(mode, sizeof(mode), "SC2");
             break;
             case PS2_VARIANT_RETAIL:
             default:
