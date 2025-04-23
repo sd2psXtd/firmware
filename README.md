@@ -1,3 +1,5 @@
+![sd2psXtd Logo](doc/Logo.png)
+
 # sd2psXtd Firmware
 
 sd2psXtd is an extended firmware for the popular *Multipurpose MemoryCard Emulator* sd2psx by developer @xyzz (see [here](https://github.com/sd2psx)). It combines cutting-edge extended functionality (like game ID switching, file system access, and dynamic mode selection) with the rock-solid performance of the original sd2psx firmware.
@@ -14,6 +16,7 @@ It provides the same functionality as the official stable firmware and extends i
 - **PS1:** PSRAM support
 - **PS1:** Card Switch Controller Combo Support
 - **PS1:** Super fast FreePSXBoot
+- **PS1:** Net Yaroze Support
 - **General:** Settings file
 - **General:** Support for other RP2040-based MMCE devices
 - **General:** Per Card Config
@@ -99,6 +102,7 @@ The following button combinations are used to perform card and channel switches:
 - L1 + R1 + L2 + R2 + Down: Switch to the Previous Card
 - L1 + R1 + L2 + R2 + Right: Switch to the Next Channel
 - L1 + R1 + L2 + R2 + Left: Switch to the Previous Channel
+- L1 + R1 + L2 + R2 + START + SELECT: Switch to Boot Card
 
 These mappings require that all four buttons (L1, R1, L2, R2) are held down in combination with one of the directional inputs.
 
@@ -106,6 +110,11 @@ These mappings require that all four buttons (L1, R1, L2, R2) are held down in c
 
 *sd2psXtd* allows super fast booting of FreePSXBoot by using some non standard card communication.
 Please note: This is only possible using a special FreePSXBoot Version provided at https://sd2psXtd.github.io
+
+## PS1: Net Yaroze Support
+
+*sd2psXtd* will act as a Net Yaroze Access Card, if used with the Net Yaroze Software.
+
 
 ## General: Settings File
 
@@ -149,6 +158,17 @@ Support for different MMCE devices that share the same MCU has been added:
 - **PSXMemCard Gen2:** A commercial device by BitFunX, sharing the same architecture as *sd2psx*. Use *sd2psx* firmware variant.
 
 For each device, follow the flashing instructions provided by the creator, using the corresponding *sd2psXtd* firmware file.
+
+*New in 1.2*:
+PMC+ and PMCZero now support using the onboard buttons. They are assigned in the following way (according to the markings ons their board):
+
+- **Button 1**: Load BootCard
+- **Button 2**:
+    - Short Press: Previous Channel
+    - Long Press: Previous Card
+- **Button 3**:
+    - Short Press: Next Channel
+    - Long Press: Next Card
 
 ## General: Per Card Config
 
