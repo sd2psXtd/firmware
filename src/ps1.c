@@ -2,10 +2,12 @@
 #include <input.h>
 #include <settings.h>
 #include <stdio.h>
-#include "led.h"
 #include "pico/multicore.h"
 #include "ps1_mc_data_interface.h"
 
+#if WITH_LED
+#include "led.h"
+#endif
 #if WITH_GUI
 #include "gui.h"
 #include "input.h"

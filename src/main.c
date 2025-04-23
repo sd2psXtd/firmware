@@ -1,6 +1,8 @@
 #include <stdio.h>
 #include "hardware/watchdog.h"
+#if WITH_LED
 #include "led.h"
+#endif
 #include "pico/stdio.h"
 #include "pico/stdlib.h"
 #include "pico/bootrom.h"

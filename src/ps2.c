@@ -1,6 +1,8 @@
 #include "card_emu/ps2_mc_auth.h"
 #include "keystore.h"
+#if WITH_LED
 #include "led.h"
+#endif
 #if WITH_GUI
 #include "gui.h"
 #include "input.h"
