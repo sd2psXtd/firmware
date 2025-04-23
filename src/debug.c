@@ -3,7 +3,10 @@
 #include <stddef.h>
 #include <stdio.h>
 #include <stdarg.h>
+
+#if WITH_LED
 #include "led.h"
+#endif
 
 #if WITH_GUI
 #include "oled.h"
