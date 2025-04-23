@@ -26,15 +26,18 @@ static void ps1_update_buttons(void) {
     switch (button) {
         case INPUT_KEY_BACK:
             ps1_mmce_prev_idx(false);
-            printf("prev idx\n");
+            break;
+        case INPUT_KEY_PREV:
+            ps1_mmce_prev_ch(false);
             break;
         case INPUT_KEY_NEXT:
+            ps1_mmce_next_ch(false);
+            break;
+        case INPUT_KEY_ENTER:
             ps1_mmce_next_idx(false);
-            printf("next idx\n");
             break;
         case INPUT_KEY_BOOT:
             ps1_mmce_switch_bootcard(false);
-            printf("switch bootcard\n");
             break;
         default:
             break;

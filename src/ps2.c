@@ -31,16 +31,19 @@ static void ps2_update_buttons(void) {
     int button = input_get_pressed();
     switch (button) {
         case INPUT_KEY_BACK:
+            ps2_mmceman_prev_ch(false);
+            break;
+        case INPUT_KEY_PREV:
             ps2_mmceman_prev_idx(false);
-            printf("prev idx\n");
             break;
         case INPUT_KEY_NEXT:
+            ps2_mmceman_next_ch(false);
+            break;
+        case INPUT_KEY_ENTER:
             ps2_mmceman_next_idx(false);
-            printf("next idx\n");
             break;
         case INPUT_KEY_BOOT:
             ps2_mmceman_set_bootcard(false);
-            printf("switch bootcard\n");
             break;
         default:
             break;
@@ -90,7 +93,8 @@ bool ps2_task(void) {
     oled_task();
 #elif PMC_BUTTONS
     input_task();
-    ps2_update_buttons();
+    if (ps2_cardman_is_idle())
+        ps2_update_buttons();
 #endif
 #if WITH_LED
     led_task();

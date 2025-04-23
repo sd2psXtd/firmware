@@ -48,7 +48,7 @@ static void input_scan(void) {
 #ifndef PMC_BUTTONS
         int state = !gpio_get(buttons[i].pin);
 #else
-        int state =!gpio_get(buttons[i].pin);
+        int state = gpio_get(buttons[i].pin);
 #endif
         /* restart debounce if the pin state changed */
         if (buttons[i].raw != state) {
@@ -103,19 +103,26 @@ static void input_process(void) {
                         last_pressed = INPUT_KEY_BACK;
                     else if (i == 1)
                         last_pressed = INPUT_KEY_ENTER;
-                    else
+#if PMC_BUTTONS
+                    else if (i == 2)
                         last_pressed = INPUT_KEY_BOOT;
+#endif
                     buttons[i].suppressed = 1;
                 }
             }
-#ifndef PMC_BUTTONS
             /* if the button was released faster than HOLD_START_MS it's a press */
             if (!buttons[i].state && buttons[i].prev_state) {
                 if (diff < HOLD_START_MS * 1000) {
-                    last_pressed = (i == 0) ? INPUT_KEY_PREV : INPUT_KEY_NEXT;
+                    if (i == 0)
+                        last_pressed = INPUT_KEY_PREV;
+                    else if (i == 1)
+                        last_pressed = INPUT_KEY_NEXT;
+#if PMC_BUTTONS
+                    else if (i == 2)
+                        last_pressed = INPUT_KEY_BOOT;
+#endif
                 }
             }
-#endif
         }
     }
 
@@ -163,12 +170,15 @@ void input_flip(void) {
 }
 
 void input_init(void) {
+    gpio_init(PIN_BTN_LEFT);
+    gpio_init(PIN_BTN_RIGHT);
     gpio_set_dir(PIN_BTN_LEFT, 0);
     gpio_set_dir(PIN_BTN_RIGHT, 0);
 #ifndef PMC_BUTTONS
     gpio_pull_up(PIN_BTN_LEFT);
     gpio_pull_up(PIN_BTN_RIGHT);
 #else
+    gpio_init(PIN_BTN_BOOT);
     gpio_set_dir(PIN_BTN_BOOT, 0);
     gpio_pull_down(PIN_BTN_LEFT);
     gpio_pull_down(PIN_BTN_RIGHT);
