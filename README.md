@@ -1,4 +1,5 @@
 ![sd2psXtd Logo](doc/Logo.png)
+*Logo by Berion ❤️*
 
 # sd2psXtd Firmware
 
