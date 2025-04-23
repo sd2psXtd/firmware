@@ -108,10 +108,11 @@ elseif( VARIANT STREQUAL "PMCZero")
                             "PIN_BTN_LEFT=27"
                             "PIN_BTN_RIGHT=28"
                             "PIN_BTN_BOOT=26"
+                            "WS2812=1"
                             )
     set(SD2PSX_WITH_GUI FALSE)
     set(SD2PSX_WITH_PSRAM FALSE)
-    set(SD2PSX_WITH_LED FALSE)
+    set(SD2PSX_WITH_LED TRUE)
     add_compile_definitions(PICO_FLASH_SIZE_BYTES=2097152)
 elseif( VARIANT STREQUAL "SD2PSXlite")
     set(PIN_PSX_ACK 16)

@@ -136,9 +136,11 @@ if (SD2PSX_WITH_GUI)
 endif()
 
 if (SD2PSX_WITH_LED)
-    target_compile_definitions(sd2psx_common PUBLIC "WITH_LED=1")
-    target_sources(sd2psx_common PRIVATE
-                ${CMAKE_CURRENT_SOURCE_DIR}/src/led.c)
+    add_subdirectory(${CMAKE_CURRENT_SOURCE_DIR}/src/led)
+    target_link_libraries(sd2psx_common
+                PUBLIC
+                    sd2psx_led)
+
 
 endif()
 

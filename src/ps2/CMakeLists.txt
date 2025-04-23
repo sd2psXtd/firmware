@@ -21,11 +21,12 @@ target_include_directories(ps2_card
 target_link_libraries(ps2_card PRIVATE
             sd2psx_common
             pico_stdlib
-            pico_multicore
             hardware_sync
             hardware_pio
             hardware_flash
             hardware_dma
+        PUBLIC
+            pico_multicore
             mcfat
             sd_fat
             )
