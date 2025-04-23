@@ -103,7 +103,7 @@ The following button combinations are used to perform card and channel switches:
 - L1 + R1 + L2 + R2 + Down: Switch to the Previous Card
 - L1 + R1 + L2 + R2 + Right: Switch to the Next Channel
 - L1 + R1 + L2 + R2 + Left: Switch to the Previous Channel
-- L1 + R1 + L2 + R2 + START + SELECT: Switch to Boot Card
+- L1 + R1 + L2 + R2 + SELECT: Switch to Boot Card
 
 These mappings require that all four buttons (L1, R1, L2, R2) are held down in combination with one of the directional inputs.
 
