@@ -34,7 +34,7 @@ void keystore_init(void) {
         keystore_deploy();
 #if WITH_GUI==0
         if (!ps2_magicgate)
-            fatal("Cannot find civ!\n");
+            fatal(ERR_CIV, "Cannot find civ!\n");
 #endif
     }
 }

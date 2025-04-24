@@ -162,7 +162,7 @@ static void ensuredirs(void) {
     sd_mkdir(cardpath);
 
     if (!sd_exists("MemoryCards") || !sd_exists("MemoryCards/PS1") || !sd_exists(cardpath))
-        fatal("error creating directories");
+        fatal(ERR_CARDMAN, "error creating directories");
 }
 
 static void genblock(size_t pos, void *buf) {
@@ -215,7 +215,7 @@ void ps1_cardman_open(void) {
         fd = sd_open(path, O_RDWR | O_CREAT | O_TRUNC);
 
         if (fd < 0)
-            fatal("cannot open for creating new card");
+            fatal(ERR_CARDMAN, "cannot open for creating new card");
 
         log(LOG_INFO, "create new image at %s... ", path);
         uint64_t cardprog_start = time_us_64();
@@ -226,7 +226,7 @@ void ps1_cardman_open(void) {
             psram_write_dma(pos, flushbuf, BLOCK_SIZE, NULL);
 #endif
             if (sd_write(fd, flushbuf, BLOCK_SIZE) != BLOCK_SIZE)
-                fatal("cannot init memcard");
+                fatal(ERR_CARDMAN, "cannot init memcard");
 #if WITH_PSRAM
             psram_wait_for_dma();
 #endif
@@ -245,7 +245,7 @@ void ps1_cardman_open(void) {
         fd = sd_open(path, O_RDWR);
 
         if (fd < 0)
-            fatal("cannot open card");
+            fatal(ERR_CARDMAN, "cannot open card");
 
         /* read 8 megs of card image */
         log(LOG_INFO, "reading card.... ");
@@ -253,7 +253,7 @@ void ps1_cardman_open(void) {
 #if WITH_PSRAM
         for (size_t pos = 0; pos < CARD_SIZE; pos += BLOCK_SIZE) {
             if (sd_read(fd, flushbuf, BLOCK_SIZE) != BLOCK_SIZE)
-                fatal("cannot read memcard");
+                fatal(ERR_CARDMAN, "cannot read memcard");
 
             psram_write_dma(pos, flushbuf, BLOCK_SIZE, NULL);
             psram_wait_for_dma();
