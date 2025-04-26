@@ -43,6 +43,7 @@ enum {
     AUTH_STATE_IDLE,
     AUTH_STATE_WAIT_CONFIRM
 } auth_state = AUTH_STATE_IDLE;
+static bool auth_valid = false;
 
 void __time_critical_func(desEncrypt)(void *key, void *data) {
     DesContext dc;
@@ -465,6 +466,7 @@ inline __attribute__((always_inline)) void __time_critical_func(ps2_mc_auth_card
 inline __attribute__((always_inline)) void __time_critical_func(ps2_mc_auth_ack)(void) {
     uint8_t _ = 0;
     auth_state = AUTH_STATE_IDLE;
+    auth_valid = true;
     /* dummy 14 */
     mc_respond(0x2B);
     receiveOrNextCmd(&_);
@@ -569,7 +571,7 @@ inline __attribute__((always_inline)) void __time_critical_func(ps2_mc_auth_rese
     if (auth_state == AUTH_STATE_WAIT_CONFIRM) {
         log(LOG_ERROR, "MG Auth failed!!\n");
         auth_state = AUTH_STATE_IDLE;
-        request_keystore_reset = true;
+        request_keystore_reset = !auth_valid;
     }
     mc_respond(0xFF);
     receiveOrNextCmd(&_);
