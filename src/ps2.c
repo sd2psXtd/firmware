@@ -122,7 +122,9 @@ bool ps2_task(void) {
 #endif
     }
 
-    if ((settings_get_mode() == MODE_PS1) && (ps2_cardman_is_idle()))
+    if ((settings_get_mode() == MODE_PS1)
+        && (ps2_cardman_is_idle())
+        && !ps2_history_tracker_needs_refresh())
         return false;
 
     return true;

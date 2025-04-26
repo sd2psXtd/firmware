@@ -117,7 +117,7 @@ static bool try_set_prev_named_card() {
 }
 
 void ps1_cardman_init(void) {
-    if (!try_set_boot_card() && !try_set_game_id_card())
+    if (!try_set_game_id_card() && !try_set_boot_card())
         set_default_card();
 }
 
