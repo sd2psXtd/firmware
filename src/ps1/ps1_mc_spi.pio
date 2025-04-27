@@ -36,15 +36,17 @@
 .wrap_target
     pull block               ; pull a byte to send, blocking
 
-    ; trigger ACK for 551 Cycles
-    set x, 25  side 1
-ack:
-    nop [7]
-    nop [7]
-    nop [5]
-    jmp x-- ack
+    ; trigger ACK
+     nop side 1 [5]
+     nop side 0
+;    set x, 25  side 1
+;ack:
+;    nop [7]
+;    nop [7]
+;    nop [5]
+;    jmp x-- ack
 
-    set x, 7 side 0
+    set x, 7
 sendbit:
     wait 1 gpio PIN_PSX_CLK  ; wait for clock to rise
     wait 0 gpio PIN_PSX_CLK  ; wait for falling clock edge
@@ -55,7 +57,7 @@ sendbit:
 
 % c-sdk {
 
-#define PS1_CLKDIV 1
+#define PS1_CLKDIV 50
 
 static inline void cmd_reader_program_init(PIO pio, uint sm, uint offset) {
     pio_sm_config c = cmd_reader_program_get_default_config(offset);
