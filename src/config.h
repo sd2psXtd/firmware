@@ -1,7 +1,14 @@
 #pragma once
 
-#define PIN_BTN_LEFT 23
-#define PIN_BTN_RIGHT 21
+#ifndef PIN_BTN_LEFT
+    #define PIN_BTN_LEFT 23
+#endif
+#ifndef PIN_BTN_RIGHT
+    #define PIN_BTN_RIGHT 21
+#endif
+#ifndef PIN_BTN_BOOT
+    #define PIN_BTN_BOOT 11
+#endif
 
 // SD2PSX
 #ifndef UART_TX
@@ -17,11 +24,6 @@
     #define UART_BAUD 3000000
 #endif
 
-//BitFunX
-//#define UART_TX 0
-//#define UART_RX 1
-//#define UART_PERIPH uart0
-//#define UART_BAUD 115200
 
 #define OLED_I2C_SDA 28
 #define OLED_I2C_SCL 25
@@ -50,13 +52,6 @@
 #ifndef SD_CS
     #define SD_CS 29
 #endif
-
-// BitFunX
-//#define SD_PERIPH SPI
-//#define SD_MISO 16
-//#define SD_MOSI 19
-//#define SD_SCK 18
-//#define SD_CS 17
 
 #define SD_BAUD 45 * 1000000
 

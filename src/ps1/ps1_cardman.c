@@ -21,6 +21,13 @@
 
 #include "hardware/timer.h"
 
+#if LOG_LEVEL_PS1_CM == 0
+    #define log(x...)
+#else
+    #define log(level, fmt, x...) LOG_PRINT(LOG_LEVEL_PS1_CM, level, fmt, ##x)
+#endif
+
+
 #define CARD_SIZE (128 * 1024)
 #define BLOCK_SIZE 128
 static uint8_t flushbuf[BLOCK_SIZE];
@@ -35,6 +42,7 @@ static int card_idx;
 static int card_chan;
 static char folder_name[MAX_FOLDER_NAME_LENGTH];
 static ps1_cardman_state_t cardman_state;
+static bool needs_update;
 
 static bool try_set_boot_card() {
     if (!settings_get_ps1_autoboot())
@@ -109,7 +117,7 @@ static bool try_set_prev_named_card() {
 }
 
 void ps1_cardman_init(void) {
-    if (!try_set_boot_card() && !try_set_game_id_card())
+    if (!try_set_game_id_card() && !try_set_boot_card())
         set_default_card();
 }
 
@@ -154,7 +162,7 @@ static void ensuredirs(void) {
     sd_mkdir(cardpath);
 
     if (!sd_exists("MemoryCards") || !sd_exists("MemoryCards/PS1") || !sd_exists(cardpath))
-        fatal("error creating directories");
+        fatal(ERR_CARDMAN, "error creating directories");
 }
 
 static void genblock(size_t pos, void *buf) {
@@ -168,6 +176,7 @@ void ps1_cardman_open(void) {
     char path[96];
     sd_init();
     ensuredirs();
+    needs_update = false;
 
     switch (cardman_state) {
         case PS1_CM_STATE_BOOT:
@@ -200,15 +209,15 @@ void ps1_cardman_open(void) {
             break;
     }
 
-    printf("Switching to card path = %s\n", path);
+    log(LOG_INFO, "Switching to card path = %s\n", path);
 
     if (!sd_exists(path)) {
         fd = sd_open(path, O_RDWR | O_CREAT | O_TRUNC);
 
         if (fd < 0)
-            fatal("cannot open for creating new card");
+            fatal(ERR_CARDMAN, "cannot open for creating new card");
 
-        printf("create new image at %s... ", path);
+        log(LOG_INFO, "create new image at %s... ", path);
         uint64_t cardprog_start = time_us_64();
 
         for (size_t pos = 0; pos < CARD_SIZE; pos += BLOCK_SIZE) {
@@ -217,7 +226,7 @@ void ps1_cardman_open(void) {
             psram_write_dma(pos, flushbuf, BLOCK_SIZE, NULL);
 #endif
             if (sd_write(fd, flushbuf, BLOCK_SIZE) != BLOCK_SIZE)
-                fatal("cannot init memcard");
+                fatal(ERR_CARDMAN, "cannot init memcard");
 #if WITH_PSRAM
             psram_wait_for_dma();
 #endif
@@ -227,24 +236,24 @@ void ps1_cardman_open(void) {
         ps1_mc_data_interface_card_changed();
 
         uint64_t end = time_us_64();
-        printf("OK!\n");
+        log(LOG_INFO, "OK!\n");
 
 
-        printf("took = %.2f s; SD write speed = %.2f kB/s\n", (end - cardprog_start) / 1e6,
+        log(LOG_INFO, "took = %.2f s; SD write speed = %.2f kB/s\n", (end - cardprog_start) / 1e6,
             1000000.0 * CARD_SIZE / (end - cardprog_start) / 1024);
     } else {
         fd = sd_open(path, O_RDWR);
 
         if (fd < 0)
-            fatal("cannot open card");
+            fatal(ERR_CARDMAN, "cannot open card");
 
         /* read 8 megs of card image */
-        printf("reading card.... ");
+        log(LOG_INFO, "reading card.... ");
         uint64_t cardprog_start = time_us_64();
 #if WITH_PSRAM
         for (size_t pos = 0; pos < CARD_SIZE; pos += BLOCK_SIZE) {
             if (sd_read(fd, flushbuf, BLOCK_SIZE) != BLOCK_SIZE)
-                fatal("cannot read memcard");
+                fatal(ERR_CARDMAN, "cannot read memcard");
 
             psram_write_dma(pos, flushbuf, BLOCK_SIZE, NULL);
             psram_wait_for_dma();
@@ -252,11 +261,15 @@ void ps1_cardman_open(void) {
 #endif
         ps1_mc_data_interface_card_changed();
         uint64_t end = time_us_64();
-        printf("OK!\n");
+        log(LOG_INFO, "OK!\n");
 
-        printf("took = %.2f s; SD read speed = %.2f kB/s\n", (end - cardprog_start) / 1e6,
+        log(LOG_INFO, "took = %.2f s; SD read speed = %.2f kB/s\n", (end - cardprog_start) / 1e6,
             1000000.0 * CARD_SIZE / (end - cardprog_start) / 1024);
     }
+}
+
+bool ps1_cardman_needs_update(void) {
+    return needs_update;
 }
 
 void ps1_cardman_close(void) {
@@ -279,6 +292,8 @@ void ps1_cardman_next_channel(void) {
                 card_chan = CHAN_MIN;
             break;
     }
+
+    needs_update = true;
 }
 
 void ps1_cardman_prev_channel(void) {
@@ -294,6 +309,7 @@ void ps1_cardman_prev_channel(void) {
                 card_chan = max_chan;
             break;
     }
+    needs_update = true;
 }
 
 void ps1_cardman_next_idx(void) {
@@ -317,6 +333,7 @@ void ps1_cardman_next_idx(void) {
             snprintf(folder_name, sizeof(folder_name), "Card%d", card_idx);
             break;
     }
+    needs_update = true;
 }
 
 void ps1_cardman_prev_idx(void) {
@@ -342,6 +359,7 @@ void ps1_cardman_prev_idx(void) {
             }
             break;
     }
+    needs_update = true;
 }
 
 int ps1_cardman_get_idx(void) {
@@ -352,10 +370,29 @@ int ps1_cardman_get_channel(void) {
     return card_chan;
 }
 
-void ps1_cardman_set_ode_idx(void) {
-    if ((!try_set_game_id_card())) {
-        set_default_card();
+void ps1_cardman_set_game_id(const char* card_game_id) {
+    if (!settings_get_ps1_game_id())
+        return;
+
+    char new_folder_name[MAX_FOLDER_NAME_LENGTH] = {};
+    if (card_game_id[0]) {
+        card_config_get_card_folder(card_game_id, new_folder_name, sizeof(new_folder_name));
+        if (new_folder_name[0] == 0x00)
+            snprintf(new_folder_name, sizeof(new_folder_name), "%s", card_game_id);
+        //log(LOG_TRACE, "Folder: %s\n", new_folder_name);
+        if ((strcmp(new_folder_name, folder_name) != 0) || (PS1_CM_STATE_GAMEID != cardman_state)) {
+            card_idx = PS1_CARD_IDX_SPECIAL;
+            cardman_state = PS1_CM_STATE_GAMEID;
+            card_chan = CHAN_MIN;
+            memcpy(folder_name, new_folder_name, sizeof(folder_name));
+            needs_update = true;
+        }
     }
+}
+//TEMP
+void ps1_cardman_switch_bootcard(void) {
+    if (try_set_boot_card())
+        needs_update = true;
 }
 
 const char* ps1_cardman_get_folder_name(void) {

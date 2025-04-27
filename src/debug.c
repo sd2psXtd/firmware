@@ -3,7 +3,10 @@
 #include <stddef.h>
 #include <stdio.h>
 #include <stdarg.h>
+
+#if WITH_LED
 #include "led.h"
+#endif
 
 #if WITH_GUI
 #include "oled.h"
@@ -47,7 +50,7 @@ void __time_critical_func(buffered_printf)(const char *format, ...) {
         debug_put(*c);
 }
 
-void fatal(const char *format, ...) {
+void fatal(int err, const char *format, ...) {
     char buf[128];
 
     va_list args;
@@ -67,12 +70,18 @@ void fatal(const char *format, ...) {
         oled_show();
     }
 #endif
+    while (true) {
 #if WITH_LED
-    led_fatal();
+        for (int i = 0; i < err; i++) {
+            led_fatal();
+            sleep_ms(250);
+            led_clear();
+            sleep_ms(250);
+        }
+        sleep_ms(1000);
 #endif
-
-    while (1) {
     }
+
 }
 
 void hexdump(const uint8_t *buf, size_t sz) {

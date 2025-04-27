@@ -12,7 +12,9 @@ extern "C" {
 
 #include <stdio.h>
 
-#define NUM_FILES 16
+#ifndef NUM_FILES
+    #define NUM_FILES 16
+#endif
 
 static SdFat sd;
 static File files[NUM_FILES + 1];
@@ -28,11 +30,11 @@ extern "C" void sd_init() {
         int ret = sd.begin(SdSpiConfig(SD_CS, DEDICATED_SPI, SD_BAUD, &SD_PERIPH));
         if (ret != 1) {
             if (sd.sdErrorCode()) {
-                fatal("failed to mount the card\nSdError: 0x%02X,0x%02X\ncheck the card", sd.sdErrorCode(), sd.sdErrorData());
+                fatal(ERR_SDCARD, "failed to mount the card\nSdError: 0x%02X,0x%02X\ncheck the card", sd.sdErrorCode(), sd.sdErrorData());
             } else if (!sd.fatType()) {
-                fatal("failed to mount the card\ncheck the card is formatted correctly");
+                fatal(ERR_SDCARD, "failed to mount the card\ncheck the card is formatted correctly");
             } else {
-                fatal("failed to mount the card\nUNKNOWN");
+                fatal(ERR_SDCARD, "failed to mount the card\nUNKNOWN");
             }
         }
         initialized = true;

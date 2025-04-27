@@ -4,23 +4,23 @@ add_library(ps1_card STATIC
             ${CMAKE_CURRENT_SOURCE_DIR}/ps1_memory_card.c
             ${CMAKE_CURRENT_SOURCE_DIR}/ps1_empty_card.c
             ${CMAKE_CURRENT_SOURCE_DIR}/ps1_mc_data_interface.c
-            ${CMAKE_CURRENT_SOURCE_DIR}/ps1_odeman.c
+            ${CMAKE_CURRENT_SOURCE_DIR}/ps1_mmce.c
 )
 
 target_include_directories(ps1_card PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
 
-target_link_libraries(ps1_card 
-                        PRIVATE 
-                            sd2psx_common 
-                            pico_platform_headers 
-                            pico_stdlib 
+target_link_libraries(ps1_card
+                        PRIVATE
+                            sd2psx_common
+                            pico_platform_headers
+                            pico_stdlib
                             pico_multicore
                             hardware_pio
                             sd_fat
                             )
 
 if (SD2PSX_WITH_PSRAM)
-    target_link_libraries(ps1_card PRIVATE 
+    target_link_libraries(ps1_card PRIVATE
             psram)
 endif()
 

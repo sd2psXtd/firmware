@@ -98,7 +98,7 @@ void ps1_mc_data_interface_card_changed(void) {
 
     for (int i = 0; i < 1024; i++) {
         if (ps1_cardman_read_sector(i, &card[i*PS1_PAGE_SIZE]) < 0)
-            fatal("Sector %i not read!!!\n", i);
+            fatal(ERR_MC_DATA, "Sector %i not read!!!\n", i);
     }
 #endif
 }
@@ -109,4 +109,13 @@ bool ps1_mc_data_interface_write_occured(void) {
 
 void ps1_mc_data_interface_task(void) {
     write_occured = false;
+
+    ps1_dirty_task();
+}
+
+void ps1_mc_data_interface_flush(void) {
+    while ( ps1_dirty_activity > 0
+    ) {
+        ps1_mc_data_interface_task();
+    }
 }

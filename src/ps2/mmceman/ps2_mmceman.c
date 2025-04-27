@@ -94,7 +94,6 @@ void ps2_mmceman_task(void) {
                 break;
             }
 
-            //TEMP:
             case MMCEMAN_SWITCH_BOOTCARD:
                 ps2_cardman_switch_bootcard();
             break;
@@ -203,4 +202,9 @@ void ps2_mmceman_prev_idx(bool delay) {
     mmceman_switching_timeout = time_us_64() + (delay ? 1500 * 1000 : 0);
     mmceman_mode = MMCEMAN_MODE_PREV;
     mmceman_cmd = MMCEMAN_SET_CARD;
+}
+
+void ps2_mmceman_set_bootcard(bool delay) {
+    mmceman_switching_timeout = time_us_64() + (delay ? 1500 * 1000 : 0);
+    mmceman_cmd = MMCEMAN_SWITCH_BOOTCARD;
 }

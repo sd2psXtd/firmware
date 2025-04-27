@@ -2,6 +2,7 @@
 
 #include <debug.h>
 #include <game_db/game_db.h>
+#include <ps1/ps1_mmce.h>
 #include <ps2/card_emu/ps2_mc_data_interface.h>
 #include <ps2/mmceman/ps2_mmceman.h>
 #include <ps2/history_tracker/ps2_history_tracker.h>
@@ -74,10 +75,8 @@ static struct {
 } vcomh_options[3];
 
 static int have_oled;
-static int switching_card;
 static bool waiting_card;
 static int current_progress;
-static uint64_t switching_card_timeout;
 static bool refresh_gui;
 static bool installing_exploit;
 
@@ -332,23 +331,12 @@ static void evt_scr_main(lv_event_t *event) {
         // TODO: if there was a card op recently (1s timeout?), should refuse to switch
         // TODO: ps1 support here
         if (key == INPUT_KEY_PREV || key == INPUT_KEY_NEXT || key == INPUT_KEY_BACK || key == INPUT_KEY_ENTER) {
-            uint8_t prevChannel, prevIdx;
             if (settings_get_mode() == MODE_PS1) {
-                ps1_cardman_state_t prevState = ps1_cardman_get_state();
-                prevChannel = ps1_cardman_get_channel();
-                prevIdx = ps1_cardman_get_idx();
-
                 switch (key) {
-                    case INPUT_KEY_PREV: ps1_cardman_prev_channel(); break;
-                    case INPUT_KEY_NEXT: ps1_cardman_next_channel(); break;
-                    case INPUT_KEY_BACK: ps1_cardman_prev_idx(); break;
-                    case INPUT_KEY_ENTER: ps1_cardman_next_idx(); break;
-                }
-                if ((prevChannel != ps1_cardman_get_channel()) || (prevIdx != ps1_cardman_get_idx()) || (prevState != ps1_cardman_get_state())) {
-                    ps1_memory_card_exit();
-                    ps1_cardman_close();
-                    switching_card = 1;
-                    log(LOG_INFO, "new PS1 card=%d chan=%d\n", ps1_cardman_get_idx(), ps1_cardman_get_channel());
+                    case INPUT_KEY_PREV: ps1_mmce_prev_ch(true); break;
+                    case INPUT_KEY_NEXT: ps1_mmce_next_ch(true); break;
+                    case INPUT_KEY_BACK: ps1_mmce_prev_idx(true); break;
+                    case INPUT_KEY_ENTER: ps1_mmce_next_idx(true); break;
                 }
             } else {
                 switch (key) {
@@ -357,10 +345,6 @@ static void evt_scr_main(lv_event_t *event) {
                     case INPUT_KEY_BACK: ps2_mmceman_prev_idx(true); break;
                     case INPUT_KEY_ENTER: ps2_mmceman_next_idx(true); break;
                 }
-            }
-
-            if (switching_card == 1) {
-                switching_card_timeout = time_us_64() + 1500 * 1000;
             }
         }
     }
@@ -434,15 +418,21 @@ void evt_menu_page(lv_event_t *event) {
     }
 }
 
-static void update_ps2_main_header(void) {
-    if (!ps2_magicgate)
-        lv_label_set_text(main_header, "PS2: No CIV!");
-    else if (PS2_VARIANT_RETAIL == settings_get_ps2_variant())
-        lv_label_set_text(main_header, "PS2 Memory Card");
-    else if (PS2_VARIANT_PROTO == settings_get_ps2_variant())
-        lv_label_set_text(main_header, "Prototype Card");
-    else if (PS2_VARIANT_COH == settings_get_ps2_variant())
-        lv_label_set_text(main_header, "Security Dongle");
+static void update_main_header(void) {
+    if (settings_get_mode() == MODE_PS1) {
+        lv_label_set_text(main_header, "PS1 Memory Card");
+    } else if (settings_get_mode() == MODE_PS2){
+        if (!ps2_magicgate)
+            lv_label_set_text(main_header, "PS2: No CIV!");
+        else if (PS2_VARIANT_RETAIL == settings_get_ps2_variant())
+            lv_label_set_text(main_header, "PS2 Memory Card");
+        else if (PS2_VARIANT_PROTO == settings_get_ps2_variant())
+            lv_label_set_text(main_header, "Prototype Card");
+        else if (PS2_VARIANT_COH == settings_get_ps2_variant())
+            lv_label_set_text(main_header, "Security Dongle");
+    } else {
+        lv_label_set_text(main_header, "USB Mode");
+    }
 }
 
 static void evt_go_back(lv_event_t *event) {
@@ -530,7 +520,7 @@ static void evt_switch_variant(lv_event_t *event) {
 
     ps2_cardman_set_variant(variant);
 
-    update_ps2_main_header();
+    update_main_header();
 
     {
         if (settings_get_ps2_variant() == PS2_VARIANT_RETAIL)
@@ -556,7 +546,7 @@ static void evt_switch_to_ps2(lv_event_t *event) {
     gui_request_refresh();
     keystore_init();
 
-    update_ps2_main_header();
+    update_main_header();
 
     /* start at the main screen */
     UI_GOTO_SCREEN(scr_main);
@@ -589,11 +579,7 @@ static void create_main_screen(void) {
     scr_main = ui_scr_create();
     lv_obj_add_event_cb(scr_main, evt_scr_main, LV_EVENT_ALL, NULL);
     main_header = ui_header_create(scr_main, "");
-    if (settings_get_mode() == MODE_PS1) {
-        lv_label_set_text(main_header, "PS1 Memory Card");
-    } else {
-        update_ps2_main_header();
-    }
+    update_main_header();
 
     ui_label_create_at(scr_main, 0, 24, "Card");
 
@@ -1090,12 +1076,6 @@ void gui_do_ps1_card_switch(void) {
     log(LOG_INFO, "switching the card now!\n");
 
     oled_update_last_action_time();
-
-    uint64_t start = time_us_64();
-    ps1_cardman_open();
-    ps1_memory_card_enter();
-    uint64_t end = time_us_64();
-    log(LOG_INFO, "full card switch took = %.2f s\n", (end - start) / 1e6);
 }
 
 void gui_do_ps2_card_switch(void) {
@@ -1172,13 +1152,9 @@ void gui_task(void) {
             }
         }
 
-        if (switching_card && switching_card_timeout < time_us_64() && !input_is_any_down()) {
-            switching_card = 0;
-            gui_do_ps1_card_switch();
-        }
         refresh_gui = false;
         update_activity();
-    } else {
+    } else if (settings_get_mode() == MODE_PS2){
         static int displayed_card_idx = -1;
         static int displayed_card_channel = -1;
         static ps2_cardman_state_t cardman_state = PS2_CM_STATE_NORMAL;
@@ -1191,7 +1167,7 @@ void gui_task(void) {
             displayed_card_channel = ps2_cardman_get_channel();
             folder_name = ps2_cardman_get_folder_name();
             cardman_state = ps2_cardman_get_state();
-            update_ps2_main_header();
+            update_main_header();
             memset(card_name, 0, sizeof(card_name));
 
             switch (cardman_state) {
@@ -1238,12 +1214,9 @@ void gui_task(void) {
             refresh_gui = false;
         }
 
-        if (switching_card && switching_card_timeout < time_us_64() && !input_is_any_down()) {
-            switching_card = 0;
-            gui_do_ps2_card_switch();
-        }
-
         update_activity();
+    } else {
+
     }
 
     gui_tick();

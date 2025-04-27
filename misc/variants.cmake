@@ -52,6 +52,10 @@ elseif( VARIANT STREQUAL "PMC+")
                             "FLASH_OFF_CIV=0x1fb000"
                             "FLASH_OFF_EEPROM=0x1fc000"
                             "MMCE_PRODUCT_ID=0x3"
+                            "PMC_BUTTONS=1"
+                            "PIN_BTN_LEFT=27"
+                            "PIN_BTN_RIGHT=28"
+                            "PIN_BTN_BOOT=26"
                             )
     set(SD2PSX_WITH_GUI FALSE)
     set(SD2PSX_WITH_PSRAM FALSE)
@@ -100,10 +104,15 @@ elseif( VARIANT STREQUAL "PMCZero")
                             "FLASH_OFF_CIV=0x1fb000"
                             "FLASH_OFF_EEPROM=0x1fc000"
                             "MMCE_PRODUCT_ID=0x4"
+                            "PMC_BUTTONS=1"
+                            "PIN_BTN_LEFT=27"
+                            "PIN_BTN_RIGHT=28"
+                            "PIN_BTN_BOOT=26"
+                            "WS2812=1"
                             )
     set(SD2PSX_WITH_GUI FALSE)
     set(SD2PSX_WITH_PSRAM FALSE)
-    set(SD2PSX_WITH_LED FALSE)
+    set(SD2PSX_WITH_LED TRUE)
     add_compile_definitions(PICO_FLASH_SIZE_BYTES=2097152)
 elseif( VARIANT STREQUAL "SD2PSXlite")
     set(PIN_PSX_ACK 16)

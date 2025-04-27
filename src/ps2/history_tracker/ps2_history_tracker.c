@@ -270,3 +270,7 @@ void ps2_history_tracker_task() {
         status = HISTORY_STATUS_WAITING_WRITE;
     }
 }
+
+bool ps2_history_tracker_needs_refresh(void) {
+    return status == HISTORY_STATUS_WAITING_REFRESH;
+}

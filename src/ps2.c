@@ -1,10 +1,14 @@
 #include "card_emu/ps2_mc_auth.h"
 #include "keystore.h"
+#if WITH_LED
 #include "led.h"
+#endif
 #if WITH_GUI
 #include "gui.h"
 #include "input.h"
 #include "oled.h"
+#elif PMC_BUTTONS
+#include "input.h"
 #endif
 #include "settings.h"
 #include "card_emu/ps2_mc_data_interface.h"
@@ -22,6 +26,31 @@
 #define log(x...)
 #else
 #define log(level, fmt, x...) LOG_PRINT(LOG_LEVEL_PS2_MAIN, level, fmt, ##x)
+#endif
+
+#ifdef PMC_BUTTONS
+static void ps2_update_buttons(void) {
+    int button = input_get_pressed();
+    switch (button) {
+        case INPUT_KEY_BACK:
+            ps2_mmceman_prev_ch(false);
+            break;
+        case INPUT_KEY_PREV:
+            ps2_mmceman_prev_idx(false);
+            break;
+        case INPUT_KEY_NEXT:
+            ps2_mmceman_next_ch(false);
+            break;
+        case INPUT_KEY_ENTER:
+            ps2_mmceman_next_idx(false);
+            break;
+        case INPUT_KEY_BOOT:
+            ps2_mmceman_set_bootcard(false);
+            break;
+        default:
+            break;
+    }
+}
 #endif
 
 void ps2_init(void) {
@@ -64,6 +93,10 @@ bool ps2_task(void) {
     gui_task();
     input_task();
     oled_task();
+#elif PMC_BUTTONS
+    input_task();
+    if (ps2_cardman_is_idle())
+        ps2_update_buttons();
 #endif
 #if WITH_LED
     led_task();
@@ -89,7 +122,9 @@ bool ps2_task(void) {
 #endif
     }
 
-    if ((settings_get_mode() == MODE_PS1) && (ps2_cardman_is_idle()))
+    if ((settings_get_mode() == MODE_PS1)
+        && (ps2_cardman_is_idle())
+        && !ps2_history_tracker_needs_refresh())
         return false;
 
     return true;

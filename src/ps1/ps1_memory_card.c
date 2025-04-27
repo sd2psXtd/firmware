@@ -4,6 +4,7 @@
 #include "pico/platform.h"
 #include "pico/multicore.h"
 #include "ps1_mc_data_interface.h"
+#include "ps1_mmce.h"
 #include "string.h"
 #include <stdbool.h>
 #include <stdint.h>
@@ -16,7 +17,6 @@
 
 static uint64_t us_startup;
 
-static size_t byte_count;
 #if LOG_LEVEL_PS1_MC == 0
     #define log(x...)
 #else
@@ -28,10 +28,7 @@ static uint64_t us_startup;
 static volatile int reset;
 static uint8_t flag;
 static uint8_t* curr_page = NULL;
-
-static char received_game_id[0x10];
-static volatile uint8_t mc_pro_command;
-
+static bool ps2_multitap = false;
 
 typedef struct {
     uint32_t offset;
@@ -93,33 +90,24 @@ static void __time_critical_func(card_deselected)(uint gpio, uint32_t event_mask
         reset_pio();
 }
 
-static uint8_t __time_critical_func(recv_cmd)(uint8_t* cmd) {
-    while (pio_sm_is_rx_fifo_empty(pio0, cmd_reader.sm) && pio_sm_is_rx_fifo_empty(pio0, cmd_reader.sm))  {
+static uint8_t __time_critical_func(recv_cmd)(uint8_t* cmd, uint32_t sm) {
+    while (pio_sm_is_rx_fifo_empty(pio0, sm) && pio_sm_is_rx_fifo_empty(pio0, sm))  {
         if (mc_exit_request)
             return RECEIVE_EXIT;
         if (reset)
             return RECEIVE_RESET;
     }
-    *cmd = (pio_sm_get(pio0, cmd_reader.sm) >> 24);
+    *cmd = (pio_sm_get(pio0, sm) >> 24);
     return RECEIVE_OK;
 }
 
-
-static uint8_t __time_critical_func(recv_cntrl)(uint8_t* cmd) {
-    while (pio_sm_is_rx_fifo_empty(pio0, cntrl_reader.sm) && pio_sm_is_rx_fifo_empty(pio0, cntrl_reader.sm))  {
-        if (mc_exit_request)
-            return RECEIVE_EXIT;
-        if (reset)
-            return RECEIVE_RESET;
-    }
-    *cmd = (pio_sm_get(pio0, cntrl_reader.sm) >> 24);
-    return RECEIVE_OK;
-}
+#define recv_cntrl(cmd) recv_cmd(cmd, cntrl_reader.sm)
+#define recv_mc(cmd)    recv_cmd(cmd, cmd_reader.sm)
 
 #define receiveOrNextCmd(cmd)          \
-    if (recv_cmd(cmd) == RECEIVE_RESET) \
-    return;
-
+    if (recv_cmd(cmd, cmd_reader.sm) == RECEIVE_RESET) \
+    {/*DPRINTF("Reset at %s:%u\n", __func__, __LINE__);*/ \
+    return;}
 
 static void __time_critical_func(ps1_mc_respond)(uint8_t ch) {
     pio_sm_put_blocking(pio0, dat_writer.sm, ~ch & 0xFF);
@@ -140,7 +128,6 @@ static void __time_critical_func(ps1_mc_respond)(uint8_t ch) {
 
 static void __time_critical_func(mc_cmd_get_card_id)(void) {
     uint8_t _;
-    log(LOG_TRACE, "PS1:    Card ID\n");
     ps1_mc_respond(0x5A); receiveOrNextCmd(&_);
     ps1_mc_respond(0x5D); receiveOrNextCmd(&_);
     ps1_mc_respond(0x5C); receiveOrNextCmd(&_);
@@ -183,7 +170,6 @@ static void __time_critical_func(mc_cmd_read)(bool long_read) {
     ps1_mc_respond(0x5D);       receiveOrNextCmd(&_);
     ps1_mc_respond(page_msb);   receiveOrNextCmd(&_);
     page = (page_msb << 8) | page_lsb;
-    log(LOG_TRACE, "PS1:    Read page %u\n", page);
     ps1_mc_data_interface_setup_read_page(page);
     ps1_mc_respond(page_lsb);   receiveOrNextCmd(&_);
     do {
@@ -224,7 +210,6 @@ static void __time_critical_func(mc_cmd_write)(void) {
     uint8_t prev;
     uint8_t chk = 0;
     uint8_t _;
-    log(LOG_TRACE, "PS1:    Write command\n");
 
     flag = 0;
 
@@ -245,9 +230,9 @@ static void __time_critical_func(mc_cmd_write)(void) {
     ps1_mc_respond(0x5D);           receiveOrNextCmd(&_);
     if (in == chk) {
         ps1_mc_data_interface_write_mc((page_msb * 256) + page_lsb);
-        ps1_mc_respond(0x47);       //receiveOrNextCmd(&_);
+        ps1_mc_respond(0x47);
     } else {
-        ps1_mc_respond(0x4E);       //receiveOrNextCmd(&_);
+        ps1_mc_respond(0x4E);
     }
 }
 
@@ -261,7 +246,8 @@ static void __time_critical_func(mc_mmce_ping)(void) {
 
 static void __time_critical_func(mc_mmce_set_game_id)(void) {
     uint8_t length = 0;
-    uint8_t game_id[256] = {0};
+    uint8_t game_id[UINT8_MAX] = {0};
+    char received_game_id[16];
     uint8_t prev = 0;
     uint8_t _;
     memset(received_game_id, 0, sizeof(received_game_id));
@@ -273,10 +259,8 @@ static void __time_critical_func(mc_mmce_set_game_id)(void) {
         ps1_mc_respond(prev);   receiveOrNextCmd(&game_id[i]);
         prev = game_id[i];
     }
-    game_db_extract_title_id(game_id, received_game_id, length, sizeof(received_game_id));
-    if (!game_db_sanity_check_title_id(received_game_id))
-        memset(received_game_id, 0, sizeof(received_game_id));
-    mc_pro_command = MCP_GAME_ID;
+
+    ps1_mmce_set_gameid(game_id);
 }
 
 static void __time_critical_func(mc_mmce_prev_channel)(void) {
@@ -285,7 +269,7 @@ static void __time_critical_func(mc_mmce_prev_channel)(void) {
     ps1_mc_respond(0x00);   receiveOrNextCmd(&_);
     ps1_mc_respond(0x20);   receiveOrNextCmd(&_);
     ps1_mc_respond(0xFF);   receiveOrNextCmd(&_);
-    mc_pro_command = MCP_PRV_CH;
+    ps1_mmce_prev_ch(false);
 }
 
 static void __time_critical_func(mc_mmce_next_channel)(void) {
@@ -294,7 +278,7 @@ static void __time_critical_func(mc_mmce_next_channel)(void) {
     ps1_mc_respond(0x00);   receiveOrNextCmd(&_);
     ps1_mc_respond(0x20);   receiveOrNextCmd(&_);
     ps1_mc_respond(0xFF);   receiveOrNextCmd(&_);
-    mc_pro_command = MCP_NXT_CH;
+    ps1_mmce_next_ch(false);
 }
 
 static void __time_critical_func(mc_mmce_prev_index)(void) {
@@ -303,7 +287,7 @@ static void __time_critical_func(mc_mmce_prev_index)(void) {
     ps1_mc_respond(0x00);   receiveOrNextCmd(&_);
     ps1_mc_respond(0x20);   receiveOrNextCmd(&_);
     ps1_mc_respond(0xFF);   receiveOrNextCmd(&_);
-    mc_pro_command = MCP_PRV_CARD;
+    ps1_mmce_prev_idx(false);
 }
 
 static void __time_critical_func(mc_mmce_next_index)(void) {
@@ -312,7 +296,7 @@ static void __time_critical_func(mc_mmce_next_index)(void) {
     ps1_mc_respond(0x00);   receiveOrNextCmd(&_);
     ps1_mc_respond(0x20);   receiveOrNextCmd(&_);
     ps1_mc_respond(0xFF);   receiveOrNextCmd(&_);
-    mc_pro_command = MCP_NXT_CARD;
+    ps1_mmce_next_idx(false);
 }
 
 /**
@@ -345,44 +329,69 @@ static void __time_critical_func(mc_mmce_next_index)(void) {
  */
 static void mc_read_controller(void) {
     static uint8_t prevCommand = 0;
-    uint8_t controller_in[5];
-    uint8_t _;
-    for (uint8_t i = 0; i < 5; i++) {
-        recv_cntrl(&controller_in[i]);
-    }
-    #define HOTKEYS 0b00001111
-    #define BTN_UP  0b00010000
-    #define BTN_DWN 0b01000000
-    #define BTN_LFT 0b10000000
-    #define BTN_RGT 0b00100000
-    #define IS_PRESSED(x,y) ((x&y) == 0)
-
-    if (IS_PRESSED(controller_in[4], HOTKEYS)) {
-        if (prevCommand == 0) {
-            if (IS_PRESSED(controller_in[3], BTN_UP)) {
-                log(LOG_TRACE, "PS1:    Up pressed\n");
-                prevCommand = MCP_NXT_CARD;
-            } else if (IS_PRESSED(controller_in[3], BTN_DWN)) {
-                log(LOG_TRACE, "PS1:    Down pressed\n");
-                prevCommand = MCP_PRV_CARD;
-            } else if (IS_PRESSED(controller_in[3], BTN_LFT)) {
-                log(LOG_TRACE, "PS1:    Left pressed\n");
-                prevCommand = MCP_PRV_CH;
-            } else if (IS_PRESSED(controller_in[3], BTN_RGT)) {
-                log(LOG_TRACE, "PS1:    Right pressed\n");
-                prevCommand = MCP_NXT_CH;
-            }
-        }
-    } else if (prevCommand != 0){
-        log(LOG_TRACE, "PS1:    Previous command: %u\n", prevCommand);
-        mc_pro_command = prevCommand;
-        prevCommand = 0;
-    }
-
-    while (true) {
-        receiveOrNextCmd(&_);
+    uint8_t controller_in[2];
+    uint8_t _ = 0x00;
+    receiveOrNextCmd(&_);
+    if (_ == (uint8_t)'B') {    // Only reactive to "read buttons" command
+        recv_cntrl(&_); // Hi-Z
         recv_cntrl(&_);
+        if ((_== 0x00) || (_ == 0xFF))
+            return;
+        recv_cntrl(&_);
+        if (_ != 0x5A)
+            return;
+        for (uint8_t i = 0; i < 2; i++) {
+            recv_cntrl(&controller_in[i]);
+        }
+        #define HOTKEYS 0b00001111
+        #define BTN_UP  0b00010000
+        #define BTN_DWN 0b01000000
+        #define BTN_LFT 0b10000000
+        #define BTN_RGT 0b00100000
+        #define BTN_SEL 0b00000001
+        #define IS_PRESSED(x,y) ((x&y) == 0)
+
+        if (IS_PRESSED(controller_in[1], HOTKEYS)) {
+            if (prevCommand == 0) {
+                if (IS_PRESSED(controller_in[0], BTN_UP)) {
+                    prevCommand = MCP_NXT_CARD;
+                } else if (IS_PRESSED(controller_in[0], BTN_DWN)) {
+                    prevCommand = MCP_PRV_CARD;
+                } else if (IS_PRESSED(controller_in[0], BTN_LFT)) {
+                    prevCommand = MCP_PRV_CH;
+                } else if (IS_PRESSED(controller_in[0], BTN_RGT)) {
+                    prevCommand = MCP_NXT_CH;
+                } else if (IS_PRESSED(controller_in[0], BTN_SEL)) {
+                    prevCommand = MCP_SWITCH_BOOTCARD;
+                }
+            }
+        } else if (prevCommand != 0){
+            switch (prevCommand) {
+                case MCP_NXT_CARD:
+                    ps1_mmce_next_idx(false);
+                    break;
+                case MCP_PRV_CARD:
+                    ps1_mmce_prev_idx(false);
+                    break;
+                case MCP_NXT_CH:
+                    ps1_mmce_next_ch(false);
+                    break;
+                case MCP_PRV_CH:
+                    ps1_mmce_prev_ch(false);
+                    break;
+                case MCP_SWITCH_BOOTCARD:
+                    ps1_mmce_switch_bootcard(false);
+                    break;
+            }
+            prevCommand = 0;
+        }
+
+        while (true) {
+            receiveOrNextCmd(&_);
+            recv_cntrl(&_);
+        }
     }
+
 }
 
 static void __time_critical_func(mc_main_loop)(void) {
@@ -391,14 +400,14 @@ static void __time_critical_func(mc_main_loop)(void) {
     while (1) {
         uint8_t ch = 0x00;
 
-        //while (!reset && !reset && !reset && !reset && !reset) {
-        //    if (mc_exit_request) {
-        //        mc_exit_response = 1;
-        //        return;
-        //    }
-        //}
-
-        uint8_t received = recv_cmd(&ch);
+        while (!reset && !reset && !reset && !reset && !reset) {
+            if (mc_exit_request) {
+                mc_exit_response = 1;
+                return;
+            }
+        }
+        reset = 0;
+        uint8_t received = recv_mc(&ch);
 
         if (received == RECEIVE_EXIT) {
             mc_exit_response = 1;
@@ -406,14 +415,12 @@ static void __time_critical_func(mc_main_loop)(void) {
         }
         /* If this ch belongs to the next command sequence */
         if (received == RECEIVE_RESET) {
-            reset = 0;
             continue;
         }
 
-
         if (0x81 == ch) { /* Command is for MC - process! */
             ps1_mc_respond(flag);
-            int ret = recv_cmd(&ch);
+            int ret = recv_mc(&ch);
             if (ret == RECEIVE_RESET)
                 continue;
 
@@ -428,15 +435,22 @@ static void __time_critical_func(mc_main_loop)(void) {
                 case 0x23: mc_mmce_next_channel(); break;
                 case 0x24: mc_mmce_prev_index(); break;
                 case 0x25: mc_mmce_next_index(); break;
-                default: log(LOG_WARN, "Unknown command: 0x%.02x\n", ch); break;
+                default: DPRINTF("Unknown command: 0x%.02x\n", ch); break;
             }
         } else if (0x01 == ch) {
             mc_read_controller();
-        } else {
-            /* If the command sequence is not to be processed (e.g. unknown) or the are leftover bytes */
-            while (recv_cmd(&ch) == RECEIVE_OK){
-                tight_loop_contents();
+        } else if ((0x21 == ch) && !ps2_multitap) {
+            ps1_mc_respond(0x00);
+            int ret = recv_mc(&ch);
+            if (RECEIVE_RESET == ret)
+                continue;
+
+            if (0x53 == ch) {
+                ps1_mc_respond(0x0F);
+            } else if (ch == 0x21) {      // PS2 multitap is also sending 0x21 as configuration command
+                ps2_multitap = true;
             }
+        } else {
         }
 
     }
@@ -537,19 +551,6 @@ void ps1_memory_card_enter(void) {
     {}
     mc_enter_request = mc_enter_response = 0;
     memcard_running = 1;
-    mc_pro_command = 0;
-}
-
-void ps1_memory_card_reset_ode_command(void) {
-    mc_pro_command = 0;
-}
-
-uint8_t ps1_memory_card_get_ode_command(void) {
-    return mc_pro_command;
-}
-
-const char* ps1_memory_card_get_game_id(void) {
-    return received_game_id;
 }
 
 void ps1_memory_card_unload(void) {

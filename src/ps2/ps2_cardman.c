@@ -68,7 +68,7 @@ static uint32_t cardprog_pos;
 
 static ps2_cardman_state_t cardman_state;
 
-static enum { CARDMAN_CREATE, CARDMAN_OPEN, CARDMAN_IDLE } cardman_operation;
+static enum { CARDMAN_CREATE, CARDMAN_OPEN, CARDMAN_IDLE, CARDMAN_UNKNOWN } cardman_operation = CARDMAN_UNKNOWN;
 
 static bool try_set_boot_card() {
     if (!settings_get_ps2_autoboot())
@@ -214,7 +214,7 @@ static void ensuredirs(void) {
     sd_mkdir(cardpath);
 
     if (!sd_exists("MemoryCards") || !sd_exists(cardhome) || !sd_exists(cardpath))
-        fatal("error creating directories");
+        fatal(ERR_CARDMAN, "error creating directories");
 }
 #define CARD_OFFS_SUPERBLOCK (0)
 #define CARD_OFFS_IND_FAT_0  (0x4000)
@@ -427,10 +427,10 @@ static void ps2_cardman_continue(void) {
 
                 size_t pos = sector_idx * BLOCK_SIZE;
                 if (sd_seek(cardman_fd, pos, 0) != 0)
-                    fatal("cannot read memcard\nseek");
+                    fatal(ERR_CARDMAN, "cannot read memcard\nseek");
 
                 if (sd_read(cardman_fd, flushbuf, BLOCK_SIZE) != BLOCK_SIZE)
-                    fatal("cannot read memcard\nread %u", pos);
+                    fatal(ERR_CARDMAN, "cannot read memcard\nread %u", pos);
 
                 log(LOG_TRACE, "Writing pos %u\n", pos);
                 psram_write_dma(pos, flushbuf, BLOCK_SIZE, NULL);
@@ -482,7 +482,7 @@ static void ps2_cardman_continue(void) {
                 psram_wait_for_dma();
 
                 if (sd_write(cardman_fd, flushbuf, BLOCK_SIZE) != BLOCK_SIZE)
-                    fatal("cannot init memcard");
+                    fatal(ERR_CARDMAN, "cannot init memcard");
 
                 ps2_dirty_unlock();
 #endif
@@ -556,7 +556,7 @@ void ps2_cardman_open(void) {
         }
 
         if (cardman_fd < 0)
-            fatal("cannot open for creating new card");
+            fatal(ERR_CARDMAN, "cannot open for creating new card");
 
         log(LOG_INFO, "create new image at %s... ", path);
 
@@ -590,7 +590,7 @@ void ps2_cardman_open(void) {
         cardman_sectors_done = 0;
 
         if (cardman_fd < 0)
-            fatal("cannot open card");
+            fatal(ERR_CARDMAN, "cannot open card");
 
         switch (card_size) {
             case PS2_CARD_SIZE_512K:
@@ -601,7 +601,7 @@ void ps2_cardman_open(void) {
             case PS2_CARD_SIZE_16M:
             case PS2_CARD_SIZE_32M:
             case PS2_CARD_SIZE_64M: ps2_mc_data_interface_set_sdmode(true); break;
-            default: fatal("Card %d Channel %d is corrupted", card_idx, card_chan); break;
+            default: fatal(ERR_CARDMAN, "Card %d Channel %d is corrupted", card_idx, card_chan); break;
         }
 
         /* read 8 megs of card image */
@@ -808,8 +808,10 @@ bool __time_critical_func(ps2_cardman_is_accessible)(void) {
     // SD: / IDLE   => X
     // SD: / CREATE => X
     // SD: / OPEN   => X
-    if (ps2_mc_data_interface_get_sdmode())
-        return (cardman_operation == CARDMAN_IDLE);
+    if (cardman_operation == CARDMAN_UNKNOWN)
+        return false;
+    else if (ps2_mc_data_interface_get_sdmode())
+        return (cardman_operation != CARDMAN_CREATE);
     else
         return true;
 }
@@ -823,7 +825,7 @@ void ps2_cardman_init(void) {
     if (!try_set_boot_card())
         set_default_card();
 
-    cardman_operation = CARDMAN_IDLE;
+    cardman_operation = CARDMAN_UNKNOWN;
 }
 
 void ps2_cardman_task(void) {

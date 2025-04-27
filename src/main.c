@@ -1,5 +1,8 @@
 #include <stdio.h>
+#include "hardware/watchdog.h"
+#if WITH_LED
 #include "led.h"
+#endif
 #include "pico/stdio.h"
 #include "pico/stdlib.h"
 #include "pico/bootrom.h"
@@ -78,6 +81,11 @@ static void debug_task(void) {
             if ((in[1] == 'l') && (in[2] == 'r')) {
                 QPRINTF("Resetting to Bootloader");
                 reset_usb_boot(0, 0);
+            }
+        } else if (in[0] == 'r') {
+            if ((in[1] == 'r') && (in[2] == 'r')) {
+                QPRINTF("Resetting");
+                watchdog_reboot(0, 0, 0);
             }
         } else if (in[0] == 'c') {
             if ((in[1] == 'h') && (in[2] == '+')) {

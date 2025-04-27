@@ -8,6 +8,7 @@
 #define MCP_PRV_CH      (3U)
 #define MCP_NXT_CARD    (4U)
 #define MCP_PRV_CARD    (5U)
+#define MCP_SWITCH_BOOTCARD (6U)
 
 
 void ps1_memory_card_main(void);

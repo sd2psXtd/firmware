@@ -129,7 +129,7 @@ static void psram_run_tests(void) {
 
             if (memcmp(buf_write, buf_read, TEST_BLOCK_SIZE) != 0) {
                 printf("test %d cycle %d\n", test, i);
-                fatal("PSRAM failed test");
+                fatal(ERR_PSRAM, "PSRAM failed test");
             }
 
             addr += TEST_BLOCK_SIZE;

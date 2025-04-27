@@ -136,15 +136,18 @@ if (SD2PSX_WITH_GUI)
 endif()
 
 if (SD2PSX_WITH_LED)
-    target_compile_definitions(sd2psx_common PUBLIC "WITH_LED=1")
-    target_sources(sd2psx_common PRIVATE
-                ${CMAKE_CURRENT_SOURCE_DIR}/src/led.c)
+    add_subdirectory(${CMAKE_CURRENT_SOURCE_DIR}/src/led)
+    target_link_libraries(sd2psx_common
+                PUBLIC
+                    sd2psx_led)
+
 
 endif()
 
 set_target_properties(sd2psx_common PROPERTIES PICO_TARGET_LINKER_SCRIPT ${CMAKE_SOURCE_DIR}/memmap_custom.ld)
 
 pico_add_extra_outputs(${TARGET_NAME})
+set_property(TARGET ${TARGET_NAME} APPEND_STRING PROPERTY LINK_FLAGS "-Wl,--print-memory-usage")
 
 
 

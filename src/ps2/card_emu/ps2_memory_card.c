@@ -259,7 +259,10 @@ static void __time_critical_func(mc_main_loop)(void) {
                 case PS2_SIO2_CMD_0x12: ps2_mc_cmd_0x12(); break;
                 case PS2_SIO2_CMD_SET_ERASE_ADDRESS: ps2_mc_cmd_setEraseAddress(); break;
                 case PS2_SIO2_CMD_SET_WRITE_ADDRESS: ps2_mc_cmd_setWriteAddress(); break;
-                case PS2_SIO2_CMD_SET_READ_ADDRESS: ps2_mc_cmd_setReadAddress(); break;
+                case PS2_SIO2_CMD_SET_READ_ADDRESS:
+                    if (ps2_cardman_is_accessible())
+                        ps2_mc_cmd_setReadAddress();
+                    break;
                 case PS2_SIO2_CMD_GET_SPECS: ps2_mc_cmd_getSpecs(); break;
                 case PS2_SIO2_CMD_SET_TERMINATOR: ps2_mc_cmd_setTerminator(); break;
                 case PS2_SIO2_CMD_GET_TERMINATOR: ps2_mc_cmd_getTerminator(); break;

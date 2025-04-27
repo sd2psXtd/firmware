@@ -211,7 +211,7 @@ static void settings_reset(void) {
     settings.ps2_cardsize = 8;
     settings.ps2_variant = PS2_VARIANT_RETAIL;
     if (wear_leveling_write(0, &settings, sizeof(settings)) == WEAR_LEVELING_FAILED)
-        fatal("failed to reset settings");
+        fatal(ERR_SETTINGS, "failed to reset settings");
 }
 
 void settings_load_sd(void) {
@@ -231,7 +231,7 @@ void settings_init(void) {
         settings_reset();
 
         if (wear_leveling_init() == WEAR_LEVELING_FAILED)
-            fatal("cannot init eeprom emu");
+            fatal(ERR_SETTINGS, "cannot init eeprom emu");
     }
 
     wear_leveling_read(0, &settings, sizeof(settings));

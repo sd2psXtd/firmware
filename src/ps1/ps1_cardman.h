@@ -1,6 +1,7 @@
 #pragma once
 
 #include <stdint.h>
+#include <stdbool.h>
 
 #define PS1_CARD_IDX_SPECIAL 0
 
@@ -16,6 +17,7 @@ int ps1_cardman_read_sector(int sector, void *buf128);
 int ps1_cardman_write_sector(int sector, void *buf512);
 void ps1_cardman_flush(void);
 void ps1_cardman_open(void);
+bool ps1_cardman_needs_update(void);
 void ps1_cardman_close(void);
 int ps1_cardman_get_idx(void);
 int ps1_cardman_get_channel(void);
@@ -26,4 +28,5 @@ void ps1_cardman_next_channel(void);
 void ps1_cardman_prev_channel(void);
 void ps1_cardman_next_idx(void);
 void ps1_cardman_prev_idx(void);
-void ps1_cardman_set_ode_idx();
+void ps1_cardman_set_game_id(const char* card_game_id);
+void ps1_cardman_switch_bootcard(void);
