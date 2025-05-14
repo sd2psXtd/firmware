@@ -431,7 +431,7 @@ static void update_main_header(void) {
         else if (PS2_VARIANT_COH == settings_get_ps2_variant())
             lv_label_set_text(main_header, "Security Dongle");
         else if (PS2_VARIANT_COH2 == settings_get_ps2_variant())
-            lv_label_set_text(main_header, "Arcade Memory Card");
+            lv_label_set_text(main_header, "PS2 Arcade Card");
     } else {
         lv_label_set_text(main_header, "USB Mode");
     }
@@ -893,7 +893,7 @@ static void create_menu_screen(void) {
             else if (settings_get_ps2_variant() == PS2_VARIANT_COH)
                 snprintf(text, ARRAY_SIZE(text), "Arcade>");
             else if (settings_get_ps2_variant() == PS2_VARIANT_COH2)
-                snprintf(text, ARRAY_SIZE(text), "Arcade>");
+                snprintf(text, ARRAY_SIZE(text), "Arcade2>");
             cont = ui_menu_cont_create_nav(ps2_page);
             ui_label_create_grow(cont, "Variant");
             lbl_ps2_variant = ui_label_create(cont, text);
