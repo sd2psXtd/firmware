@@ -551,24 +551,44 @@ inline __attribute__((always_inline)) void __time_critical_func(ps2_mc_auth)(voi
 }
 
 /**
-  * Official retail memory cards use both developer and retail keys.
-  * they use developer keys untill 0xF7 command (this function) is called. then they switch to retail keys
-  * the ideal approach is just to respond to this command, but never expect it.
+  * Official SCPH-10020 retail memory cards support 4 keys.
+  * they use developer keys untill 0xF7 command (this function) is called. then they switch to either one of the keys shown in the enumerator below
+  * the ideal approach is just to respond to this command, but never expect it. as DEX SECRMAN does not request DEX key because that's the card neutral state
   * retail SECRMAN expects an answer to this, but the others wont.
-  * arcade cards support this command but dont perform a key change bc they were not intended to do so.
+  * COH-H10020 will ignore this command
   */
+
+enum KeySelectParams {
+    REQUEST_DEX = 0,
+    REQUEST_CEX = 1,
+    REQUEST_UNKNOWN = 2, // unknown 5th magicgate key. when using this key. SCPH-10020 does not unlock with any known mg keyset
+    REQUEST_ARCADE_2 = 3,
+}
 inline __attribute__((always_inline)) void __time_critical_func(ps2_mc_auth_keySelect)(void) {
     // TODO: it fails to get detected at all when ps2_magicgate==0, check if it's intentional
     uint8_t _ = 0U;
     /* SIO_MEMCARD_KEY_SELECT */
     mc_respond(0xFF);
     receiveOrNextCmd(&_);
+    log(LOG_TRACE, "KeySelect: requested %d key\n", _);
+    switch (_) {
+        case REQUEST_DEX:
+            key = dex_key;
+            break;
+        case REQUEST_CEX:
+            key = cex_key;
+            break;
+        case REQUEST_UNKNOWN:
+            log(LOG_TRACE, "KeySelect: Requested mg key 2. !!! PLEASE CONTACT DEVELOPER NOW !!!\n");
+            break;
+        case REQUEST_ARCADE_2:
+            /// TODO: Change the variant to COH2 automatically here. to avoid mixing retail/dex VMCs with anything else
+            key = coh_alt_key;
+            break;
+    };
     mc_respond(0x2B);
     receiveOrNextCmd(&_);
     mc_respond(term);
-    log(LOG_TRACE, "Switching to CEX\n");
-    if (PS2_VARIANT_RETAIL == settings_get_ps2_variant())
-        key = cex_key;
 }
 
 inline __attribute__((always_inline)) void __time_critical_func(ps2_mc_auth_reset)(void) {
