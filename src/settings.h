@@ -31,9 +31,10 @@ enum {
 };
 
 enum {
-    PS2_VARIANT_RETAIL  = 0,
-    PS2_VARIANT_COH     = 1,
-    PS2_VARIANT_PROTO   = 2
+    PS2_VARIANT_RETAIL  = 0, // Retail
+    PS2_VARIANT_COH     = 1, // Arcade. Port 1
+    PS2_VARIANT_PROTO   = 2, // Prototype
+    PS2_VARIANT_COH2 = 3,    // Arcade. port 2
 };
 
 int settings_get_mode(void);

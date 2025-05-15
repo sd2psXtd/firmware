@@ -145,7 +145,7 @@ Possible values are:
 | AutoBoot      | `OFF`, `ON`                           |
 | GameID        | `OFF`, `ON`                           |
 | CardSize      | `1`, `2`, `4`, `8`, `16`, `32`, `64`  |
-| Variant       | `RETAIL`, `PROTO`, `ARCADE`           |
+| Variant       | `RETAIL`, `PROTO`, `ARCADE`, `ARCADE2`|
 | FlippedScreen | `ON`, `OFF`                           |
 
 *Note: Make sure there is an empty line at the end of the ini file.*
