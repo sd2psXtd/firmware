@@ -563,7 +563,8 @@ enum KeySelectParams {
     REQUEST_CEX = 1,
     REQUEST_UNKNOWN = 2, // unknown 5th magicgate key. when using this key. SCPH-10020 does not unlock with any known mg keyset
     REQUEST_ARCADE_2 = 3,
-}
+};
+
 inline __attribute__((always_inline)) void __time_critical_func(ps2_mc_auth_keySelect)(void) {
     // TODO: it fails to get detected at all when ps2_magicgate==0, check if it's intentional
     uint8_t _ = 0U;
