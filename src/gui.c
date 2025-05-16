@@ -431,7 +431,7 @@ static void update_main_header(void) {
         else if (PS2_VARIANT_COH == settings_get_ps2_variant())
             lv_label_set_text(main_header, "Security Dongle");
         else if (PS2_VARIANT_COH2 == settings_get_ps2_variant())
-            lv_label_set_text(main_header, "Arcade Memory Card");
+            lv_label_set_text(main_header, "PS2 Arcade Card");
     } else {
         lv_label_set_text(main_header, "USB Mode");
     }

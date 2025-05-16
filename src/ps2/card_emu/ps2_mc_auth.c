@@ -550,20 +550,20 @@ inline __attribute__((always_inline)) void __time_critical_func(ps2_mc_auth)(voi
     }
 }
 
-/**
-  * Official SCPH-10020 retail memory cards support 4 keys.
-  * they use developer keys untill 0xF7 command (this function) is called. then they switch to either one of the keys shown in the enumerator below
-  * the ideal approach is just to respond to this command, but never expect it. as DEX SECRMAN does not request DEX key because that's the card neutral state
-  * retail SECRMAN expects an answer to this, but the others wont.
-  * COH-H10020 will ignore this command
-  */
-
 enum KeySelectParams {
     REQUEST_DEX = 0,
     REQUEST_CEX = 1,
     REQUEST_UNKNOWN = 2, // unknown 5th magicgate key. when using this key. SCPH-10020 does not unlock with any known mg keyset
     REQUEST_ARCADE_2 = 3,
 };
+
+/**
+  * Official SCPH-10020 retail memory cards support 4 keys.
+  * they use developer keys untill 0xF7 command (this function) is called. then they switch to either one of the keys shown in the enumerator above
+  * the ideal approach is just to respond to this command, but never expect it. as DEX SECRMAN does not request DEX key because that's the card neutral state
+  * retail SECRMAN expects an answer to this, but the others wont.
+  * COH-H10020 will ignore this command
+  */
 
 inline __attribute__((always_inline)) void __time_critical_func(ps2_mc_auth_keySelect)(void) {
     // TODO: it fails to get detected at all when ps2_magicgate==0, check if it's intentional
@@ -574,17 +574,24 @@ inline __attribute__((always_inline)) void __time_critical_func(ps2_mc_auth_keyS
     log(LOG_TRACE, "KeySelect: requested %d key\n", _);
     switch (_) {
         case REQUEST_DEX:
+            ps2_cardman_set_variant(PS2_VARIANT_RETAIL);
             key = dex_key;
+            keysource = ps2_keysource;
             break;
         case REQUEST_CEX:
+            ps2_cardman_set_variant(PS2_VARIANT_RETAIL);
             key = cex_key;
+            keysource = ps2_keysource;
             break;
         case REQUEST_UNKNOWN:
-            log(LOG_TRACE, "KeySelect: Requested mg key 2. !!! PLEASE CONTACT DEVELOPER NOW !!!\n");
+            log(LOG_WARN, "Requested mg key 2.\n!!! PLEASE CONTACT DEVELOPER NOW !!!\n");
+            fatal(ERR_MC_AUTH_UNK, "Requested mg key 2.\n!!! PLEASE CONTACT DEVELOPER NOW !!!\n");
             break;
         case REQUEST_ARCADE_2:
             /// TODO: Change the variant to COH2 automatically here. to avoid mixing retail/dex VMCs with anything else
+            ps2_cardman_set_variant(PS2_VARIANT_COH2);
             key = coh_alt_key;
+            keysource = coh_keysource;
             break;
     };
     mc_respond(0x2B);

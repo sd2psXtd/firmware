@@ -1,6 +1,7 @@
 name: Build Nightly
 
 on:
+  pull_request:
   push:
     tags:
       - '*'

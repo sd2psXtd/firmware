@@ -31,6 +31,7 @@
 #define ERR_SETTINGS    0x04
 #define ERR_CIV         0x05
 #define ERR_MC_DATA     0x06
+#define ERR_MC_AUTH_UNK 0x07
 
 extern const char *log_level_str[];
 
