@@ -51,9 +51,10 @@ body:
       description: "If you are using the device on non retail PS2, please specify wich. to tag the appropiate developers"
       multiple: false
       options:
-        - "DEVELOPER. (DTL-H or DTL-T models)"
-        - "ARCADE. (namco system 246/256 and konami python1)"
-        - "PROTOTYPE."
+        - "DEVELOPER (DTL-H or DTL-T models)"
+        - "ARCADE (namco system 246/256 and konami python1)"
+        - "ARCADE2 (namco system 246/256 and konami python1 second card slot)"
+        - "PROTOTYPE"
     validations:
       required: false
       
