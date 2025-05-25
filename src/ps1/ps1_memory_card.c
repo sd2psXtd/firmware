@@ -29,6 +29,7 @@ static volatile int reset;
 static uint8_t flag;
 static uint8_t* curr_page = NULL;
 static bool ps2_multitap = false;
+static volatile bool card_active = false;
 
 typedef struct {
     uint32_t offset;
@@ -86,8 +87,13 @@ static void __time_critical_func(init_pio)(void) {
 }
 
 static void __time_critical_func(card_deselected)(uint gpio, uint32_t event_mask) {
-    if (gpio == PIN_PSX_SEL && (event_mask & GPIO_IRQ_EDGE_RISE))
+    if (gpio == PIN_PSX_SEL && (event_mask & GPIO_IRQ_EDGE_RISE)) {
         reset_pio();
+        card_active = false;
+    } else if (gpio == PIN_PSX_SEL && (event_mask & GPIO_IRQ_EDGE_FALL)) {
+        card_active = true;
+    }
+
 }
 
 static uint8_t __time_critical_func(recv_cmd)(uint8_t* cmd, uint32_t sm) {
@@ -105,13 +111,23 @@ static uint8_t __time_critical_func(recv_cmd)(uint8_t* cmd, uint32_t sm) {
 #define recv_mc(cmd)    recv_cmd(cmd, cmd_reader.sm)
 
 #define receiveOrNextCmd(cmd)          \
-    if (recv_cmd(cmd, cmd_reader.sm) == RECEIVE_RESET) \
-    {/*DPRINTF("Reset at %s:%u\n", __func__, __LINE__);*/ \
+    if ((recv_cmd(cmd, cmd_reader.sm) == RECEIVE_RESET) || !card_active) \
+    {DPRINTF("!R: %s:%u\n", __func__, __LINE__); \
+    return;}
+
+#define receiveOrNextCntrl(cmd)          \
+    if ((recv_cmd(cmd, cntrl_reader.sm) == RECEIVE_RESET) || !card_active) \
+    {DPRINTF("!RC %s:%u\n", __func__, __LINE__); \
     return;}
 
 static void __time_critical_func(ps1_mc_respond)(uint8_t ch) {
     pio_sm_put_blocking(pio0, dat_writer.sm, ~ch & 0xFF);
 }
+
+#define respondOrNextCmd(cmd)          \
+    if (card_active) ps1_mc_respond(cmd);\
+    else {DPRINTF("!RR: %s:%u\n", __func__, __LINE__); return;}
+
 /*
   Send Reply Comment
   81h  N/A   Memory card address
@@ -128,14 +144,14 @@ static void __time_critical_func(ps1_mc_respond)(uint8_t ch) {
 
 static void __time_critical_func(mc_cmd_get_card_id)(void) {
     uint8_t _;
-    ps1_mc_respond(0x5A); receiveOrNextCmd(&_);
-    ps1_mc_respond(0x5D); receiveOrNextCmd(&_);
-    ps1_mc_respond(0x5C); receiveOrNextCmd(&_);
-    ps1_mc_respond(0x5D); receiveOrNextCmd(&_);
-    ps1_mc_respond(0x04); receiveOrNextCmd(&_);
-    ps1_mc_respond(0x00); receiveOrNextCmd(&_);
-    ps1_mc_respond(0x00); receiveOrNextCmd(&_);
-    ps1_mc_respond(0x80); receiveOrNextCmd(&_);
+    respondOrNextCmd(0x5A); receiveOrNextCmd(&_);
+    respondOrNextCmd(0x5D); receiveOrNextCmd(&_);
+    respondOrNextCmd(0x5C); receiveOrNextCmd(&_);
+    respondOrNextCmd(0x5D); receiveOrNextCmd(&_);
+    respondOrNextCmd(0x04); receiveOrNextCmd(&_);
+    respondOrNextCmd(0x00); receiveOrNextCmd(&_);
+    respondOrNextCmd(0x00); receiveOrNextCmd(&_);
+    respondOrNextCmd(0x80); receiveOrNextCmd(&_);
 }
 
 /*
@@ -161,31 +177,32 @@ static void __time_critical_func(mc_cmd_read)(bool long_read) {
     uint16_t page = 0U;
     uint8_t _;
 
-    ps1_mc_respond(0x5A);       receiveOrNextCmd(&_);
-    ps1_mc_respond(0x5D);       receiveOrNextCmd(&_);
-    ps1_mc_respond(0x00);       receiveOrNextCmd(&page_msb);
-    ps1_mc_respond(page_msb);   receiveOrNextCmd(&page_lsb);
+    respondOrNextCmd(0x5A);       receiveOrNextCmd(&_);
+    respondOrNextCmd(0x5D);       receiveOrNextCmd(&_);
+    respondOrNextCmd(0x00);       receiveOrNextCmd(&page_msb);
+    respondOrNextCmd(page_msb);   receiveOrNextCmd(&page_lsb);
     chk = page_msb ^ page_lsb;
-    ps1_mc_respond(0x5C);       receiveOrNextCmd(&_);
-    ps1_mc_respond(0x5D);       receiveOrNextCmd(&_);
-    ps1_mc_respond(page_msb);   receiveOrNextCmd(&_);
+    respondOrNextCmd(0x5C);       receiveOrNextCmd(&_);
+    respondOrNextCmd(0x5D);       receiveOrNextCmd(&_);
+    respondOrNextCmd(page_msb);   receiveOrNextCmd(&_);
     page = (page_msb << 8) | page_lsb;
     ps1_mc_data_interface_setup_read_page(page);
-    ps1_mc_respond(page_lsb);   receiveOrNextCmd(&_);
+    respondOrNextCmd(page_lsb);   receiveOrNextCmd(&_);
     do {
         curr_page = ps1_mc_data_interface_get_page(page);
         for (offset = 0; offset < 128; offset++) {
             ps1_mc_data_interface_wait_for_byte(offset);
-            ps1_mc_respond(curr_page[offset]);
+            respondOrNextCmd(curr_page[offset]);
             chk ^= curr_page[offset];
             receiveOrNextCmd(&_)
         }
         page++;
         ps1_mc_data_interface_setup_read_page(page);
     } while (long_read);
-    ps1_mc_respond(chk);        receiveOrNextCmd(&_);
-    ps1_mc_respond(0x47);
+    respondOrNextCmd(chk);        receiveOrNextCmd(&_);
+    respondOrNextCmd(0x47);
     curr_page = NULL;
+    DPRINTF("Read page %d done\n", page);
 }
 
 
@@ -213,35 +230,35 @@ static void __time_critical_func(mc_cmd_write)(void) {
 
     flag = 0;
 
-    ps1_mc_respond(0x5A);       receiveOrNextCmd(&_);
-    ps1_mc_respond(0x5D);       receiveOrNextCmd(&_);
-    ps1_mc_respond(0x00);       receiveOrNextCmd(&page_msb);
-    ps1_mc_respond(page_msb);   receiveOrNextCmd(&page_lsb);
+    respondOrNextCmd(0x5A);       receiveOrNextCmd(&_);
+    respondOrNextCmd(0x5D);       receiveOrNextCmd(&_);
+    respondOrNextCmd(0x00);       receiveOrNextCmd(&page_msb);
+    respondOrNextCmd(page_msb);   receiveOrNextCmd(&page_lsb);
     chk = page_msb ^ page_lsb;
     prev = page_lsb;
     for (offset = 0; offset < 128; offset++) {
-        ps1_mc_respond(prev);   receiveOrNextCmd(&in);
+        respondOrNextCmd(prev);   receiveOrNextCmd(&in);
         ps1_mc_data_interface_write_byte(((page_msb * 256) + page_lsb) * 128 + offset, in);
         chk ^= in;
         prev = in;
     }
-    ps1_mc_respond(prev);           receiveOrNextCmd(&in);
-    ps1_mc_respond(0x5C);           receiveOrNextCmd(&_);
-    ps1_mc_respond(0x5D);           receiveOrNextCmd(&_);
+    respondOrNextCmd(prev);           receiveOrNextCmd(&in);
+    respondOrNextCmd(0x5C);           receiveOrNextCmd(&_);
+    respondOrNextCmd(0x5D);           receiveOrNextCmd(&_);
     if (in == chk) {
         ps1_mc_data_interface_write_mc((page_msb * 256) + page_lsb);
-        ps1_mc_respond(0x47);
+        respondOrNextCmd(0x47);
     } else {
-        ps1_mc_respond(0x4E);
+        respondOrNextCmd(0x4E);
     }
 }
 
 static void __time_critical_func(mc_mmce_ping)(void) {
     uint8_t _;
-    ps1_mc_respond(0x00);   receiveOrNextCmd(&_);
-    ps1_mc_respond(0x00);   receiveOrNextCmd(&_);
-    ps1_mc_respond(0x27);   receiveOrNextCmd(&_);
-    ps1_mc_respond(0xFF);   receiveOrNextCmd(&_);
+    respondOrNextCmd(0x00);   receiveOrNextCmd(&_);
+    respondOrNextCmd(0x00);   receiveOrNextCmd(&_);
+    respondOrNextCmd(0x27);   receiveOrNextCmd(&_);
+    respondOrNextCmd(0xFF);   receiveOrNextCmd(&_);
 }
 
 static void __time_critical_func(mc_mmce_set_game_id)(void) {
@@ -251,12 +268,12 @@ static void __time_critical_func(mc_mmce_set_game_id)(void) {
     uint8_t prev = 0;
     uint8_t _;
     memset(received_game_id, 0, sizeof(received_game_id));
-    ps1_mc_respond(0x00);   receiveOrNextCmd(&_);       // Reserved
-    ps1_mc_respond(0x00);   receiveOrNextCmd(&length);  // length
+    respondOrNextCmd(0x00);   receiveOrNextCmd(&_);       // Reserved
+    respondOrNextCmd(0x00);   receiveOrNextCmd(&length);  // length
     prev = length;
 
     for (uint8_t i = 0; i < length; i++) {
-        ps1_mc_respond(prev);   receiveOrNextCmd(&game_id[i]);
+        respondOrNextCmd(prev);   receiveOrNextCmd(&game_id[i]);
         prev = game_id[i];
     }
 
@@ -265,37 +282,37 @@ static void __time_critical_func(mc_mmce_set_game_id)(void) {
 
 static void __time_critical_func(mc_mmce_prev_channel)(void) {
     uint8_t _;
-    ps1_mc_respond(0x00);   receiveOrNextCmd(&_);
-    ps1_mc_respond(0x00);   receiveOrNextCmd(&_);
-    ps1_mc_respond(0x20);   receiveOrNextCmd(&_);
-    ps1_mc_respond(0xFF);   receiveOrNextCmd(&_);
+    respondOrNextCmd(0x00);   receiveOrNextCmd(&_);
+    respondOrNextCmd(0x00);   receiveOrNextCmd(&_);
+    respondOrNextCmd(0x20);   receiveOrNextCmd(&_);
+    respondOrNextCmd(0xFF);   receiveOrNextCmd(&_);
     ps1_mmce_prev_ch(false);
 }
 
 static void __time_critical_func(mc_mmce_next_channel)(void) {
     uint8_t _;
-    ps1_mc_respond(0x00);   receiveOrNextCmd(&_);
-    ps1_mc_respond(0x00);   receiveOrNextCmd(&_);
-    ps1_mc_respond(0x20);   receiveOrNextCmd(&_);
-    ps1_mc_respond(0xFF);   receiveOrNextCmd(&_);
+    respondOrNextCmd(0x00);   receiveOrNextCmd(&_);
+    respondOrNextCmd(0x00);   receiveOrNextCmd(&_);
+    respondOrNextCmd(0x20);   receiveOrNextCmd(&_);
+    respondOrNextCmd(0xFF);   receiveOrNextCmd(&_);
     ps1_mmce_next_ch(false);
 }
 
 static void __time_critical_func(mc_mmce_prev_index)(void) {
     uint8_t _;
-    ps1_mc_respond(0x00);   receiveOrNextCmd(&_);
-    ps1_mc_respond(0x00);   receiveOrNextCmd(&_);
-    ps1_mc_respond(0x20);   receiveOrNextCmd(&_);
-    ps1_mc_respond(0xFF);   receiveOrNextCmd(&_);
+    respondOrNextCmd(0x00);   receiveOrNextCmd(&_);
+    respondOrNextCmd(0x00);   receiveOrNextCmd(&_);
+    respondOrNextCmd(0x20);   receiveOrNextCmd(&_);
+    respondOrNextCmd(0xFF);   receiveOrNextCmd(&_);
     ps1_mmce_prev_idx(false);
 }
 
 static void __time_critical_func(mc_mmce_next_index)(void) {
     uint8_t _;
-    ps1_mc_respond(0x00);   receiveOrNextCmd(&_);
-    ps1_mc_respond(0x00);   receiveOrNextCmd(&_);
-    ps1_mc_respond(0x20);   receiveOrNextCmd(&_);
-    ps1_mc_respond(0xFF);   receiveOrNextCmd(&_);
+    respondOrNextCmd(0x00);   receiveOrNextCmd(&_);
+    respondOrNextCmd(0x00);   receiveOrNextCmd(&_);
+    respondOrNextCmd(0x20);   receiveOrNextCmd(&_);
+    respondOrNextCmd(0xFF);   receiveOrNextCmd(&_);
     ps1_mmce_next_idx(false);
 }
 
@@ -333,15 +350,15 @@ static void mc_read_controller(void) {
     uint8_t _ = 0x00;
     receiveOrNextCmd(&_);
     if (_ == (uint8_t)'B') {    // Only reactive to "read buttons" command
-        recv_cntrl(&_); // Hi-Z
-        recv_cntrl(&_);
+        receiveOrNextCntrl(&_); // Hi-Z
+        receiveOrNextCntrl(&_);
         if ((_== 0x00) || (_ == 0xFF))
             return;
-        recv_cntrl(&_);
+        receiveOrNextCntrl(&_);
         if (_ != 0x5A)
             return;
         for (uint8_t i = 0; i < 2; i++) {
-            recv_cntrl(&controller_in[i]);
+            receiveOrNextCntrl(&controller_in[i]);
         }
         #define HOTKEYS 0b00001111
         #define BTN_UP  0b00010000
@@ -385,11 +402,6 @@ static void mc_read_controller(void) {
             }
             prevCommand = 0;
         }
-
-        while (true) {
-            receiveOrNextCmd(&_);
-            recv_cntrl(&_);
-        }
     }
 
 }
@@ -409,40 +421,42 @@ static void __time_critical_func(mc_main_loop)(void) {
         reset = 0;
         uint8_t received = recv_mc(&ch);
 
-        if (received == RECEIVE_EXIT) {
-            mc_exit_response = 1;
-            break;
-        }
-        /* If this ch belongs to the next command sequence */
-        if (received == RECEIVE_RESET) {
-            continue;
+        if (received != RECEIVE_OK) {
+            if (received == RECEIVE_EXIT) {
+                mc_exit_response = 1;
+                break;
+            }
+            /* If this ch belongs to the next command sequence */
+            if (received == RECEIVE_RESET) {
+                continue;
+            }
         }
 
         if (0x81 == ch) { /* Command is for MC - process! */
             ps1_mc_respond(flag);
-            int ret = recv_mc(&ch);
-            if (ret == RECEIVE_RESET)
+
+            if (recv_mc(&ch) == RECEIVE_RESET)
                 continue;
 
             switch (ch) {
-                case 'S': mc_cmd_get_card_id(); break;
-                case 'R': mc_cmd_read(false); break;
-                case 'B': mc_cmd_read(true); break;
-                case 'W': mc_cmd_write(); break;
                 case 0x20: mc_mmce_ping(); break;
                 case 0x21: mc_mmce_set_game_id(); break;
                 case 0x22: mc_mmce_prev_channel(); break;
                 case 0x23: mc_mmce_next_channel(); break;
                 case 0x24: mc_mmce_prev_index(); break;
                 case 0x25: mc_mmce_next_index(); break;
+                case 'B': mc_cmd_read(true); break;
+                case 'R': mc_cmd_read(false); break;
+                case 'S': mc_cmd_get_card_id(); break;
+                case 'W': mc_cmd_write(); break;
                 default: DPRINTF("Unknown command: 0x%.02x\n", ch); break;
             }
         } else if (0x01 == ch) {
             mc_read_controller();
         } else if ((0x21 == ch) && !ps2_multitap) {
             ps1_mc_respond(0x00);
-            int ret = recv_mc(&ch);
-            if (RECEIVE_RESET == ret)
+
+            if (RECEIVE_RESET == recv_mc(&ch))
                 continue;
 
             if (0x53 == ch) {
@@ -522,6 +536,7 @@ void ps1_memory_card_main(void) {
     DPRINTF("Secondary core!\n");
 
     my_gpio_set_irq_enabled_with_callback(PIN_PSX_SEL, GPIO_IRQ_EDGE_RISE, 1, card_deselected);
+    my_gpio_set_irq_enabled_with_callback(PIN_PSX_SEL, GPIO_IRQ_EDGE_FALL, 1, card_deselected);
 
     gpio_set_slew_rate(PIN_PSX_DAT, GPIO_SLEW_RATE_SLOW);
     gpio_set_drive_strength(PIN_PSX_DAT, GPIO_DRIVE_STRENGTH_4MA);

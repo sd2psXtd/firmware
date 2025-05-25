@@ -34,33 +34,23 @@
     set pindirs, 0           ; release DAT line (set pin as input = Hi-Z)
     wait 0 gpio PIN_PSX_SEL  ; wait for SEL
 .wrap_target
-    pull block               ; pull a byte to send, blocking
-
-    ; trigger ACK
-     nop side 1 [7]
-     nop [7]
-     nop [7]
-     nop [7]
-;     nop side 0
-;    set x, 25  side 1
-;ack:
-;    nop [7]
-;    nop [7]
-;    nop [5]
-;    jmp x-- ack
-
-    set x, 7 side 0
+    pull block          [3]   ; pull a byte to send, blocking
+ack:
+     nop side 1 [4]
+    set x, 7  side 0 [5]
 sendbit:
     wait 1 gpio PIN_PSX_CLK  ; wait for clock to rise
     wait 0 gpio PIN_PSX_CLK  ; wait for falling clock edge
     out pindirs 1            ; output 1 bit (by changing pin direction)
     jmp x-- sendbit
+    nop [7]
+    jmp !osre ack
 .wrap
 
 
 % c-sdk {
 
-#define PS1_CLKDIV 25
+#define PS1_CLKDIV 96
 
 static inline void cmd_reader_program_init(PIO pio, uint sm, uint offset) {
     pio_sm_config c = cmd_reader_program_get_default_config(offset);
