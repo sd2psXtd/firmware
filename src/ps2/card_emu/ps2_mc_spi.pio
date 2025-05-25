@@ -35,20 +35,21 @@
     ; wait for SEL
     wait 0 gpio PIN_PSX_SEL
 .wrap_target
-    irq clear 7 ; Clear remaining IRQ
 
     ; wait for the arm core to give us a byte to send
-    pull block ; Pull Block for sending
+    pull block ; Pull Byte for sending (blocking)
 
-    ; Set ACK to 0 for whole transfer to speed up bus
+    ; Set ACK to 0 for first bit to speed up bus
     set pins, 0
 
-    set x 7 ; Send 8 Bits in total
+    set x 6 ; Send 8 Bits in total
+    out pins 1
 sendbit:
-    wait 1 irq 7
+    wait 0 gpio PIN_PSX_CLK
+    set pins, 1 ; Set ACK to 1
+    wait 1 gpio PIN_PSX_CLK
     out pins 1
     jmp x-- sendbit ; Repeat until byte is sent
-    set pins, 1 ; Set ACK to 1
 .wrap ; Wait for next byte
 
 .program clock_probe
