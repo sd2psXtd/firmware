@@ -57,6 +57,10 @@ void ps1_mmce_task(void) {
                 DPRINTF("Received switch boot card.\n");
                 ps1_cardman_switch_bootcard();
                 break;
+            case MCP_SWITCH_DEFAULT:
+                DPRINTF("Received switch default card.\n");
+                ps1_cardman_switch_default();
+                break;
             default:
                 DPRINTF("Invalid ODE Command received.");
                 break;
@@ -98,6 +102,8 @@ bool __time_critical_func(ps1_mmce_set_gameid)(const uint8_t* const game_id) {
         snprintf(received_game_id, sizeof(received_game_id), "%s", sanitized_game_id);
         mmce_command = MCP_GAME_ID;
         ret = true;
+    } else if ((game_id[0] != 0x00) && (ps1_cardman_get_idx() == PS1_CARD_IDX_SPECIAL)) {
+        mmce_command = MCP_SWITCH_DEFAULT;
     }
     return ret;
 }

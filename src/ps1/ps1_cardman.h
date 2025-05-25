@@ -30,3 +30,4 @@ void ps1_cardman_next_idx(void);
 void ps1_cardman_prev_idx(void);
 void ps1_cardman_set_game_id(const char* card_game_id);
 void ps1_cardman_switch_bootcard(void);
+void ps1_cardman_switch_default(void);
