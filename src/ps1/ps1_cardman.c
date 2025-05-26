@@ -395,7 +395,7 @@ void ps1_cardman_switch_bootcard(void) {
 }
 
 void ps1_cardman_switch_default(void) {
-    if (PS1_CM_STATE_BOOT == cardman_state) {
+    if (PS1_CARD_IDX_SPECIAL == card_idx) {
         set_default_card();
         needs_update = true;
     }
