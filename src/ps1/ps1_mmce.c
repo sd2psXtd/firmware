@@ -34,6 +34,7 @@ void ps1_mmce_task(void) {
             case MCP_GAME_ID: {
                 DPRINTF("Received Game ID: %s\n", received_game_id);
                 game_db_update_game(received_game_id);
+                game_db_get_current_parent(received_game_id);
                 ps1_cardman_set_game_id(received_game_id);
                 break;
             }
