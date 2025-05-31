@@ -83,7 +83,7 @@ void __time_critical_func(generateIvSeedNonce)() {
             keysource = coh_keysource;
             key = coh_key;
             break;
-        case PS2_VARIANT_COH2:
+        case PS2_VARIANT_SC2:
             keysource = ps2_keysource;
             key = arcade_key;
             break;
@@ -107,7 +107,6 @@ void __time_critical_func(generateIvSeedNonce)() {
 
 void __time_critical_func(generateResponse)() {
     doubleDesDecrypt(key, MechaChallenge1);
-    DPRINTF("generateResponse:key : %02X %02X %02X %02X %02X %02X %02X %02X\n", ARG8(key));
     uint8_t random[8] = {0};
     xor_bit(MechaChallenge1, ps2_civ, random, 8);
 

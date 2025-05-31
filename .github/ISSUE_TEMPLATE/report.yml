@@ -53,7 +53,7 @@ body:
       options:
         - "DEVELOPER (DTL-H or DTL-T models)"
         - "ARCADE (namco system 246/256 and konami python1)"
-        - "ARCADE2 (namco system 246/256 and konami python1 second card slot)"
+        - "CONQUEST (SoulCalibur2 Conquest card)"
         - "PROTOTYPE"
     validations:
       required: false
