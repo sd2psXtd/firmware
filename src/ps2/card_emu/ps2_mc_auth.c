@@ -572,24 +572,26 @@ inline __attribute__((always_inline)) void __time_critical_func(ps2_mc_auth_keyS
     mc_respond(0xFF);
     receiveOrNextCmd(&_);
     DPRINTF("KeySelect: requested %d key\n", _);
-    switch (_) {
-        case REQUEST_DEX:
-            keysource = ps2_keysource;
-            key = dex_key;
-            break;
-        case REQUEST_CEX:
-            keysource = ps2_keysource;
-            key = cex_key;
-            break;
-        case REQUEST_UNKNOWN:
-            fatal(ERR_MC_AUTH_UNK, "!!! PLEASE CONTACT DEVELOPER !!!\n" //this line fits in one row without free space
-                                   "   MAGICGATE MODE 2 REQUESTED   ");
-            break;
-        case REQUEST_ARCADE_2:
-            keysource = ps2_keysource;
-            key = arcade_key;
-            break;
-    };
+    if (PS2_VARIANT_RETAIL == settings_get_ps2_variant()) {
+        switch (_) {
+            case REQUEST_DEX:
+                keysource = ps2_keysource;
+                key = dex_key;
+                break;
+            case REQUEST_CEX:
+                keysource = ps2_keysource;
+                key = cex_key;
+                break;
+            case REQUEST_UNKNOWN:
+                fatal(ERR_MC_AUTH_UNK, "!!! PLEASE CONTACT DEVELOPER !!!\n" //this line fits in one row without free space
+                                       "   MAGICGATE MODE 2 REQUESTED   ");
+                break;
+            case REQUEST_ARCADE_2:
+                keysource = ps2_keysource;
+                key = arcade_key;
+                break;
+        };
+    }
     mc_respond(0x2B);
     receiveOrNextCmd(&_);
     mc_respond(term);
