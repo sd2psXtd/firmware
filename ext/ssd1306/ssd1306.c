@@ -25,15 +25,42 @@ SOFTWARE.
 
 #include <pico/stdlib.h>
 #include <hardware/i2c.h>
+#include <hardware/dma.h>
 #include <pico/binary_info.h>
+#include <stdint.h>
 #include <stdlib.h>
 #include <string.h>
 #include <stdio.h>
+#include "pico/platform.h"
+#include "pico/time.h"
+#include "pico/types.h"
 
 #include "ssd1306.h"
 
-inline static void fancy_write(i2c_inst_t *i2c, uint8_t addr, const uint8_t *src, size_t len, char *name) {
-    switch(i2c_write_blocking(i2c, addr, src, len, false)) {
+// ============================================================================================
+// Variables
+static bool                   dma_idle;
+static int                    dma_chan;
+static dma_channel_config     dma_conf;
+
+inline static void dma_write(i2c_inst_t *i2c, uint8_t addr, uint16_t *src, size_t len, char *name) {
+
+    while(dma_channel_is_busy(dma_chan)) {
+        tight_loop_contents();
+    }
+
+    i2c->hw->tar = addr;
+
+    dma_idle = false;
+    src[len-1] |= I2C_IC_DATA_CMD_STOP_BITS; // set stop bit on last byte
+
+    dma_channel_set_read_addr(dma_chan, src, false);
+    dma_channel_set_trans_count(dma_chan, len, true);
+}
+
+inline static void fancy_write(i2c_inst_t *i2c, uint8_t addr, uint8_t *src, size_t len, char *name) {
+
+    switch(i2c_write_blocking(i2c, addr, (uint8_t*)src, len, false)) {
     case PICO_ERROR_GENERIC:
         printf("[%s] addr not acknowledged!\n", name);
         break;
@@ -51,6 +78,14 @@ inline static void ssd1306_write(ssd1306_t *p, uint8_t val) {
     fancy_write(p->i2c_i, p->address, d, 2, "ssd1306_write");
 }
 
+void ISR_I2C_DMA_Transmit_Complete()
+{
+    dma_hw->ints0 = (1u << dma_chan);
+
+    dma_idle = true;
+}
+
+
 bool ssd1306_init(ssd1306_t *p, uint16_t width, uint16_t height, uint8_t address, i2c_inst_t *i2c_instance, uint8_t contrast, uint8_t vcomh, bool flipped) {
     p->width=width;
     p->height=height;
@@ -61,7 +96,7 @@ bool ssd1306_init(ssd1306_t *p, uint16_t width, uint16_t height, uint8_t address
 
 
     p->bufsize=(p->pages)*(p->width);
-    if((p->buffer=malloc(p->bufsize+1))==NULL) {
+    if((p->buffer=malloc(2*(p->bufsize+1)))==NULL) {
         p->bufsize=0;
         return false;
     }
@@ -105,6 +140,32 @@ bool ssd1306_init(ssd1306_t *p, uint16_t width, uint16_t height, uint8_t address
     for(size_t i=0; i<sizeof(cmds); ++i)
         ssd1306_write(p, cmds[i]);
 
+
+
+    // Configura DMA Channel for SPI Transmit function
+    dma_chan     = dma_claim_unused_channel(false);
+    dma_conf     = dma_channel_get_default_config(dma_chan);
+
+    // channel_config_set_transfer_data_size(&dma_conf, DMA_SIZE_8);
+    channel_config_set_transfer_data_size(&dma_conf, DMA_SIZE_16);
+    channel_config_set_dreq(&dma_conf, i2c_get_dreq(i2c_instance, true));
+    channel_config_set_read_increment(&dma_conf, true);
+    channel_config_set_write_increment(&dma_conf, false);
+    dma_channel_configure(dma_chan,
+                            &dma_conf,
+                            &i2c_get_hw(i2c_instance)->data_cmd,    // Write Address
+                            NULL,                                         // Read Address
+                            0,                                        // Element Count (Each element is of size transfer_data_size)
+                            false);                                         // DO NOT start directly
+
+
+    dma_channel_set_irq1_enabled(dma_chan, true);
+
+        // Configure the processor to run the ISR when DMA IRQ 0 is asserted
+    irq_set_exclusive_handler(DMA_IRQ_1, ISR_I2C_DMA_Transmit_Complete);
+    irq_set_enabled(DMA_IRQ_1, true);
+
+
     return true;
 }
 
@@ -136,7 +197,7 @@ inline void ssd1306_flip_display(ssd1306_t *p, bool flip) {
 }
 
 inline void ssd1306_clear(ssd1306_t *p) {
-    memset(p->buffer, 0, p->bufsize);
+    memset(p->buffer, 0, 2*p->bufsize);
 }
 
 void ssd1306_draw_pixel(ssd1306_t *p, uint32_t x, uint32_t y) {
@@ -157,5 +218,9 @@ void ssd1306_show(ssd1306_t *p) {
 
     *(p->buffer-1)=0x40;
 
-    fancy_write(p->i2c_i, p->address, p->buffer-1, p->bufsize+1, "ssd1306_show");
+    dma_write(p->i2c_i, p->address, (p->buffer-1), p->bufsize+1, "ssd1306_show");
+//    fancy_write(p->i2c_i, p->address, (p->buffer-1), p->bufsize+1, "ssd1306_show");
+
+
+
 }

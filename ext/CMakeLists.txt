@@ -50,7 +50,8 @@ target_include_directories(sd_fat
 target_link_libraries(sd_fat
         PUBLIC
             pico_stdlib
-            hardware_spi)
+            hardware_spi
+            )
 
 target_link_libraries(sd_fat PRIVATE sd2psx_common)
 
@@ -62,7 +63,7 @@ endif()
 
 
 add_library(ssd1306 STATIC ${CMAKE_CURRENT_SOURCE_DIR}/ssd1306/ssd1306.c)
-target_link_libraries(ssd1306 pico_stdlib hardware_i2c)
+target_link_libraries(ssd1306 pico_stdlib hardware_i2c hardware_dma)
 target_include_directories(ssd1306 PUBLIC ${CMAKE_CURRENT_SOURCE_DIR}/ssd1306)
 
 set(LV_CONF_PATH ${PROJECT_SOURCE_DIR}/src/lv_conf.h CACHE STRING "" FORCE)
