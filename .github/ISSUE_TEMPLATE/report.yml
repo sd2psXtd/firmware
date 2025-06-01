@@ -51,9 +51,10 @@ body:
       description: "If you are using the device on non retail PS2, please specify wich. to tag the appropiate developers"
       multiple: false
       options:
-        - "DEVELOPER. (DTL-H or DTL-T models)"
-        - "ARCADE. (namco system 246/256 and konami python1)"
-        - "PROTOTYPE."
+        - "DEVELOPER (DTL-H or DTL-T models)"
+        - "ARCADE (namco system 246/256 and konami python1)"
+        - "CONQUEST (SoulCalibur2 Conquest card)"
+        - "PROTOTYPE"
     validations:
       required: false
       

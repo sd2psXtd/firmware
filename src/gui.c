@@ -430,6 +430,8 @@ static void update_main_header(void) {
             lv_label_set_text(main_header, "Prototype Card");
         else if (PS2_VARIANT_COH == settings_get_ps2_variant())
             lv_label_set_text(main_header, "Security Dongle");
+        else if (PS2_VARIANT_SC2 == settings_get_ps2_variant())
+            lv_label_set_text(main_header, "Conquest Card");
     } else {
         lv_label_set_text(main_header, "USB Mode");
     }
@@ -529,6 +531,8 @@ static void evt_switch_variant(lv_event_t *event) {
             lv_label_set_text(lbl_ps2_variant, "Proto>");
         else if (settings_get_ps2_variant() == PS2_VARIANT_COH)
             lv_label_set_text(lbl_ps2_variant, "Arcade>");
+        else if (settings_get_ps2_variant() == PS2_VARIANT_SC2)
+            lv_label_set_text(lbl_ps2_variant, "Conquest>");
     }
 
     gui_request_refresh();
@@ -875,15 +879,21 @@ static void create_menu_screen(void) {
             cont = ui_menu_cont_create_nav(variant_page);
             ui_label_create(cont, "Arcade");
             lv_obj_add_event_cb(cont, evt_switch_variant, LV_EVENT_CLICKED, (void*)(intptr_t)PS2_VARIANT_COH);
+
+            cont = ui_menu_cont_create_nav(variant_page);
+            ui_label_create(cont, "Conquest");
+            lv_obj_add_event_cb(cont, evt_switch_variant, LV_EVENT_CLICKED, (void*)(intptr_t)PS2_VARIANT_SC2);
         }
         {
-            char text[9] = {};
+            char text[10] = {};
             if (settings_get_ps2_variant() == PS2_VARIANT_RETAIL)
                 snprintf(text, ARRAY_SIZE(text), "Retail>");
             else if (settings_get_ps2_variant() == PS2_VARIANT_PROTO)
                 snprintf(text, ARRAY_SIZE(text), "Proto>");
             else if (settings_get_ps2_variant() == PS2_VARIANT_COH)
                 snprintf(text, ARRAY_SIZE(text), "Arcade>");
+            else if (settings_get_ps2_variant() == PS2_VARIANT_SC2)
+                snprintf(text, ARRAY_SIZE(text), "Conquest>");
             cont = ui_menu_cont_create_nav(ps2_page);
             ui_label_create_grow(cont, "Variant");
             lbl_ps2_variant = ui_label_create(cont, text);
