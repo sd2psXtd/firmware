@@ -37,7 +37,7 @@ enum {
     PS2_VARIANT_SC2 = 3,    // Arcade. port 2
 };
 
-int settings_get_mode(void);
+int settings_get_mode(bool current);
 void settings_set_mode(int mode);
 bool settings_get_ps1_autoboot(void);
 void settings_set_ps1_autoboot(bool autoboot);

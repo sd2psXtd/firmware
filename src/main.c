@@ -90,7 +90,7 @@ static void debug_task(void) {
         } else if (in[0] == 'c') {
             if ((in[1] == 'h') && (in[2] == '+')) {
                 DPRINTF("Received Channel Up!\n");
-                if (settings_get_mode() == MODE_PS2) {
+                if (settings_get_mode(true) == MODE_PS2) {
                     mmceman_mode = MMCEMAN_MODE_NEXT;
                     mmceman_cmd = MMCEMAN_SET_CHANNEL;
                 }  else {
@@ -102,7 +102,7 @@ static void debug_task(void) {
                 }
             } else if ((in[1] == 'h') && (in[2] == '-')) {
                 DPRINTF("Received Channel Down!\n");
-                if (settings_get_mode() == MODE_PS2) {
+                if (settings_get_mode(true) == MODE_PS2) {
                     mmceman_mode = MMCEMAN_MODE_PREV;
                     mmceman_cmd = MMCEMAN_SET_CHANNEL;
                 } else {
@@ -114,7 +114,7 @@ static void debug_task(void) {
                 }
             } else if (in[1] == '+') {
                 DPRINTF("Received Card Up!\n");
-                if (settings_get_mode() == MODE_PS2) {
+                if (settings_get_mode(true) == MODE_PS2) {
                     mmceman_mode = MMCEMAN_MODE_NEXT;
                     mmceman_cmd = MMCEMAN_SET_CARD;
                 } else {
@@ -126,7 +126,7 @@ static void debug_task(void) {
                 }
             } else if (in[1] == '-') {
                 DPRINTF("Received Card Down!\n");
-                if (settings_get_mode() == MODE_PS2) {
+                if (settings_get_mode(true) == MODE_PS2) {
                     mmceman_mode = MMCEMAN_MODE_PREV;
                     mmceman_cmd = MMCEMAN_SET_CARD;
                 } else {
@@ -178,7 +178,7 @@ int main() {
 #endif
 
     while (1) {
-        if (settings_get_mode() == MODE_PS2) {
+        if (settings_get_mode(true) == MODE_PS2) {
             ps2_init();
             settings_load_sd();
             while (1) {

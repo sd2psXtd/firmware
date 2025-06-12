@@ -39,7 +39,7 @@ static game_lookup current_game;
 bool __time_critical_func(game_db_sanity_check_title_id)(const char* const title_id) {
     uint8_t i = 0U;
 
-    if ((settings_get_mode() == MODE_PS2) && (settings_get_ps2_variant() == PS2_VARIANT_COH)) {
+    if ((settings_get_mode(true) == MODE_PS2) && (settings_get_ps2_variant() == PS2_VARIANT_COH)) {
         if ((title_id[0] != 'N') || (title_id[1] != 'M')) {
             return false;
         } else {
@@ -287,7 +287,7 @@ void game_db_get_current_name(char* const game_name) {
 
 int game_db_get_current_parent(char* const parent_id) {
 
-    if ((settings_get_mode() == MODE_PS1)
+    if ((settings_get_mode(true) == MODE_PS1)
         && (current_game.mode == MODE_PS2)) {
         game_db_init();
         return -1;
@@ -301,7 +301,7 @@ int game_db_get_current_parent(char* const parent_id) {
 }
 
 int game_db_update_game(const char* const game_id) {
-    int mode = settings_get_mode();
+    int mode = settings_get_mode(true);
 
     current_game = find_game_lookup(game_id, mode);
 
@@ -333,12 +333,12 @@ void game_db_get_game_name(const char* game_id, char* game_name) {
     if (!game_db_sanity_check_title_id(game_id))
         return;
 
-    if ((settings_get_mode() == MODE_PS2) && (settings_get_ps2_variant() == PS2_VARIANT_COH)) {
+    if ((settings_get_mode(true) == MODE_PS2) && (settings_get_ps2_variant() == PS2_VARIANT_COH)) {
         game_lookup lookup = find_arcade_lookup(game_id);
         if (lookup.name && lookup.name[0])
             strlcpy(game_name, lookup.name, MAX_GAME_NAME_LENGTH);
     } else {
-        game_lookup lookup = find_game_lookup(game_id, settings_get_mode());
+        game_lookup lookup = find_game_lookup(game_id, settings_get_mode(true));
         if (lookup.name && lookup.name[0])
             strlcpy(game_name, lookup.name, MAX_GAME_NAME_LENGTH);
     }

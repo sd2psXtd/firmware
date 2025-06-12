@@ -74,8 +74,8 @@ void led_task(void) {
     static bool red_active = false, green_active = false, blue_active = false;
     static int last_idx = 0, last_ch = 0;
 
-    int idx = (settings_get_mode() == MODE_PS2) ? ps2_cardman_get_idx() : ps1_cardman_get_idx();
-    int ch = (settings_get_mode() == MODE_PS2) ? ps2_cardman_get_channel() : ps1_cardman_get_channel();
+    int idx = (settings_get_mode(true) == MODE_PS2) ? ps2_cardman_get_idx() : ps1_cardman_get_idx();
+    int ch = (settings_get_mode(true) == MODE_PS2) ? ps2_cardman_get_channel() : ps1_cardman_get_channel();
 
     if ((idx != last_idx) || (ch != last_ch)) {
         red_active |= true;
@@ -85,7 +85,7 @@ void led_task(void) {
         last_ch = ch;
     } else {
         green_active |= !ps2_mmceman_fs_idle();
-        blue_active |= (settings_get_mode() == MODE_PS2) ? ps2_mc_data_interface_write_occured() : ps1_mc_data_interface_write_occured();
+        blue_active |= (settings_get_mode(true) == MODE_PS2) ? ps2_mc_data_interface_write_occured() : ps1_mc_data_interface_write_occured();
     }
 
     if (time - last_refresh > LED_REFRESH_US) {

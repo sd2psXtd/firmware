@@ -365,11 +365,13 @@ void settings_set_ps1_boot_channel(int chan) {
     }
 }
 
-int settings_get_mode(void) {
-    if ((settings.sys_flags & SETTINGS_SYS_FLAGS_PS2_MODE) != tempmode)
+int settings_get_mode(bool current) {
+    if (current && tempmode == MODE_TEMP_PS1)
+        return MODE_PS1;
+    else if (!(settings.sys_flags & SETTINGS_SYS_FLAGS_PS2_MODE))
         return MODE_PS1;
     else
-        return settings.sys_flags & SETTINGS_SYS_FLAGS_PS2_MODE;
+        return MODE_PS2;
 }
 
 void settings_set_mode(int mode) {
@@ -380,7 +382,7 @@ void settings_set_mode(int mode) {
     } else if (mode != MODE_PS1 && mode != MODE_PS2)
         return;
 
-    if (mode != settings_get_mode()) {
+    if (mode != settings_get_mode(false)) {
         /* clear old mode, then set what was passed in */
         settings.sys_flags &= ~SETTINGS_SYS_FLAGS_PS2_MODE;
         settings.sys_flags |= mode;
