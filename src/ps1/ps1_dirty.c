@@ -25,7 +25,8 @@ static int num_dirty;
 } while (0);
 
 void ps1_dirty_init(void) {
-    ps1_dirty_spin_lock = spin_lock_init(spin_lock_claim_unused(1));
+    if (!ps1_dirty_spin_lock)
+        ps1_dirty_spin_lock = spin_lock_init(spin_lock_claim_unused(1));
 }
 
 void __time_critical_func(ps1_dirty_mark)(uint32_t sector) {

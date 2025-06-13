@@ -448,11 +448,13 @@ void ps2_mc_data_interface_card_changed(void) {
 }
 
 void ps2_mc_data_interface_init(void) {
-    critical_section_init(&crit);
-#if WITH_PSRAM
-    ps2_dirty_init();
-#endif
-    ps2_mc_data_interface_card_changed();
+    if (!crit.spin_lock) {
+        critical_section_init(&crit);
+        #if WITH_PSRAM
+        ps2_dirty_init();
+        #endif
+        ps2_mc_data_interface_card_changed();
+    }
 }
 
 bool ps2_mc_data_interface_write_occured(void) {

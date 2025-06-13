@@ -55,14 +55,6 @@ sendbit:
     jmp !osre ack ; If next byte already available, continue sending
 .wrap ; Wait for next byte
 
-.program clock_probe
-    wait 0 gpio PIN_PSX_SEL [2] ; Make sure to set initial irq after previous one has been cleared
-    irq set 7 ; Set initial Bit before first clock cycle
-.wrap_target
-    wait 0 gpio PIN_PSX_CLK
-    wait 1 gpio PIN_PSX_CLK
-    irq set 7
-.wrap
 
 % c-sdk {
 
@@ -108,21 +100,5 @@ static inline void dat_writer_program_init(PIO pio, uint sm, uint offset) {
     pio_sm_init(pio, sm, offset, &c);
 }
 
-
-static inline void clock_probe_program_init(PIO pio, uint sm, uint offset) {
-    pio_sm_config c = clock_probe_program_get_default_config(offset);
-
-    pio_sm_set_consecutive_pindirs(pio, sm, PIN_PSX_SEL, 1, false);
-    pio_sm_set_consecutive_pindirs(pio, sm, PIN_PSX_CLK, 1, false);
-
-
-    /* shift ISR to right, autopush every bit */
-    sm_config_set_in_pins(&c, PIN_PSX_CLK);
-    sm_config_set_in_shift(&c, true, true, 1);
-    sm_config_set_fifo_join(&c, PIO_FIFO_JOIN_RX);
-    sm_config_set_jmp_pin(&c, PIN_PSX_CLK);
-
-    pio_sm_init(pio, sm, offset, &c);
-}
 
 %}

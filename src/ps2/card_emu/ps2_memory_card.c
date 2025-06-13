@@ -35,7 +35,7 @@ typedef struct {
     uint32_t sm;
 } pio_t;
 
-pio_t cmd_reader, dat_writer, clock_probe;
+pio_t cmd_reader, dat_writer;
 uint8_t term = 0xFF;
 
 static int memcard_running;
@@ -58,18 +58,16 @@ static void __time_critical_func(reset_pio)(void) {
         mmceman_timeout_detected = true;
     }
 
-    pio_set_sm_mask_enabled(pio0, (1 << cmd_reader.sm) | (1 << dat_writer.sm) | (1 << clock_probe.sm), false);
-    pio_restart_sm_mask(pio0, (1 << cmd_reader.sm) | (1 << dat_writer.sm) | (1 << clock_probe.sm));
+    pio_set_sm_mask_enabled(pio0, (1 << cmd_reader.sm) | (1 << dat_writer.sm), false);
+    pio_restart_sm_mask(pio0, (1 << cmd_reader.sm) | (1 << dat_writer.sm));
 
     pio_sm_exec(pio0, cmd_reader.sm, pio_encode_jmp(cmd_reader.offset));
     pio_sm_exec(pio0, dat_writer.sm, pio_encode_jmp(dat_writer.offset));
-    pio_sm_exec(pio0, clock_probe.sm, pio_encode_jmp(clock_probe.offset));
 
     pio_sm_clear_fifos(pio0, cmd_reader.sm);
     RAM_pio_sm_drain_tx_fifo(pio0, dat_writer.sm);
-    pio_sm_clear_fifos(pio0, clock_probe.sm);
 
-    pio_enable_sm_mask_in_sync(pio0, (1 << cmd_reader.sm) | (1 << dat_writer.sm) | (1 << clock_probe.sm));
+    pio_enable_sm_mask_in_sync(pio0, (1 << cmd_reader.sm) | (1 << dat_writer.sm));
 
     if (mmceman_tx_queued) {
         mc_respond(mmceman_tx_byte); //Preemptively place byte on tx for proper alignment with mmce fs read packets
@@ -103,12 +101,8 @@ static void __time_critical_func(init_pio)(void) {
     dat_writer.offset = pio_add_program(pio0, &dat_writer_program);
     dat_writer.sm = pio_claim_unused_sm(pio0, true);
 
-    clock_probe.offset = pio_add_program(pio0, &clock_probe_program);
-    clock_probe.sm = pio_claim_unused_sm(pio0, true);
-
     cmd_reader_program_init(pio0, cmd_reader.sm, cmd_reader.offset);
     dat_writer_program_init(pio0, dat_writer.sm, dat_writer.offset);
-    clock_probe_program_init(pio0, clock_probe.sm, clock_probe.offset);
 }
 
 static void __time_critical_func(card_deselected)(uint gpio, uint32_t event_mask) {
@@ -451,8 +445,9 @@ void ps2_memory_card_unload(void) {
     pio_sm_unclaim(pio0, cmd_reader.sm);
     pio_remove_program(pio0, &dat_writer_program, dat_writer.offset);
     pio_sm_unclaim(pio0, dat_writer.sm);
-    pio_remove_program(pio0, &clock_probe_program, clock_probe.offset);
-    pio_sm_unclaim(pio0, clock_probe.sm);
+    log(LOG_TRACE, "Unclaimed %u, %u!\n", cmd_reader.sm, dat_writer.sm);
+
+
 }
 
 bool ps2_memory_card_running(void) {

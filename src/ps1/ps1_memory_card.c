@@ -74,12 +74,16 @@ static void __time_critical_func(init_pio)(void) {
 
     cmd_reader.offset = pio_add_program(pio0, &cmd_reader_program);
     cmd_reader.sm = pio_claim_unused_sm(pio0, true);
+    log(LOG_TRACE, "cmd_reader offset %d, sm %d\n", cmd_reader.offset, cmd_reader.sm);
 
     dat_writer.offset = pio_add_program(pio0, &dat_writer_program);
     dat_writer.sm = pio_claim_unused_sm(pio0, true);
+    log(LOG_TRACE, "dat_writer offset %d, sm %d\n", dat_writer.offset, dat_writer.sm);
 
     cntrl_reader.offset = pio_add_program(pio0, &cmd_reader_program);
     cntrl_reader.sm = pio_claim_unused_sm(pio0, true);
+    log(LOG_TRACE, "cntrl_reader offset %d, sm %d\n", cntrl_reader.offset, cntrl_reader.sm);
+
 
     cmd_reader_program_init(pio0, cmd_reader.sm, cmd_reader.offset);
     dat_writer_program_init(pio0, dat_writer.sm, dat_writer.offset);
@@ -571,6 +575,10 @@ void ps1_memory_card_enter(void) {
 void ps1_memory_card_unload(void) {
     pio_remove_program(pio0, &cmd_reader_program, cmd_reader.offset);
     pio_sm_unclaim(pio0, cmd_reader.sm);
+    pio_remove_program(pio0, &cmd_reader_program, cntrl_reader.offset);
+    pio_sm_unclaim(pio0, cntrl_reader.sm);
     pio_remove_program(pio0, &dat_writer_program, dat_writer.offset);
     pio_sm_unclaim(pio0, dat_writer.sm);
+    log(LOG_TRACE, "Unclaimed %u, %u, %u!\n", cmd_reader.sm, dat_writer.sm, cntrl_reader.sm);
+
 }
