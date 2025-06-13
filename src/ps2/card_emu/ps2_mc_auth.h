@@ -12,3 +12,4 @@ void __time_critical_func(generateIvSeedNonce)(void);
 
 extern bool ps2_mc_auth_keyStoreResetRequired();
 extern void ps2_mc_auth_keyStoreResetAck();
+extern bool ps2_mc_auth_isValid();

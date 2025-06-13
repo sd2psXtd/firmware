@@ -120,6 +120,8 @@ bool ps2_task(void) {
 #if WITH_GUI
         gui_request_refresh();
 #endif
+    } else if (ps2_mc_auth_isValid()) {
+        keystore_confirm();
     }
 
     if ((settings_get_mode(true) == MODE_PS1)

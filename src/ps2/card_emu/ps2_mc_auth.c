@@ -40,11 +40,11 @@ uint8_t CardResponse3[8];
 uint8_t hostkey[9];
 
 static bool request_keystore_reset = false;
+static bool auth_valid = false;
 enum {
     AUTH_STATE_IDLE,
     AUTH_STATE_WAIT_CONFIRM
 } auth_state = AUTH_STATE_IDLE;
-static bool auth_valid = false;
 
 void __time_critical_func(desEncrypt)(void *key, void *data) {
     DesContext dc;
@@ -617,4 +617,8 @@ bool ps2_mc_auth_keyStoreResetRequired() {
 
 void ps2_mc_auth_keyStoreResetAck() {
     request_keystore_reset = false;
+}
+
+bool ps2_mc_auth_isValid() {
+    return auth_valid;
 }
