@@ -179,23 +179,21 @@ int main() {
 
     while (1) {
         if (settings_get_mode(true) == MODE_PS2) {
+            printf("Starting PS2 mode...\n");
             ps2_init();
             settings_load_sd();
-            while (1) {
+            do {
                 debug_task();
-                if (!ps2_task())
-                    break;
-            }
+            } while(ps2_task());
             ps2_deinit();
 
         } else {
+            printf("Starting PS1 mode...\n");
             ps1_init();
             settings_load_sd();
-            while (1) {
+            do {
                 debug_task();
-                if (!ps1_task())
-                    break;
-            }
+            } while(ps1_task());
             ps1_deinit();
         }
     }
