@@ -1,7 +1,8 @@
 #include "hardware/gpio.h"
+#include "hardware/structs/iobank0.h"
 #include "hardware/pio.h"
 #include "hardware/timer.h"
-#include "pico/platform.h"
+#include "pico.h"
 #include "pico/multicore.h"
 #include "ps1_mc_data_interface.h"
 #include "ps1_mmce.h"
@@ -495,7 +496,7 @@ static void __time_critical_func(RAM_gpio_acknowledge_irq)(uint gpio, uint32_t e
 static void __time_critical_func(RAM_gpio_default_irq_handler)(void) {
     uint core = get_core_num();
     gpio_irq_callback_t callback = callbacks[core];
-    io_irq_ctrl_hw_t *irq_ctrl_base = core ? &iobank0_hw->proc1_irq_ctrl : &iobank0_hw->proc0_irq_ctrl;
+    io_bank0_irq_ctrl_hw_t *irq_ctrl_base = core ? &iobank0_hw->proc1_irq_ctrl : &iobank0_hw->proc0_irq_ctrl;
     for (uint gpio = 0; gpio < NUM_BANK0_GPIOS; gpio+=8) {
         uint32_t events8 = irq_ctrl_base->ints[gpio >> 3u];
         // note we assume events8 is 0 for non-existent GPIO

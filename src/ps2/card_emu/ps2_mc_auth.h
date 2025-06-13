@@ -1,6 +1,6 @@
 #pragma once
 
-#include "pico/platform.h"
+#include "pico.h"
 
 extern void ps2_mc_auth(void);
 extern void ps2_mc_sessionKeyEncr(void);

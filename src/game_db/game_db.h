@@ -2,7 +2,7 @@
 
 #include <stddef.h>
 #include <stdint.h>
-#include <pico/platform.h>
+#include <pico.h>
 
 
 #define MAX_GAME_ID_LENGTH   (16)

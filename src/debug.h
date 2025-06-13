@@ -3,7 +3,7 @@
 #include <stddef.h>
 #include <inttypes.h>
 #include <stdio.h>
-#include <pico/platform.h>
+#include <pico.h>
 
 #define LOG_LEVEL_MC_DATA    2
 #define LOG_LEVEL_MMCEMAN    2

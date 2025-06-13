@@ -2,7 +2,7 @@
 
 #include <sys/time.h>
 #include <stdio.h>
-#include <pico/platform.h>
+#include <pico.h>
 
 #define MMCEMAN_PROFILING 0
 
