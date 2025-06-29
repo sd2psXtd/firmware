@@ -42,9 +42,11 @@ jobs:
     steps:
     - uses: actions/checkout@v4
       with:
-         submodules: 'recursive'
-         fetch-depth: '0'
+         filter: 'blob:none'
+         #submodules: 'recursive'
+         #fetch-depth: '0'
     - run: |
+        git submodule update --init --recursive --filter=blob:none --also-filter-submodules
         git fetch origin --tags --force
         TAG=$(git describe --tags --exact-match HEAD --exclude=latest --exclude=nightly) || true
         if [ $TAG ]
