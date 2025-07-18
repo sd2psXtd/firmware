@@ -35,7 +35,6 @@ static int fd = -1;
 
 #define IDX_MIN 1
 #define CHAN_MIN 1
-#define CHAN_MAX 8
 
 
 static int card_idx;
