@@ -267,13 +267,13 @@ int settings_get_ps2_card(void) {
 }
 
 int settings_get_ps2_channel(void) {
-    if (settings.ps2_channel < CHAN_MIN || settings.ps2_channel > CHAN_MAX)
+    if (settings.ps2_channel < CHAN_MIN)
         return CHAN_MIN;
     return settings.ps2_channel;
 }
 
 int settings_get_ps2_boot_channel(void) {
-    if (settings.ps2_boot_channel < CHAN_MIN || settings.ps2_boot_channel > CHAN_MAX)
+    if (settings.ps2_boot_channel < CHAN_MIN)
         return CHAN_MIN;
     return settings.ps2_boot_channel;
 }
@@ -333,13 +333,13 @@ int settings_get_ps1_card(void) {
 }
 
 int settings_get_ps1_channel(void) {
-    if (settings.ps1_channel < CHAN_MIN || settings.ps1_channel > CHAN_MAX)
+    if (settings.ps1_channel < CHAN_MIN)
         return CHAN_MIN;
     return settings.ps1_channel;
 }
 
 int settings_get_ps1_boot_channel(void) {
-    if (settings.ps1_boot_channel < CHAN_MIN || settings.ps1_boot_channel > CHAN_MAX)
+    if (settings.ps1_boot_channel < CHAN_MIN)
         return CHAN_MIN;
     return settings.ps1_boot_channel;
 }
