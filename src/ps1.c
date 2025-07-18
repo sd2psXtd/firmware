@@ -85,7 +85,7 @@ bool ps1_task() {
     led_task();
 #endif
     ps1_mc_data_interface_task();
-    if ((settings_get_mode() == MODE_PS2))
+    if ((settings_get_mode(true) == MODE_PS2))
         return false;
 
     return true;

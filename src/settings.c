@@ -98,6 +98,8 @@ static int parse_card_configuration(void *user, const char *section, const char 
             _s->ps2_variant = PS2_VARIANT_PROTO;
         } else if (strcmp(value, "ARCADE") == 0) {
             _s->ps2_variant = PS2_VARIANT_COH;
+        } else if (strcmp(value, "CONQUEST") == 0) {
+            _s->ps2_variant = PS2_VARIANT_SC2;
         }
     } else if (MATCH("General", "Mode")
         && (strcmp(value, "PS2") == 0) != ((_s->sys_flags & SETTINGS_SYS_FLAGS_PS2_MODE) > 0)) {
@@ -183,6 +185,9 @@ static void settings_serialize(void) {
             case PS2_VARIANT_COH:
                 written = snprintf(line_buffer, 256, "Variant=ARCADE\n" );
                 break;
+            case PS2_VARIANT_SC2:
+                written = snprintf(line_buffer, 256, "Variant=CONQUEST\n" );
+                break;
             case PS2_VARIANT_RETAIL:
             default:
                 written = snprintf(line_buffer, 256, "Variant=RETAIL\n" );
@@ -262,13 +267,13 @@ int settings_get_ps2_card(void) {
 }
 
 int settings_get_ps2_channel(void) {
-    if (settings.ps2_channel < CHAN_MIN || settings.ps2_channel > CHAN_MAX)
+    if (settings.ps2_channel < CHAN_MIN)
         return CHAN_MIN;
     return settings.ps2_channel;
 }
 
 int settings_get_ps2_boot_channel(void) {
-    if (settings.ps2_boot_channel < CHAN_MIN || settings.ps2_boot_channel > CHAN_MAX)
+    if (settings.ps2_boot_channel < CHAN_MIN)
         return CHAN_MIN;
     return settings.ps2_boot_channel;
 }
@@ -328,13 +333,13 @@ int settings_get_ps1_card(void) {
 }
 
 int settings_get_ps1_channel(void) {
-    if (settings.ps1_channel < CHAN_MIN || settings.ps1_channel > CHAN_MAX)
+    if (settings.ps1_channel < CHAN_MIN)
         return CHAN_MIN;
     return settings.ps1_channel;
 }
 
 int settings_get_ps1_boot_channel(void) {
-    if (settings.ps1_boot_channel < CHAN_MIN || settings.ps1_boot_channel > CHAN_MAX)
+    if (settings.ps1_boot_channel < CHAN_MIN)
         return CHAN_MIN;
     return settings.ps1_boot_channel;
 }
@@ -360,11 +365,13 @@ void settings_set_ps1_boot_channel(int chan) {
     }
 }
 
-int settings_get_mode(void) {
-    if ((settings.sys_flags & SETTINGS_SYS_FLAGS_PS2_MODE) != tempmode)
+int settings_get_mode(bool current) {
+    if (current && tempmode == MODE_TEMP_PS1)
+        return MODE_PS1;
+    else if (!(settings.sys_flags & SETTINGS_SYS_FLAGS_PS2_MODE))
         return MODE_PS1;
     else
-        return settings.sys_flags & SETTINGS_SYS_FLAGS_PS2_MODE;
+        return MODE_PS2;
 }
 
 void settings_set_mode(int mode) {
@@ -375,7 +382,7 @@ void settings_set_mode(int mode) {
     } else if (mode != MODE_PS1 && mode != MODE_PS2)
         return;
 
-    if (mode != settings_get_mode()) {
+    if (mode != settings_get_mode(false)) {
         /* clear old mode, then set what was passed in */
         settings.sys_flags &= ~SETTINGS_SYS_FLAGS_PS2_MODE;
         settings.sys_flags |= mode;

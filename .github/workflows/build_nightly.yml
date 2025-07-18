@@ -5,8 +5,7 @@ on:
     tags:
       - '*'
     branches:
-      - 'develop'
-      - 'main'
+      - '*'
 
 env:
   # Customize the CMake build type here (Release, Debug, RelWithDebInfo, etc.)
@@ -43,9 +42,11 @@ jobs:
     steps:
     - uses: actions/checkout@v4
       with:
-         submodules: 'recursive'
-         fetch-depth: '0'
+         filter: 'blob:none'
+         #submodules: 'recursive'
+         #fetch-depth: '0'
     - run: |
+        git submodule update --init --recursive --filter=blob:none
         git fetch origin --tags --force
         TAG=$(git describe --tags --exact-match HEAD --exclude=latest --exclude=nightly) || true
         if [ $TAG ]
@@ -76,6 +77,7 @@ jobs:
         path: build/${{ matrix.filename }}${{ matrix.ext }}
 
   create_release:
+    if: startsWith(github.ref, 'refs/tags/') || github.ref == 'refs/heads/develop' || github.ref == 'refs/heads/main'
     needs: [build]
     runs-on: ubuntu-latest
     steps:

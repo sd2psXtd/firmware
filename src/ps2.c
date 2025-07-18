@@ -120,9 +120,11 @@ bool ps2_task(void) {
 #if WITH_GUI
         gui_request_refresh();
 #endif
+    } else if (ps2_mc_auth_isValid()) {
+        keystore_confirm();
     }
 
-    if ((settings_get_mode() == MODE_PS1)
+    if ((settings_get_mode(true) == MODE_PS1)
         && (ps2_cardman_is_idle())
         && !ps2_history_tracker_needs_refresh())
         return false;

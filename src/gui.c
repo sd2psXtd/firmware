@@ -331,7 +331,7 @@ static void evt_scr_main(lv_event_t *event) {
         // TODO: if there was a card op recently (1s timeout?), should refuse to switch
         // TODO: ps1 support here
         if (key == INPUT_KEY_PREV || key == INPUT_KEY_NEXT || key == INPUT_KEY_BACK || key == INPUT_KEY_ENTER) {
-            if (settings_get_mode() == MODE_PS1) {
+            if (settings_get_mode(true) == MODE_PS1) {
                 switch (key) {
                     case INPUT_KEY_PREV: ps1_mmce_prev_ch(true); break;
                     case INPUT_KEY_NEXT: ps1_mmce_next_ch(true); break;
@@ -419,9 +419,9 @@ void evt_menu_page(lv_event_t *event) {
 }
 
 static void update_main_header(void) {
-    if (settings_get_mode() == MODE_PS1) {
+    if (settings_get_mode(true) == MODE_PS1) {
         lv_label_set_text(main_header, "PS1 Memory Card");
-    } else if (settings_get_mode() == MODE_PS2){
+    } else if (settings_get_mode(true) == MODE_PS2){
         if (!ps2_magicgate)
             lv_label_set_text(main_header, "PS2: No CIV!");
         else if (PS2_VARIANT_RETAIL == settings_get_ps2_variant())
@@ -430,6 +430,8 @@ static void update_main_header(void) {
             lv_label_set_text(main_header, "Prototype Card");
         else if (PS2_VARIANT_COH == settings_get_ps2_variant())
             lv_label_set_text(main_header, "Security Dongle");
+        else if (PS2_VARIANT_SC2 == settings_get_ps2_variant())
+            lv_label_set_text(main_header, "Conquest Card");
     } else {
         lv_label_set_text(main_header, "USB Mode");
     }
@@ -529,6 +531,8 @@ static void evt_switch_variant(lv_event_t *event) {
             lv_label_set_text(lbl_ps2_variant, "Proto>");
         else if (settings_get_ps2_variant() == PS2_VARIANT_COH)
             lv_label_set_text(lbl_ps2_variant, "Arcade>");
+        else if (settings_get_ps2_variant() == PS2_VARIANT_SC2)
+            lv_label_set_text(lbl_ps2_variant, "Conquest>");
     }
 
     gui_request_refresh();
@@ -875,15 +879,21 @@ static void create_menu_screen(void) {
             cont = ui_menu_cont_create_nav(variant_page);
             ui_label_create(cont, "Arcade");
             lv_obj_add_event_cb(cont, evt_switch_variant, LV_EVENT_CLICKED, (void*)(intptr_t)PS2_VARIANT_COH);
+
+            cont = ui_menu_cont_create_nav(variant_page);
+            ui_label_create(cont, "Conquest");
+            lv_obj_add_event_cb(cont, evt_switch_variant, LV_EVENT_CLICKED, (void*)(intptr_t)PS2_VARIANT_SC2);
         }
         {
-            char text[9] = {};
+            char text[10] = {};
             if (settings_get_ps2_variant() == PS2_VARIANT_RETAIL)
                 snprintf(text, ARRAY_SIZE(text), "Retail>");
             else if (settings_get_ps2_variant() == PS2_VARIANT_PROTO)
                 snprintf(text, ARRAY_SIZE(text), "Proto>");
             else if (settings_get_ps2_variant() == PS2_VARIANT_COH)
                 snprintf(text, ARRAY_SIZE(text), "Arcade>");
+            else if (settings_get_ps2_variant() == PS2_VARIANT_SC2)
+                snprintf(text, ARRAY_SIZE(text), "Conquest>");
             cont = ui_menu_cont_create_nav(ps2_page);
             ui_label_create_grow(cont, "Variant");
             lbl_ps2_variant = ui_label_create(cont, text);
@@ -947,7 +957,7 @@ static void create_menu_screen(void) {
     {
         cont = ui_menu_cont_create_nav(main_page);
         ui_label_create_grow(cont, "Boot Mode");
-        lbl_mode = ui_label_create(cont, (settings_get_mode() == MODE_PS1) ? "PS1" : "PS2");
+        lbl_mode = ui_label_create(cont, (settings_get_mode(false) == MODE_PS1) ? "PS1" : "PS2");
         ui_menu_set_load_page_event(menu, cont, mode_page);
 
         cont = ui_menu_cont_create_nav(main_page);
@@ -1102,7 +1112,7 @@ void gui_task(void) {
         update_bar();
 
         oled_update_last_action_time();
-    } else if (settings_get_mode() == MODE_PS1) {
+    } else if (settings_get_mode(true) == MODE_PS1) {
         static int displayed_card_idx = -1;
         static int displayed_card_channel = -1;
         static ps1_cardman_state_t cardman_state = PS1_CM_STATE_NORMAL;
@@ -1154,7 +1164,7 @@ void gui_task(void) {
 
         refresh_gui = false;
         update_activity();
-    } else if (settings_get_mode() == MODE_PS2){
+    } else if (settings_get_mode(true) == MODE_PS2){
         static int displayed_card_idx = -1;
         static int displayed_card_channel = -1;
         static ps2_cardman_state_t cardman_state = PS2_CM_STATE_NORMAL;

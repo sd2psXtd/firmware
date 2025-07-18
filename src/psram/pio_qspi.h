@@ -9,10 +9,10 @@
 #include "hardware/pio.h"
 #include "qspi.pio.h"
 
-#define PIO_SPI_DMA_TX_CMD_CHAN 0
-#define PIO_SPI_DMA_RX_CMD_CHAN 1
-#define PIO_SPI_DMA_TX_DATA_CHAN 2
-#define PIO_SPI_DMA_RX_DATA_CHAN 3
+extern int PIO_SPI_DMA_TX_CMD_CHAN;
+extern int PIO_SPI_DMA_RX_CMD_CHAN;
+extern int PIO_SPI_DMA_TX_DATA_CHAN;
+extern int PIO_SPI_DMA_RX_DATA_CHAN;
 
 typedef struct pio_spi_inst {
     PIO pio;

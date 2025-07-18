@@ -19,10 +19,11 @@
 // keysource and key are self generated values
 uint8_t ps2_keysource[] = {0xf5, 0x80, 0x95, 0x3c, 0x4c, 0x84, 0xa9, 0xc0};
 uint8_t coh_keysource[] = {0x03, 0x14, 0x93, 0x16, 0x27, 0x02, 0x9D, 0xA2};
-uint8_t cex_key[16] = {0x06, 0x46, 0x7a, 0x6c, 0x5b, 0x9b, 0x82, 0x77, 0x0d, 0xdf, 0xe9, 0x7e, 0x24, 0x5b, 0x9f, 0xca};
-uint8_t dex_key[16] = {0x17, 0x39, 0xD3, 0xBC, 0xD0, 0x2C, 0x18, 0x07, 0x0F, 0x7A, 0xF3, 0xB7, 0x9E, 0x73, 0x03, 0x1C};
-uint8_t coh_key[16] = {0x05, 0x3D, 0x59, 0x77, 0xC4, 0xF7, 0xB0, 0xD4, 0x37, 0xAE, 0x66, 0xA5, 0x17, 0x71, 0xB8, 0xC0};
-uint8_t prt_key[16] = {0x8C, 0x4B, 0xEF, 0xA6, 0xF4, 0x9A, 0x23, 0xA0, 0x9C, 0xF1, 0x46, 0xAA, 0x17, 0x1C, 0xFE, 0x75};
+uint8_t cex_key[16]     = {0x06, 0x46, 0x7a, 0x6c, 0x5b, 0x9b, 0x82, 0x77, 0x0d, 0xdf, 0xe9, 0x7e, 0x24, 0x5b, 0x9f, 0xca}; // SCPH-10020 in Retail mode
+uint8_t dex_key[16]     = {0x17, 0x39, 0xD3, 0xBC, 0xD0, 0x2C, 0x18, 0x07, 0x0F, 0x7A, 0xF3, 0xB7, 0x9E, 0x73, 0x03, 0x1C}; // SCPH-10020 in Developer mode or SCPH-10020T
+uint8_t coh_key[16]     = {0x05, 0x3D, 0x59, 0x77, 0xC4, 0xF7, 0xB0, 0xD4, 0x37, 0xAE, 0x66, 0xA5, 0x17, 0x71, 0xB8, 0xC0}; // COH-H10020
+uint8_t arcade_key[16]  = {0xA9, 0xFB, 0x27, 0x2A, 0x63, 0xCF, 0xED, 0x6F, 0xD0, 0x28, 0xA2, 0x4A, 0x98, 0x11, 0xB8, 0x2E}; // SCPH-10020 in Arcade mode
+uint8_t prt_key[16]     = {0x8C, 0x4B, 0xEF, 0xA6, 0xF4, 0x9A, 0x23, 0xA0, 0x9C, 0xF1, 0x46, 0xAA, 0x17, 0x1C, 0xFE, 0x75}; // Prototype Memory Card (EB-10020?)
 
 uint8_t *key = dex_key;
 uint8_t *keysource = ps2_keysource;
@@ -39,11 +40,11 @@ uint8_t CardResponse3[8];
 uint8_t hostkey[9];
 
 static bool request_keystore_reset = false;
+static bool auth_valid = false;
 enum {
     AUTH_STATE_IDLE,
     AUTH_STATE_WAIT_CONFIRM
 } auth_state = AUTH_STATE_IDLE;
-static bool auth_valid = false;
 
 void __time_critical_func(desEncrypt)(void *key, void *data) {
     DesContext dc;
@@ -81,6 +82,10 @@ void __time_critical_func(generateIvSeedNonce)() {
         case PS2_VARIANT_COH:
             keysource = coh_keysource;
             key = coh_key;
+            break;
+        case PS2_VARIANT_SC2:
+            keysource = ps2_keysource;
+            key = arcade_key;
             break;
         case PS2_VARIANT_PROTO:
             keysource = ps2_keysource;
@@ -545,25 +550,51 @@ inline __attribute__((always_inline)) void __time_critical_func(ps2_mc_auth)(voi
     }
 }
 
+enum KeySelectParams {
+    REQUEST_DEX = 0,
+    REQUEST_CEX = 1,
+    REQUEST_UNKNOWN = 2, // unknown 5th magicgate key. when using this key. SCPH-10020 does not unlock with any known mg keyset
+    REQUEST_ARCADE_2 = 3,
+};
+
 /**
-  * Official retail memory cards use both developer and retail keys.
-  * they use developer keys untill 0xF7 command (this function) is called. then they switch to retail keys
-  * the ideal approach is just to respond to this command, but never expect it.
+  * Official SCPH-10020 retail memory cards support 4 keys.
+  * they use developer keys untill 0xF7 command (this function) is called. then they switch to either one of the keys shown in the enumerator above
+  * the ideal approach is just to respond to this command, but never expect it. as DEX SECRMAN does not request DEX key because that's the card neutral state
   * retail SECRMAN expects an answer to this, but the others wont.
-  * arcade cards support this command but dont perform a key change bc they were not intended to do so.
+  * COH-H10020 will ignore this command
   */
+
 inline __attribute__((always_inline)) void __time_critical_func(ps2_mc_auth_keySelect)(void) {
     // TODO: it fails to get detected at all when ps2_magicgate==0, check if it's intentional
     uint8_t _ = 0U;
     /* SIO_MEMCARD_KEY_SELECT */
     mc_respond(0xFF);
     receiveOrNextCmd(&_);
+    DPRINTF("KeySelect: requested %d key\n", _);
+    if (PS2_VARIANT_RETAIL == settings_get_ps2_variant()) {
+        switch (_) {
+            case REQUEST_DEX:
+                keysource = ps2_keysource;
+                key = dex_key;
+                break;
+            case REQUEST_CEX:
+                keysource = ps2_keysource;
+                key = cex_key;
+                break;
+            case REQUEST_UNKNOWN:
+                fatal(ERR_MC_AUTH_UNK, "!!! PLEASE CONTACT DEVELOPER !!!\n" //this line fits in one row without free space
+                                       "   MAGICGATE MODE 2 REQUESTED   ");
+                break;
+            case REQUEST_ARCADE_2:
+                keysource = ps2_keysource;
+                key = arcade_key;
+                break;
+        };
+    }
     mc_respond(0x2B);
     receiveOrNextCmd(&_);
     mc_respond(term);
-    log(LOG_TRACE, "Switching to CEX\n");
-    if (PS2_VARIANT_RETAIL == settings_get_ps2_variant())
-        key = cex_key;
 }
 
 inline __attribute__((always_inline)) void __time_critical_func(ps2_mc_auth_reset)(void) {
@@ -586,4 +617,8 @@ bool ps2_mc_auth_keyStoreResetRequired() {
 
 void ps2_mc_auth_keyStoreResetAck() {
     request_keystore_reset = false;
+}
+
+bool ps2_mc_auth_isValid() {
+    return auth_valid;
 }

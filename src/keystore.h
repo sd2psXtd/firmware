@@ -7,6 +7,7 @@ void keystore_read(void);
 char *keystore_error(int rc);
 int keystore_deploy(void);
 void keystore_reset(void);
+void keystore_confirm(void);
 
 enum {
     KEYSTORE_DEPLOY_NOFILE = 1,

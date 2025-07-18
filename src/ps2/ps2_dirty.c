@@ -37,7 +37,8 @@ static inline void dirty_map_unmark_sector(uint32_t sector) {
 }
 
 void ps2_dirty_init(void) {
-    ps2_dirty_spin_lock = spin_lock_init(spin_lock_claim_unused(1));
+    if (!ps2_dirty_spin_lock)
+        ps2_dirty_spin_lock = spin_lock_init(spin_lock_claim_unused(1));
 }
 
 void __time_critical_func(ps2_dirty_mark)(uint32_t sector) {

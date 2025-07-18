@@ -88,9 +88,11 @@ void ps2_mmceman_task(void) {
                     mode = game_db_update_game(mmceman_gameid);
                 if (MODE_PS1 == mode)
                     settings_set_mode(MODE_TEMP_PS1);
-                else
+                else {
+                    game_db_get_current_parent(mmceman_gameid);
                     ps2_cardman_set_gameid(mmceman_gameid);
                     log(LOG_INFO, "%s: set game id\n", __func__);
+                }
                 break;
             }
 

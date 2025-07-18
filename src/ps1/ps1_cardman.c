@@ -35,7 +35,6 @@ static int fd = -1;
 
 #define IDX_MIN 1
 #define CHAN_MIN 1
-#define CHAN_MAX 8
 
 
 static int card_idx;
@@ -379,7 +378,6 @@ void ps1_cardman_set_game_id(const char* card_game_id) {
         card_config_get_card_folder(card_game_id, new_folder_name, sizeof(new_folder_name));
         if (new_folder_name[0] == 0x00)
             snprintf(new_folder_name, sizeof(new_folder_name), "%s", card_game_id);
-        //log(LOG_TRACE, "Folder: %s\n", new_folder_name);
         if ((strcmp(new_folder_name, folder_name) != 0) || (PS1_CM_STATE_GAMEID != cardman_state)) {
             card_idx = PS1_CARD_IDX_SPECIAL;
             cardman_state = PS1_CM_STATE_GAMEID;
@@ -394,6 +392,14 @@ void ps1_cardman_switch_bootcard(void) {
     if (try_set_boot_card())
         needs_update = true;
 }
+
+void ps1_cardman_switch_default(void) {
+    if (PS1_CARD_IDX_SPECIAL == card_idx) {
+        set_default_card();
+        needs_update = true;
+    }
+}
+
 
 const char* ps1_cardman_get_folder_name(void) {
     return folder_name;

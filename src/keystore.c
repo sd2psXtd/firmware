@@ -17,6 +17,7 @@ uint8_t ps2_civ[8];
 const char civ_path[]           = "civ.bin";
 const char civ_path_backup[]    = ".sd2psx/civ.bin";
 int ps2_magicgate;
+static bool is_confirmed = false;
 
 
 void __not_in_flash_func(keystore_backup)(void) {
@@ -40,7 +41,7 @@ void keystore_init(void) {
 }
 
 void keystore_read(void) {
-    uint8_t buf[16];
+    uint8_t buf[17];
     memcpy(buf, (uint8_t*)XIP_BASE + FLASH_OFF_CIV, sizeof(buf));
     for (int i = 0; i < 8; ++i) {
         uint8_t chk = ~buf[i + 8];
@@ -51,7 +52,9 @@ void keystore_read(void) {
     }
 
     printf("keystore - Found valid CIV : %02X %02X ... - activating magicgate\n", buf[0], buf[1]);
+    printf("keystore - MagicGate is %s\n", (buf[16] == 0x01) ? "confirmed" : "unconfirmed");
     memcpy(ps2_civ, buf, sizeof(ps2_civ));
+    is_confirmed = (buf[16] == 0x01);
     ps2_magicgate = 1;
 }
 
@@ -97,6 +100,7 @@ int __not_in_flash_func(keystore_deploy)(void) {
     memcpy(chkbuf, civbuf, sizeof(civbuf));
     for (int i = 0; i < 8; ++i)
         chkbuf[i + 8] = ~chkbuf[i];
+    chkbuf[16] = 0x00; // confirmation byte
 
     if (memcmp(chkbuf, (uint8_t*)XIP_BASE + FLASH_OFF_CIV, sizeof(chkbuf)) != 0) {
         if (multicore_lockout_victim_is_initialized(1))
@@ -118,20 +122,44 @@ int __not_in_flash_func(keystore_deploy)(void) {
     return 0;
 }
 
-void __not_in_flash_func(keystore_reset)(void) {
-    uint8_t chkbuf[256] = { 0 };
-    printf("keystore - Resetting CIV\n");
-    ps2_magicgate = 0;
+void __not_in_flash_func(keystore_confirm)(void) {
+    if (!is_confirmed) {
+        printf("keystore - Confirming CIV\n");
+        uint8_t chkbuf[256] = { 0 };
+        memcpy(chkbuf, ps2_civ, sizeof(ps2_civ));
+        for (int i = 0; i < 8; ++i)
+            chkbuf[i + 8] = ~chkbuf[i];
+        chkbuf[16] = 0x01; //   confirmation byte
+            if (multicore_lockout_victim_is_initialized(1))
+            multicore_lockout_start_blocking();
+        uint32_t ints = save_and_disable_interrupts();
+        flash_range_erase(FLASH_OFF_CIV, 4096);
+        flash_range_program(FLASH_OFF_CIV, chkbuf, sizeof(chkbuf));
+        restore_interrupts (ints);
+        if (multicore_lockout_victim_is_initialized(1))
+            multicore_lockout_end_blocking();
+        is_confirmed = true;
+    }
+}
 
-    if (multicore_lockout_victim_is_initialized(1))
-        multicore_lockout_start_blocking();
-    uint32_t ints = save_and_disable_interrupts();
-    flash_range_erase(FLASH_OFF_CIV, 4096);
-    flash_range_program(FLASH_OFF_CIV, chkbuf, sizeof(chkbuf));
-    restore_interrupts (ints);
-    if (multicore_lockout_victim_is_initialized(1))
-        multicore_lockout_end_blocking();
-    if (sd_exists(civ_path_backup))
-        sd_remove(civ_path_backup);
-    keystore_read();
+
+void __not_in_flash_func(keystore_reset)(void) {
+    if (!is_confirmed) {
+        printf("keystore - Resetting unconfirmed CIV\n");
+        uint8_t chkbuf[256] = { 0 };
+        printf("keystore - Resetting CIV\n");
+        ps2_magicgate = 0;
+
+        if (multicore_lockout_victim_is_initialized(1))
+            multicore_lockout_start_blocking();
+        uint32_t ints = save_and_disable_interrupts();
+        flash_range_erase(FLASH_OFF_CIV, 4096);
+        flash_range_program(FLASH_OFF_CIV, chkbuf, sizeof(chkbuf));
+        restore_interrupts (ints);
+        if (multicore_lockout_victim_is_initialized(1))
+            multicore_lockout_end_blocking();
+        if (sd_exists(civ_path_backup))
+            sd_remove(civ_path_backup);
+        keystore_read();
+    }
 }
