@@ -304,7 +304,6 @@ static void __time_critical_func(mc_main_loop)(void) {
                 case MMCEMAN_SET_GAMEID: ps2_mmceman_cmd_set_gameid(); break;
                 case MMCEMAN_UNMOUNT_BOOTCARD: ps2_mmceman_cmd_unmount_bootcard(); break;
                 case MMCEMAN_RESET: ps2_mmceman_cmd_reset(); break;
-#ifdef FEAT_PS2_MMCE
                 case MMCEMAN_CMD_FS_OPEN: ps2_mmceman_cmd_fs_open(); break;
                 case MMCEMAN_CMD_FS_CLOSE: ps2_mmceman_cmd_fs_close(); break;
                 case MMCEMAN_CMD_FS_READ: ps2_mmceman_cmd_fs_read(); break;
@@ -320,12 +319,11 @@ static void __time_critical_func(mc_main_loop)(void) {
 
                 case MMCEMAN_CMD_FS_LSEEK64: ps2_mmceman_cmd_fs_lseek64(); break;
                 case MMCEMAN_CMD_FS_READ_SECTOR: ps2_mmceman_cmd_fs_read_sector(); break;
-#endif
                 default: log(LOG_WARN, "Unknown Subcommand: %02x\n", cmd); break;
             }
         } else if (cmd == PS1_SIO2_CMD_IDENTIFIER) {
             settings_set_mode(MODE_TEMP_PS1);
-            continue;;
+            continue;
         } else {
             // not for us
             continue;

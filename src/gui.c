@@ -838,7 +838,6 @@ static void create_menu_screen(void) {
             lv_obj_add_event_cb(cont, evt_go_back, LV_EVENT_CLICKED, NULL);
         }
 
-#ifdef FEAT_PS2_CARDSIZE
         /* cardsize submenu */
         lv_obj_t *cardsize_page = ui_menu_subpage_create(menu, "Default Size");
         {
@@ -863,7 +862,6 @@ static void create_menu_screen(void) {
                 lv_obj_add_event_cb(cont, evt_set_ps2_cardsize, LV_EVENT_CLICKED, (void *)(intptr_t)value);
             }
         }
-#endif
 
         /* Variant submenu */
         lv_obj_t *variant_page = ui_menu_subpage_create(menu, "Variant");
@@ -917,7 +915,6 @@ static void create_menu_screen(void) {
         ui_menu_set_load_page_event(menu, cont, civ_page);
         lv_obj_add_event_cb(cont, evt_do_civ_deploy, LV_EVENT_CLICKED, NULL);
 
-#ifdef FEAT_PS2_CARDSIZE
         {
             char text[9] = {};
             if (settings_get_ps2_cardsize() <= 8)
@@ -929,7 +926,6 @@ static void create_menu_screen(void) {
             lbl_ps2_cardsize = ui_label_create(cont, text);
             ui_menu_set_load_page_event(menu, cont, cardsize_page);
         }
-#endif
     }
 
     /* Info submenu */
@@ -1228,6 +1224,7 @@ void gui_task(void) {
     } else {
 
     }
+
 
     gui_tick();
     // log(LOG_TRACE, "repeat count %u, time %u\n", src_main_animation_template.repeat_cnt, src_main_animation_template.playback_time);

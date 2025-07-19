@@ -412,6 +412,7 @@ static void ps2_cardman_continue(void) {
             cardman_operation = CARDMAN_IDLE;
         } else {
 #if WITH_PSRAM
+            uint8_t thisIter = 0;
             log(LOG_TRACE, "%s:%u\n", __func__, __LINE__);
             while ((ps2_mmceman_fs_idle()) && (time_us_64() - slice_start < MAX_SLICE_LENGTH)) {
                 log(LOG_TRACE, "Slice!\n");
@@ -450,7 +451,9 @@ static void ps2_cardman_continue(void) {
                     cardman_cb(100U * (uint64_t)cardprog_pos / (uint64_t)card_size, false);
 
                 cardman_sectors_done++;
+                thisIter++;
             }
+            log(LOG_INFO, "ps2_cardman_continue: thisIter = %u\n", thisIter);
             log(LOG_TRACE, "%s:%u\n", __func__, __LINE__);
 
 #endif

@@ -175,7 +175,7 @@ uint8_t card_config_get_max_channels(const char* card_folder, const char* card_b
 
 
 void card_config_get_card_folder(const char* game_id, char* card_folder, size_t card_folder_max_len) {
-    char mode[6];
+    char mode[9];
     parse_custom_card_folder_t ctx = {
         .game_id = game_id,
         .mode = mode,
@@ -202,7 +202,7 @@ void card_config_get_card_folder(const char* game_id, char* card_folder, size_t 
             break;
         }
     }
-    int fd = sd_open(CUSTOM_CARDS_CONFIG_PATH, O_RDONLY);
+    int fd =  sd_open(CUSTOM_CARDS_CONFIG_PATH, O_RDONLY);
     log(LOG_TRACE, "Looking for game_id=%s mode=%s \n", game_id, ctx.mode);
 
     if (fd >= 0) {
