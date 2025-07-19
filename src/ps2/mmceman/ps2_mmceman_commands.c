@@ -196,12 +196,10 @@ inline __attribute__((always_inline)) void __time_critical_func(ps2_mmceman_cmd_
     mc_respond(0x0); receiveOrNextCmd(&cmd); //reserved byte
     mc_respond(0x0); receiveOrNextCmd(&cmd); //padding
 
-#ifdef FEAT_PS2_MMCE
     ps2_mmceman_fs_wait_ready();
 
     //close all open files, reset states
     ps2_mmceman_fs_signal_operation(MMCEMAN_FS_RESET);
-#endif
 
     mc_respond(term);
 
@@ -308,7 +306,7 @@ inline __attribute__((always_inline)) void __time_critical_func(ps2_mmceman_cmd_
     uint8_t *len8 = NULL;
     uint8_t *bytes8 = NULL;
 
-    uint8_t last_byte;
+    uint8_t last_byte = 0x0;
     uint8_t next_chunk;
     uint32_t bytes_left_in_packet;
 

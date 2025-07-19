@@ -468,7 +468,7 @@ inline __attribute__((always_inline)) void __time_critical_func(ps2_mc_auth_card
     auth_state = AUTH_STATE_WAIT_CONFIRM;
 }
 
-inline __attribute__((always_inline)) void __time_critical_func(ps2_mc_auth_ack)(void) {
+static inline __attribute__((always_inline)) void __time_critical_func(ps2_mc_auth_ack)(void) {
     uint8_t _ = 0;
     auth_state = AUTH_STATE_IDLE;
     auth_valid = true;

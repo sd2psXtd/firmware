@@ -71,9 +71,7 @@ void ps2_init(void) {
     log(LOG_INFO, "Starting memory card... ");
     ps2_cardman_open();
 
-#ifdef FEAT_PS2_MMCE
     ps2_mmceman_fs_init();
-#endif
 
     uint64_t start = time_us_64();
 
@@ -102,10 +100,10 @@ bool ps2_task(void) {
     led_task();
 #endif
     log(LOG_TRACE, "%s after GUI\n", __func__);
-#ifdef FEAT_PS2_MMCE
+
     ps2_mmceman_fs_run();
     log(LOG_TRACE, "%s mmcefs\n", __func__);
-#endif
+
 
     if (ps2_cardman_is_accessible())
         ps2_history_tracker_task();
