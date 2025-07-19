@@ -113,9 +113,8 @@ static int parse_card_configuration(void *user, const char *section, const char 
 }
 
 static void settings_deserialize(void) {
-    int fd;
+    int fd = sd_open(settings_path, O_RDONLY);
 
-    fd = sd_open(settings_path, O_RDONLY);
     if (fd >= 0) {
 
         serialized_settings_t newSettings = {.ps2_flags = settings.ps2_flags,
@@ -154,6 +153,7 @@ static void settings_serialize(void) {
     if (!sd_exists("/.sd2psx/")) {
         sd_mkdir("/.sd2psx/");
     }
+
     fd = sd_open(settings_path, O_RDWR | O_CREAT);
     if (fd >= 0) {
         printf("Serializing Settings\n");
@@ -222,7 +222,6 @@ static void settings_reset(void) {
 void settings_load_sd(void) {
     sd_init();
     if (sd_exists(settings_path)) {
-        printf("Reading settings from %s\n", settings_path);
         settings_deserialize();
     } else {
         settings_serialize();
@@ -279,11 +278,7 @@ int settings_get_ps2_boot_channel(void) {
 }
 
 uint8_t settings_get_ps2_cardsize(void) {
-#ifdef FEAT_PS2_CARDSIZE
     return settings.ps2_cardsize;
-#else
-    return 8;
-#endif
 }
 
 int settings_get_ps2_variant(void) {
@@ -377,7 +372,6 @@ int settings_get_mode(bool current) {
 void settings_set_mode(int mode) {
     if (mode == MODE_TEMP_PS1) {
         tempmode = MODE_TEMP_PS1;
-        DPRINTF("Setting PS1 Tempmode\n");
         return;
     } else if (mode != MODE_PS1 && mode != MODE_PS2)
         return;

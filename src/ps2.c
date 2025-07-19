@@ -62,14 +62,15 @@ void ps2_init(void) {
 
     ps2_history_tracker_init();
 
+    ps2_cardman_init();
+
     ps2_memory_card_enter();
 
     ps2_mc_data_interface_init();
 
-    ps2_cardman_init();
-
     log(LOG_INFO, "Starting memory card... ");
     ps2_cardman_open();
+    log(LOG_INFO, "PS2 cardman opened\n");
 
     ps2_mmceman_fs_init();
 
