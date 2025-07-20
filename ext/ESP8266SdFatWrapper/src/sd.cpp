@@ -59,6 +59,7 @@ extern "C" int sd_open(const char *path, int oflag) {
 
     if (!sd_exists(path) && (oflag & O_CREAT) == 0) {
         return -1;
+    }
 
     for (fd = 0; fd < NUM_FILES; ++fd)
         if (!files[fd].isOpen())
