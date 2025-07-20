@@ -147,10 +147,11 @@ static lv_obj_t *ui_label_create_grow_scroll(lv_obj_t *parent, const char *text)
     return label;
 }
 
-static lv_obj_t *ui_header_create(lv_obj_t *parent, const char *text) {
+static lv_obj_t *ui_header_create(lv_obj_t *parent, const char *text, bool inverted) {
     lv_obj_t *lbl = lv_label_create(parent);
     lv_obj_set_align(lbl, LV_ALIGN_TOP_MID);
-    lv_obj_add_style(lbl, &style_inv, 0);
+    if (inverted)
+        lv_obj_add_style(lbl, &style_inv, 0);
     lv_obj_set_width(lbl, DISPLAY_WIDTH);
     lv_obj_set_style_text_align(lbl, LV_TEXT_ALIGN_CENTER, 0);
     lv_label_set_text(lbl, text);
@@ -582,7 +583,7 @@ static void create_main_screen(void) {
     /* Main screen listing current memcard, status, etc */
     scr_main = ui_scr_create();
     lv_obj_add_event_cb(scr_main, evt_scr_main, LV_EVENT_ALL, NULL);
-    main_header = ui_header_create(scr_main, "");
+    main_header = ui_header_create(scr_main, "", true);
     update_main_header();
 
     ui_label_create_at(scr_main, 0, 24, "Card");
@@ -650,7 +651,7 @@ static void create_main_screen(void) {
 static void create_cardswitch_screen(void) {
     scr_card_switch = ui_scr_create();
 
-    ui_header_create(scr_card_switch, "Loading card");
+    ui_header_create(scr_card_switch, "Loading card", true);
 
     static lv_style_t style_progress;
     lv_style_init(&style_progress);
@@ -670,7 +671,7 @@ static void create_cardswitch_screen(void) {
 static void create_switch_nag_screen(void) {
     scr_switch_nag = ui_scr_create();
 
-    ui_header_create(scr_switch_nag, "Mode switch");
+    ui_header_create(scr_switch_nag, "Mode switch", false);
 
     ui_label_create_at(scr_switch_nag, 0, 24, "Now unplug the");
     ui_label_create_at(scr_switch_nag, 0, 32, "card and then");
@@ -689,7 +690,8 @@ static void create_menu_screen(void) {
     lv_obj_t *cont;
 
     /* deploy submenu */
-    lv_obj_t *mode_page = ui_menu_subpage_create(menu, "Mode");
+    lv_obj_t *mode_page = ui_menu_subpage_create(menu, NULL);
+    ui_header_create(mode_page, "Mode", false);
     {
         lv_obj_t *ps2_switch_warn = ui_menu_subpage_create(menu, NULL);
         {
@@ -723,7 +725,8 @@ static void create_menu_screen(void) {
     }
 
     /* display / auto off submenu */
-    lv_obj_t *auto_off_page = ui_menu_subpage_create(menu, "Auto off");
+    lv_obj_t *auto_off_page = ui_menu_subpage_create(menu, NULL);
+    ui_header_create(auto_off_page, "Auto off", false);
     {
         auto_off_options[0].value = 0;
         auto_off_options[1].value = 5;
@@ -742,7 +745,8 @@ static void create_menu_screen(void) {
     }
 
     /* display / contrast submenu */
-    lv_obj_t *contrast_page = ui_menu_subpage_create(menu, "Contrast");
+    lv_obj_t *contrast_page = ui_menu_subpage_create(menu, NULL);
+    ui_header_create(contrast_page, "Contrast", false);
     {
         char text[8];
 
@@ -760,7 +764,8 @@ static void create_menu_screen(void) {
     }
 
     /* display / vcomh submenu */
-    lv_obj_t *vcomh_page = ui_menu_subpage_create(menu, "VCOMH");
+    lv_obj_t *vcomh_page = ui_menu_subpage_create(menu, NULL);
+    ui_header_create(vcomh_page, "VCOMH", false);
     {
         vcomh_options[0].value = 0x00;
         vcomh_options[1].value = 0x20;
@@ -782,7 +787,8 @@ static void create_menu_screen(void) {
     }
 
     /* display config */
-    lv_obj_t *display_page = ui_menu_subpage_create(menu, "Display");
+    lv_obj_t *display_page = ui_menu_subpage_create(menu, NULL);
+    ui_header_create(display_page, "Display", false);
     {
         cont = ui_menu_cont_create_nav(display_page);
         ui_label_create_grow(cont, "Auto off");
@@ -809,7 +815,8 @@ static void create_menu_screen(void) {
     }
 
     /* ps1 */
-    lv_obj_t *ps1_page = ui_menu_subpage_create(menu, "PS1 Settings");
+    lv_obj_t *ps1_page = ui_menu_subpage_create(menu, NULL);
+    ui_header_create(ps1_page, "PS1 Settings", false);
     {
         cont = ui_menu_cont_create_nav(ps1_page);
         ui_label_create_grow_scroll(cont, "Autoboot");
@@ -823,10 +830,12 @@ static void create_menu_screen(void) {
     }
 
     /* ps2 */
-    lv_obj_t *ps2_page = ui_menu_subpage_create(menu, "PS2 Settings");
+    lv_obj_t *ps2_page = ui_menu_subpage_create(menu, NULL);
+    ui_header_create(ps2_page, "PS2 Settings", false);
     {
         /* deploy submenu */
-        lv_obj_t *civ_page = ui_menu_subpage_create(menu, "Deploy CIV.bin");
+        lv_obj_t *civ_page = ui_menu_subpage_create(menu, NULL);
+        ui_header_create(civ_page, "Deploy CIV.bin", false);
         {
             cont = ui_menu_cont_create(civ_page);
             ui_label_create(cont, "");
@@ -839,7 +848,8 @@ static void create_menu_screen(void) {
         }
 
         /* cardsize submenu */
-        lv_obj_t *cardsize_page = ui_menu_subpage_create(menu, "Default Size");
+        lv_obj_t *cardsize_page = ui_menu_subpage_create(menu, NULL);
+        ui_header_create(cardsize_page, "Default Size", false);
         {
             cardsize_options[0].value = 1;
             cardsize_options[1].value = 2;
@@ -864,7 +874,8 @@ static void create_menu_screen(void) {
         }
 
         /* Variant submenu */
-        lv_obj_t *variant_page = ui_menu_subpage_create(menu, "Variant");
+        lv_obj_t *variant_page = ui_menu_subpage_create(menu, NULL);
+        ui_header_create(variant_page, "Variant", false);
         {
             cont = ui_menu_cont_create_nav(variant_page);
             ui_label_create(cont, "Retail");
@@ -929,7 +940,8 @@ static void create_menu_screen(void) {
     }
 
     /* Info submenu */
-    lv_obj_t *info_page = ui_menu_subpage_create(menu, "Info");
+    lv_obj_t *info_page = ui_menu_subpage_create(menu, NULL);
+    ui_header_create(info_page, "Info", false);
     {
         cont = ui_menu_cont_create_nav(info_page);
         ui_label_create_grow_scroll(cont, "Version");
@@ -950,6 +962,7 @@ static void create_menu_screen(void) {
 
     /* Main menu */
     main_page = ui_menu_subpage_create(menu, NULL);
+    ui_header_create(main_page, "Main Menu", false);
     {
         cont = ui_menu_cont_create_nav(main_page);
         ui_label_create_grow(cont, "Boot Mode");
