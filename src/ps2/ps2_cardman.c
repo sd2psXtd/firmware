@@ -608,7 +608,7 @@ void ps2_cardman_open(void) {
             case PS2_CARD_SIZE_16M:
             case PS2_CARD_SIZE_32M:
             case PS2_CARD_SIZE_64M: ps2_mc_data_interface_set_sdmode(true); break;
-            default: fatal(ERR_CARDMAN, "Card %d Channel %d is corrupted", card_idx, card_chan); break;
+            default: fatal(ERR_CARDMAN, "Card %d Chann %d invalid size", card_idx, card_chan); break;
         }
 
         /* read 8 megs of card image */
