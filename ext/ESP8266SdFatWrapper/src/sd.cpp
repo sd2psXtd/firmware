@@ -57,7 +57,7 @@ void sdCsWrite(SdCsPin_t pin, bool level) {
 extern "C" int sd_open(const char *path, int oflag) {
     size_t fd;
 
-    if (!sd_exists(path))
+    if (!sd_exists(path) && (oflag & O_CREAT) == 0) {
         return -1;
 
     for (fd = 0; fd < NUM_FILES; ++fd)
