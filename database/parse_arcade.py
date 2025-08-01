@@ -1,14 +1,14 @@
-import requests
+import sys
 import json
 
 def getGamesGameDB(system) -> dict[str, str]:
-    url = f"https://raw.githubusercontent.com/israpps/AthenaEnv/refs/heads/aclauncher/bin/aclauncher/{system}.json"
-
-    r = requests.get(url, allow_redirects=True)
+    data = ""
+    with open(sys.argv[3] + "/" + system + ".json", "r") as f:
+        data = f.read()
     games = {}
 
-    if r.status_code == 200:
-        input = json.loads(r.text)
+    if True:
+        input = json.loads(data)
         for game in input["games"]:
             id = game["gameid"]
             if "NM" in id:
@@ -30,13 +30,7 @@ def getGamesGameDB(system) -> dict[str, str]:
 
     return games
 
-import argparse
-parser = argparse.ArgumentParser()
-parser.add_argument("dirname")
-parser.add_argument("outputdir")
-args = parser.parse_args()
-
-filename = "gamedbcoh.dat"
+filename = sys.argv[4]
 
 # Get games from GameDB:
 

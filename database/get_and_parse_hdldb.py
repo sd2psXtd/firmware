@@ -1,4 +1,4 @@
-import requests
+import sys
 import csv
 from unidecode import unidecode
 
@@ -71,13 +71,12 @@ def getGamesHDLBatchInstaller() -> ([], [], {}, int):
     games_sorted = {}
     games_count = 0
 
-    url = "https://github.com/israpps/HDL-Batch-installer/raw/main/Database/gamename.csv"
+    data = ""
+    with open(sys.argv[3] + "/gamename.csv", "r") as f:
+        data = f.read()
 
-    r = requests.get(url, allow_redirects=True)
-
-
-    if r.status_code == 200:
-        lines = r.text.split("\n")
+    if True:
+        lines = data.split("\n")
         csv_reader = csv.reader(lines, delimiter=";")
         for row in csv_reader:
             if len(row) == 2:
@@ -108,7 +107,7 @@ games_sorted = {}
 games_count = 0
 
 
-with open("gamedbps2.dat", "wb") as out:
+with open(sys.argv[4], "wb") as out:
     (prefixes, gamenames, games_sorted, games_count) = getGamesHDLBatchInstaller()
     writeSortedGameList(out, prefixes, games_count, games_sorted, gamenames)
 
