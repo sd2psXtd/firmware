@@ -1,4 +1,4 @@
-import requests
+import sys
 import json
 import re
 from unidecode import unidecode
@@ -78,13 +78,13 @@ def getGamesGameDB() -> ([], [], {}, int):
     games_count = 0
     name_to_serials = {}
 
-    url = "https://github.com/niemasd/GameDB-PSX/releases/latest/download/PSX.data.json"
+    data = ""
+    with open(sys.argv[3] + "/PSX.data.json", "r") as f:
+        data = f.read()
 
-    r = requests.get(url, allow_redirects=True)
 
-
-    if r.status_code == 200:
-        input = json.loads(r.text)
+    if True:
+        input = json.loads(data)
         for id in input:
             try:
                 if "redump_name" in input[id]:
@@ -133,7 +133,7 @@ games_sorted = {}
 games_count = 0
 
 
-with open("gamedbps1.dat", "wb") as out:
+with open(sys.argv[4], "wb") as out:
     (prefixes, gamenames, games_sorted, games_count) = getGamesGameDB()
     writeSortedGameList(out, prefixes, games_count, games_sorted, gamenames)
 
