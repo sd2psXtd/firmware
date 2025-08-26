@@ -66,7 +66,7 @@ typedef struct {
     uint8_t address; 	/**< i2c address of display*/
     i2c_inst_t *i2c_i; 	/**< i2c connection instance */
     bool external_vcc; 	/**< whether display uses external vcc */
-    uint16_t *buffer;	/**< display buffer */
+    uint8_t *buffer;	/**< display buffer */
     size_t bufsize;		/**< buffer size */
 } ssd1306_t;
 
