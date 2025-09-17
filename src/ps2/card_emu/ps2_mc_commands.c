@@ -13,6 +13,7 @@
 #include "ps2_mc_internal.h"
 #include "ps2_mc_data_interface.h"
 #include "debug.h"
+#include "settings.h"
 
 
 #if LOG_LEVEL_PS2_MC == 0
@@ -25,6 +26,9 @@
 #define PS2_MAX_ACK_DELAY_MID           ( 1500 )
 #define PS2_MAX_ACK_DELAY_LONG          ( 2000 )
 
+
+#define RESET_ECC(T) {memset(T, (settings_get_ps2_variant() == PS2_VARIANT_SC2) ? 0xFF : 0, 16); conquestECC = 0x00000000U;} //Conquest card only uses 4 bytes to setup ECC, so make sure the rest of the block is 0xFF
+uint32_t conquestECC = 0x00000000U; // conquest card ECC (actually, a CRC32 of the page)
 uint32_t read_sector, write_sector, erase_sector;
 uint8_t readecc[16];
 uint8_t writetmp[528];
@@ -151,7 +155,7 @@ inline __attribute__((always_inline)) void __time_critical_func(ps2_mc_cmd_setRe
     readptr = 0;
 
     eccptr = readecc;
-    memset(eccptr, 0, 16);
+    RESET_ECC(eccptr)
 
     delayed_response(term, PS2_MAX_ACK_DELAY_SHORT, __func__);
     log(LOG_TRACE, "> RA %u\n", raw.addr);
@@ -278,32 +282,51 @@ inline __attribute__((always_inline)) void __time_critical_func(ps2_mc_cmd_readD
                 ps2_mc_data_interface_wait_for_byte(readptr);
                 b = page->data[readptr];
             } else {
+                if (settings_get_ps2_variant() == PS2_VARIANT_SC2 && readptr == PS2_PAGE_SIZE) {//first ECC byte to read, move the CRC from uint32 to ECC buffer
+                    if (conquestECC == 0xE76D8BF0) conquestECC = 0xFFFFFFFF; //this is the ECC of an uninitialized page, set it back to 0xFF
+                    readecc[0] = (conquestECC >> 24) & 0xFF;
+                    readecc[1] = (conquestECC >> 16) & 0xFF;
+                    readecc[2] = (conquestECC >> 8)  & 0xFF;
+                    readecc[3] = conquestECC & 0xFF;
+                }
                 b = readecc[readptr - PS2_PAGE_SIZE];
             }
 
             delayed_response(b, PS2_MAX_ACK_DELAY_MID, __func__);
 
             if (readptr <= PS2_PAGE_SIZE) {
-                uint8_t c = EccTable[b];
-                eccptr[0] ^= c;
-                if (c & 0x80) {
-                    eccptr[1] ^= ~(readptr & 0x7F);
-                    eccptr[2] ^= (readptr & 0x7F);
-                }
+                if (settings_get_ps2_variant() == PS2_VARIANT_SC2) {
+                    conquestECC ^= ((uint32_t)b) << 24;    // MSB-first
+                    for (int B = 0; B < 8; B++) {
+                        if (conquestECC & 0x80000000U) {
+                            conquestECC = (conquestECC << 1) ^ 0x04C11DB7U;
+                        } else {
+                            conquestECC <<= 1;
+                        }
+                    }
+                    ++readptr;
+                } else {
+                    uint8_t c = EccTable[b];
+                    eccptr[0] ^= c;
+                    if (c & 0x80) {
+                        eccptr[1] ^= ~(readptr & 0x7F);
+                        eccptr[2] ^= (readptr & 0x7F);
+                    }
 
-                ++readptr;
+                    ++readptr;
 
-                if ((readptr & 0x7F) == 0) {
-                    eccptr[0] = ~eccptr[0];
-                    eccptr[0] &= 0x77;
+                    if ((readptr & 0x7F) == 0) {
+                        eccptr[0] = ~eccptr[0];
+                        eccptr[0] &= 0x77;
 
-                    eccptr[1] = ~eccptr[1];
-                    eccptr[1] &= 0x7f;
+                        eccptr[1] = ~eccptr[1];
+                        eccptr[1] &= 0x7f;
 
-                    eccptr[2] = ~eccptr[2];
-                    eccptr[2] &= 0x7f;
+                        eccptr[2] = ~eccptr[2];
+                        eccptr[2] &= 0x7f;
 
-                    eccptr += 3;
+                        eccptr += 3;
+                    }
                 }
             } else {
                 ++readptr;
@@ -329,7 +352,7 @@ inline __attribute__((always_inline)) void __time_critical_func(ps2_mc_cmd_readD
             ++read_sector;
 
             eccptr = readecc;
-            memset(readecc, 0, 16);
+            RESET_ECC(readecc)
             ecc_delay = false;
             if (sz - i > 1) {
                 log(LOG_TRACE, "> increasing page to %u (sz %u i %u)\n", read_sector, sz, i);
