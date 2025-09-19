@@ -124,6 +124,7 @@ if (SD2PSX_WITH_GUI)
     target_sources(sd2psx_common PRIVATE
                 ${CMAKE_CURRENT_SOURCE_DIR}/src/gui.c
                 ${CMAKE_CURRENT_SOURCE_DIR}/src/oled.c
+                ${CMAKE_CURRENT_SOURCE_DIR}/src/splash.c
                 ${CMAKE_CURRENT_SOURCE_DIR}/src/ui_menu.c
                 ${CMAKE_CURRENT_SOURCE_DIR}/src/ui_theme_mono.c)
     target_link_libraries(sd2psx_common
