@@ -159,13 +159,14 @@ void psram_init(void) {
     SPI_OP(pio_spi_write8_read8_blocking(&spi, read_id, sizeof(read_id), read_id_rsp, sizeof(read_id_rsp)));
 
     if (read_id_rsp[3] != 0x0D || read_id_rsp[4] != 0x5D) {
-        fatal("PSRAM ID is not Known Good Die\nexpected 0D 5D got %02X %02X\n\ntry to power-cycle it if PSRAM\nis stuck in the QPI mode",
-            read_id_rsp[3], read_id_rsp[4]);
+        //fatal("PSRAM ID is not Known Good Die\nexpected 0D 5D got %02X %02X\n\ntry to power-cycle it if PSRAM\nis stuck in the QPI mode",
+        //    read_id_rsp[3], read_id_rsp[4]);
+    } else {
+        /* switch from SPI to Quad-SPI mode */
+        uint8_t enter_qspi[] = { 0x35 };
+        SPI_OP(pio_spi_write8_read8_blocking(&spi, enter_qspi, sizeof(enter_qspi), NULL, 0));
     }
 
-    /* switch from SPI to Quad-SPI mode */
-    uint8_t enter_qspi[] = { 0x35 };
-    SPI_OP(pio_spi_write8_read8_blocking(&spi, enter_qspi, sizeof(enter_qspi), NULL, 0));
 
     pio_remove_program(spi.pio, &spi_cpha0_program, offset);
     offset = pio_add_program(spi.pio, &qspi_cpha0_program);

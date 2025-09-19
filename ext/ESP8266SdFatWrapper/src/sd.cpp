@@ -10,6 +10,12 @@ extern "C" {
 #include "sd.h"
 }
 
+#if LOG_LEVEL_SD == 0
+    #define log(x...)
+#else
+    #define log(level, fmt, x...) LOG_PRINT(LOG_LEVEL_SD, level, fmt, ##x)
+#endif
+
 #include <stdio.h>
 
 #ifndef NUM_FILES
@@ -95,6 +101,7 @@ extern "C" void sd_flush(int fd) {
 
 extern "C" int sd_read(int fd, void *buf, size_t count) {
     CHECK_FD(fd);
+
 
     return files[fd].read(buf, count);
 }

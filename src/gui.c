@@ -1225,9 +1225,7 @@ void gui_task(void) {
         static char card_idx_s[8];
         static char card_channel_s[8];
 
-        if ((lv_scr_act() == scr_splash) && (time_us_64() - time_screen > GUI_SCREEN_IMAGE_TIMEOUT_US)){
-            ui_goto_screen(scr_main);
-        }
+
 
         if (displayed_card_idx != ps2_cardman_get_idx() || displayed_card_channel != ps2_cardman_get_channel() || cardman_state != ps2_cardman_get_state() ||
             refresh_gui) {
@@ -1284,8 +1282,12 @@ void gui_task(void) {
             refresh_gui = false;
         }
 
-        if (splash_game_image_available && (time_us_64() - time_screen > GUI_SCREEN_IMAGE_TIMEOUT_US)) {
+        if (splash_game_image_available
+            && (lv_scr_act() == scr_main)
+            && (time_us_64() - time_screen > GUI_SCREEN_IMAGE_TIMEOUT_US)) {
             ui_goto_screen(scr_splash);
+        } else if ((lv_scr_act() == scr_splash) && (time_us_64() - time_screen > GUI_SCREEN_IMAGE_TIMEOUT_US)){
+            ui_goto_screen(scr_main);
         }
 
         update_activity();
