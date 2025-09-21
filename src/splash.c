@@ -146,11 +146,10 @@ uint8_t splash_img[1032] = {
 bool splash_game_image_available = false;
 
 void splash_init(void) {
-    /*if (((uint8_t*)FLASH_OFF_SPLASH + XIP_BASE)[sizeof(splash_img)] == 0x00) {
+    if (((uint8_t*)FLASH_OFF_SPLASH + XIP_BASE)[sizeof(splash_img)] == 0x00) {
         // If the splash image is not set, copy the default image
         memcpy(splash_img, (void *)FLASH_OFF_SPLASH + XIP_BASE, sizeof(splash_img));
-        printf("Default splash image loaded from flash.\n");
-    }*/
+    }
 }
 
 void splash_update_current(const char* card_folder, const char* card_base) {

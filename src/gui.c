@@ -6,6 +6,7 @@
 #include <ps2/card_emu/ps2_mc_data_interface.h>
 #include <ps2/mmceman/ps2_mmceman.h>
 #include <ps2/history_tracker/ps2_history_tracker.h>
+#include <src/core/lv_disp.h>
 #include <src/core/lv_obj.h>
 #include <src/core/lv_obj_class.h>
 #include <src/core/lv_obj_style.h>
@@ -338,8 +339,6 @@ static void evt_scr_main(lv_event_t *event) {
             lv_event_stop_bubbling(event);
         }
 
-        // TODO: if there was a card op recently (1s timeout?), should refuse to switch
-        // TODO: ps1 support here
         if (key == INPUT_KEY_PREV || key == INPUT_KEY_NEXT || key == INPUT_KEY_BACK || key == INPUT_KEY_ENTER) {
             if (settings_get_mode(true) == MODE_PS1) {
                 switch (key) {
@@ -357,6 +356,9 @@ static void evt_scr_main(lv_event_t *event) {
                 }
             }
         }
+        if (lv_scr_act() != scr_main)
+            ui_goto_screen(scr_main);
+        time_screen = time_us_64();
     }
 }
 
@@ -368,6 +370,7 @@ static void evt_scr_menu(lv_event_t *event) {
             ui_goto_screen(scr_main);
             lv_event_stop_bubbling(event);
         }
+        time_screen = time_us_64();
     }
 }
 
@@ -1023,6 +1026,9 @@ static void create_splash(void) {
     lv_img_set_src(img, &splash_img_dsc);
 
     lv_obj_center(img);
+
+    lv_obj_add_event_cb(scr_splash, evt_scr_main, LV_EVENT_ALL, NULL);
+
 }
 
 static void create_ui(void) {
@@ -1112,6 +1118,7 @@ void gui_init(void) {
         lv_disp_set_theme(disp, th);
 
         create_ui();
+        splash_init();
 
         refresh_gui = false;
         installing_exploit = false;
@@ -1282,17 +1289,15 @@ void gui_task(void) {
             refresh_gui = false;
         }
 
-        if (splash_game_image_available
-            && (lv_scr_act() == scr_main)
-            && (time_us_64() - time_screen > GUI_SCREEN_IMAGE_TIMEOUT_US)) {
-            ui_goto_screen(scr_splash);
-        } else if ((lv_scr_act() == scr_splash) && (time_us_64() - time_screen > GUI_SCREEN_IMAGE_TIMEOUT_US)){
-            ui_goto_screen(scr_main);
-        }
 
         update_activity();
     } else {
 
+    }
+    if (splash_game_image_available
+        && (lv_scr_act() == scr_main)
+        && (time_us_64() - time_screen > GUI_SCREEN_IMAGE_TIMEOUT_US)) {
+        ui_goto_screen(scr_splash);
     }
 
     gui_tick();
