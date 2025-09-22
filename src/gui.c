@@ -76,7 +76,13 @@ static struct {
 } vcomh_options[3];
 
 static int have_oled;
-static bool waiting_card;
+static enum {
+    UI_STATE_SPLASH,
+    UI_STATE_MAIN,
+    UI_STATE_MENU,
+    UI_STATE_SWITCHING,
+    UI_STATE_GAME_IMG
+} ui_state;
 static int current_progress;
 static bool refresh_gui;
 static bool installing_exploit;
@@ -257,9 +263,10 @@ static void reload_card_cb(int progress, bool done) {
     current_progress = progress;
     if (done) {
         ps2_cardman_set_progress_cb(NULL);
-        ui_goto_screen(scr_main);
         input_flush();
-        waiting_card = false;
+        ui_state = UI_STATE_MAIN;
+    } else if (time_us_64() > GUI_SCREEN_IMAGE_TIMEOUT_US){
+        ui_state = UI_STATE_SWITCHING;
     }
 }
 
@@ -337,6 +344,7 @@ static void evt_scr_main(lv_event_t *event) {
             lv_obj_t *first = lv_obj_get_child(main_page, 0);
             lv_group_focus_obj(first);
             lv_event_stop_bubbling(event);
+            ui_state = UI_STATE_MENU;
         }
         if (key == INPUT_KEY_PREV || key == INPUT_KEY_NEXT || key == INPUT_KEY_BACK || key == INPUT_KEY_ENTER) {
             if (settings_get_mode(true) == MODE_PS1) {
@@ -354,8 +362,7 @@ static void evt_scr_main(lv_event_t *event) {
                     case INPUT_KEY_ENTER: ps2_mmceman_next_idx(true); break;
                 }
             }
-            if (lv_scr_act() != scr_main)
-                ui_goto_screen(scr_main);
+            ui_state = UI_STATE_MAIN;
         }
         time_screen = time_us_64();
     }
@@ -366,7 +373,7 @@ static void evt_scr_menu(lv_event_t *event) {
         uint32_t key = lv_indev_get_key(lv_indev_get_act());
         log(LOG_INFO, "menu screen got key %d\n", (int)key);
         if (key == INPUT_KEY_BACK || key == INPUT_KEY_MENU) {
-            ui_goto_screen(scr_main);
+            ui_state = UI_STATE_MAIN;
             lv_event_stop_bubbling(event);
         }
         time_screen = time_us_64();
@@ -525,7 +532,7 @@ static void evt_switch_to_ps1(lv_event_t *event) {
     gui_request_refresh();
 
     /* start at the main screen */
-    ui_goto_screen(scr_main);
+    ui_state = UI_STATE_MAIN;
 }
 
 static void evt_switch_variant(lv_event_t *event) {
@@ -551,7 +558,7 @@ static void evt_switch_variant(lv_event_t *event) {
 
 
     /* start at the main screen */
-    ui_goto_screen(scr_main);
+    ui_state = UI_STATE_MAIN;
 }
 
 static void evt_switch_to_ps2(lv_event_t *event) {
@@ -565,7 +572,7 @@ static void evt_switch_to_ps2(lv_event_t *event) {
     update_main_header();
 
     /* start at the main screen */
-    ui_goto_screen(scr_main);
+    ui_state = UI_STATE_MAIN;
 }
 
 static void evt_set_display_timeout(lv_event_t *event) {
@@ -1048,7 +1055,8 @@ static void create_ui(void) {
     create_splash();
 
     /* start at the main screen */
-    ui_goto_screen(scr_main);
+    ui_state = UI_STATE_SPLASH;
+    ui_goto_screen(scr_splash);
 }
 
 static void update_activity(void) {
@@ -1121,7 +1129,7 @@ void gui_init(void) {
 
         refresh_gui = false;
         installing_exploit = false;
-        waiting_card = false;
+        ui_state = UI_STATE_SPLASH;
     }
 }
 
@@ -1141,13 +1149,13 @@ void gui_do_ps2_card_switch(void) {
 
     update_bar();
 
-    ui_goto_screen(scr_card_switch);
-
     oled_update_last_action_time();
 
     ps2_cardman_set_progress_cb(reload_card_cb);
 
-    waiting_card = true;
+    if (ui_state != UI_STATE_SPLASH) {
+        ui_state = UI_STATE_SWITCHING;
+    }
 }
 
 void gui_task(void) {
@@ -1156,152 +1164,156 @@ void gui_task(void) {
     char card_name[127];
     const char *folder_name = NULL;
 
-    if (time_us_64() < 3 * 1000 * 1000) {
-        // Wait for 2 seconds before showing the main screen
-        if (lv_scr_act() != scr_splash) {
-            ui_goto_screen(scr_splash);
+    if (time_us_64() > GUI_SCREEN_IMAGE_TIMEOUT_US) {
+        switch (ui_state) {
+            case UI_STATE_SPLASH:
+            case UI_STATE_GAME_IMG:
+                ui_goto_screen(scr_splash);
+                break;
+            case UI_STATE_MAIN:
+                ui_goto_screen(scr_main);
+                break;
+            case UI_STATE_SWITCHING:
+                ui_goto_screen(scr_card_switch);
+                update_bar();
+                oled_update_last_action_time();
+                break;
+            case UI_STATE_MENU:
+                ui_goto_screen(scr_menu);
+                break;
+            default:
+                break;
         }
-    } else if (waiting_card) {
-        if (lv_scr_act() == scr_splash)
-            ui_goto_screen(scr_card_switch);
+    }
 
-        update_bar();
+    if (ui_state == UI_STATE_MAIN) {
 
-        oled_update_last_action_time();
-    } else if (settings_get_mode(true) == MODE_PS1) {
-        static int displayed_card_idx = -1;
-        static int displayed_card_channel = -1;
-        static ps1_cardman_state_t cardman_state = PS1_CM_STATE_NORMAL;
-        static char card_idx_s[8];
-        static char card_channel_s[8];
+        if (settings_get_mode(true) == MODE_PS1) {
+            static int displayed_card_idx = -1;
+            static int displayed_card_channel = -1;
+            static ps1_cardman_state_t cardman_state = PS1_CM_STATE_NORMAL;
+            static char card_idx_s[8];
+            static char card_channel_s[8];
 
-        if ((lv_scr_act() == scr_splash)) {
-            ui_goto_screen(scr_main);
-        }
+            lv_label_set_text(main_header, "PS1 Memory Card");
 
-        lv_label_set_text(main_header, "PS1 Memory Card");
+            if (displayed_card_idx != ps1_cardman_get_idx() || displayed_card_channel != ps1_cardman_get_channel() || cardman_state != ps1_cardman_get_state() ||
+                refresh_gui) {
+                displayed_card_idx = ps1_cardman_get_idx();
+                displayed_card_channel = ps1_cardman_get_channel();
+                folder_name = ps1_cardman_get_folder_name();
+                cardman_state = ps1_cardman_get_state();
+                memset(card_name, 0, sizeof(card_name));
 
-        if (displayed_card_idx != ps1_cardman_get_idx() || displayed_card_channel != ps1_cardman_get_channel() || cardman_state != ps1_cardman_get_state() ||
-            refresh_gui) {
-            displayed_card_idx = ps1_cardman_get_idx();
-            displayed_card_channel = ps1_cardman_get_channel();
-            folder_name = ps1_cardman_get_folder_name();
-            cardman_state = ps1_cardman_get_state();
-            memset(card_name, 0, sizeof(card_name));
+                switch (cardman_state) {
+                    case PS1_CM_STATE_BOOT: lv_label_set_text(scr_main_idx_lbl, "BOOT"); break;
+                    case PS1_CM_STATE_NAMED:
+                    case PS1_CM_STATE_GAMEID: lv_label_set_text(scr_main_idx_lbl, folder_name); break;
+                    case PS1_CM_STATE_NORMAL:
+                    default:
+                        snprintf(card_idx_s, sizeof(card_idx_s), "%d", displayed_card_idx);
+                        lv_label_set_text(scr_main_idx_lbl, card_idx_s);
+                        break;
+                }
 
-            switch (cardman_state) {
-                case PS1_CM_STATE_BOOT: lv_label_set_text(scr_main_idx_lbl, "BOOT"); break;
-                case PS1_CM_STATE_NAMED:
-                case PS1_CM_STATE_GAMEID: lv_label_set_text(scr_main_idx_lbl, folder_name); break;
-                case PS1_CM_STATE_NORMAL:
-                default:
-                    snprintf(card_idx_s, sizeof(card_idx_s), "%d", displayed_card_idx);
-                    lv_label_set_text(scr_main_idx_lbl, card_idx_s);
-                    break;
+                snprintf(card_channel_s, sizeof(card_channel_s), "%d", displayed_card_channel);
+                lv_label_set_text(scr_main_channel_lbl, card_channel_s);
+
+                card_config_read_channel_name(folder_name,
+                                                cardman_state == PS1_CM_STATE_BOOT ? "BootCard" : folder_name,
+                                                card_channel_s,
+                                                card_name,
+                                                sizeof(card_name));
+                if (!card_name[0] && cardman_state == PS1_CM_STATE_GAMEID) {
+                    game_db_get_current_name(card_name);
+                }
+                if (!card_name[0] && cardman_state == PS1_CM_STATE_NAMED) {
+                    game_db_get_game_name(folder_name, card_name);
+                }
+
+                if (card_name[0]) {
+                    lv_label_set_text(src_main_title_lbl, card_name);
+                } else {
+                    lv_label_set_text(src_main_title_lbl, "");
+                }
+                splash_update_current(folder_name, cardman_state == PS1_CM_STATE_BOOT ? "BootCard" : folder_name);
             }
-
-            snprintf(card_channel_s, sizeof(card_channel_s), "%d", displayed_card_channel);
-            lv_label_set_text(scr_main_channel_lbl, card_channel_s);
-
-            card_config_read_channel_name(folder_name,
-                                            cardman_state == PS1_CM_STATE_BOOT ? "BootCard" : folder_name,
-                                            card_channel_s,
-                                            card_name,
-                                            sizeof(card_name));
-            if (!card_name[0] && cardman_state == PS1_CM_STATE_GAMEID) {
-                game_db_get_current_name(card_name);
-            }
-            if (!card_name[0] && cardman_state == PS1_CM_STATE_NAMED) {
-                game_db_get_game_name(folder_name, card_name);
-            }
-
-            if (card_name[0]) {
-                lv_label_set_text(src_main_title_lbl, card_name);
-            } else {
-                lv_label_set_text(src_main_title_lbl, "");
-            }
-        }
-
-        refresh_gui = false;
-        update_activity();
-    } else if (settings_get_mode(true) == MODE_PS2){
-        static int displayed_card_idx = -1;
-        static int displayed_card_channel = -1;
-        static ps2_cardman_state_t cardman_state = PS2_CM_STATE_NORMAL;
-        static char card_idx_s[8];
-        static char card_channel_s[8];
-
-
-        if ((lv_scr_act() == scr_splash)) {
-            ui_goto_screen(scr_main);
-        }
-
-
-
-        if (displayed_card_idx != ps2_cardman_get_idx() || displayed_card_channel != ps2_cardman_get_channel() || cardman_state != ps2_cardman_get_state() ||
-            refresh_gui) {
-            displayed_card_idx = ps2_cardman_get_idx();
-            displayed_card_channel = ps2_cardman_get_channel();
-            folder_name = ps2_cardman_get_folder_name();
-            cardman_state = ps2_cardman_get_state();
-            update_main_header();
-            memset(card_name, 0, sizeof(card_name));
-
-            switch (cardman_state) {
-                case PS2_CM_STATE_BOOT: lv_label_set_text(scr_main_idx_lbl, "BOOT"); break;
-                case PS2_CM_STATE_NAMED:
-                case PS2_CM_STATE_GAMEID: lv_label_set_text(scr_main_idx_lbl, folder_name); break;
-                case PS2_CM_STATE_NORMAL:
-                default:
-                    snprintf(card_idx_s, sizeof(card_idx_s), "%d", displayed_card_idx);
-                    lv_label_set_text(scr_main_idx_lbl, card_idx_s);
-                    break;
-            }
-
-            snprintf(card_channel_s, sizeof(card_channel_s), "%d", displayed_card_channel);
-            lv_label_set_text(scr_main_channel_lbl, card_channel_s);
-
-            card_config_read_channel_name(folder_name,
-                                            cardman_state == PS2_CM_STATE_BOOT ? "BootCard" : folder_name,
-                                            card_channel_s,
-                                            card_name,
-                                            sizeof(card_name));
-            if (!card_name[0] && cardman_state == PS2_CM_STATE_GAMEID) {
-                game_db_get_current_name(card_name);
-            }
-            if (!card_name[0] && cardman_state == PS2_CM_STATE_NAMED) {
-                game_db_get_game_name(folder_name, card_name);
-            }
-
-            if (card_name[0]) {
-                lv_label_set_text(src_main_title_lbl, card_name);
-                lv_anim_init(&src_main_animation_template);
-                lv_anim_set_delay(&src_main_animation_template, 1000); /*Wait 1 second to start the first scroll*/
-                lv_anim_set_repeat_count(&src_main_animation_template, 0);
-
-                lv_obj_remove_style(src_main_title_lbl, &src_main_label_style, LV_STATE_DEFAULT);
-                lv_style_init(&src_main_label_style);
-                lv_style_set_anim(&src_main_label_style, &src_main_animation_template);
-
-                lv_obj_add_style(src_main_title_lbl, &src_main_label_style, LV_STATE_DEFAULT);
-            } else {
-                lv_label_set_text(src_main_title_lbl, "");
-            }
-
-            splash_update_current(folder_name, cardman_state == PS2_CM_STATE_BOOT ? "BootCard" : folder_name);
 
             refresh_gui = false;
+            update_activity();
+        } else if (settings_get_mode(true) == MODE_PS2){
+            static int displayed_card_idx = -1;
+            static int displayed_card_channel = -1;
+            static ps2_cardman_state_t cardman_state = PS2_CM_STATE_NORMAL;
+            static char card_idx_s[8];
+            static char card_channel_s[8];
+
+
+            if (displayed_card_idx != ps2_cardman_get_idx() || displayed_card_channel != ps2_cardman_get_channel() || cardman_state != ps2_cardman_get_state() ||
+                refresh_gui) {
+                displayed_card_idx = ps2_cardman_get_idx();
+                displayed_card_channel = ps2_cardman_get_channel();
+                folder_name = ps2_cardman_get_folder_name();
+                cardman_state = ps2_cardman_get_state();
+                update_main_header();
+                memset(card_name, 0, sizeof(card_name));
+
+                switch (cardman_state) {
+                    case PS2_CM_STATE_BOOT: lv_label_set_text(scr_main_idx_lbl, "BOOT"); break;
+                    case PS2_CM_STATE_NAMED:
+                    case PS2_CM_STATE_GAMEID: lv_label_set_text(scr_main_idx_lbl, folder_name); break;
+                    case PS2_CM_STATE_NORMAL:
+                    default:
+                        snprintf(card_idx_s, sizeof(card_idx_s), "%d", displayed_card_idx);
+                        lv_label_set_text(scr_main_idx_lbl, card_idx_s);
+                        break;
+                }
+
+                snprintf(card_channel_s, sizeof(card_channel_s), "%d", displayed_card_channel);
+                lv_label_set_text(scr_main_channel_lbl, card_channel_s);
+
+                card_config_read_channel_name(folder_name,
+                                                cardman_state == PS2_CM_STATE_BOOT ? "BootCard" : folder_name,
+                                                card_channel_s,
+                                                card_name,
+                                                sizeof(card_name));
+                if (!card_name[0] && cardman_state == PS2_CM_STATE_GAMEID) {
+                    game_db_get_current_name(card_name);
+                }
+                if (!card_name[0] && cardman_state == PS2_CM_STATE_NAMED) {
+                    game_db_get_game_name(folder_name, card_name);
+                }
+
+                if (card_name[0]) {
+                    lv_label_set_text(src_main_title_lbl, card_name);
+                    lv_anim_init(&src_main_animation_template);
+                    lv_anim_set_delay(&src_main_animation_template, 1000); /*Wait 1 second to start the first scroll*/
+                    lv_anim_set_repeat_count(&src_main_animation_template, 0);
+
+                    lv_obj_remove_style(src_main_title_lbl, &src_main_label_style, LV_STATE_DEFAULT);
+                    lv_style_init(&src_main_label_style);
+                    lv_style_set_anim(&src_main_label_style, &src_main_animation_template);
+
+                    lv_obj_add_style(src_main_title_lbl, &src_main_label_style, LV_STATE_DEFAULT);
+                } else {
+                    lv_label_set_text(src_main_title_lbl, "");
+                }
+
+                splash_update_current(folder_name, cardman_state == PS2_CM_STATE_BOOT ? "BootCard" : folder_name);
+
+                refresh_gui = false;
+            }
+
+
+            update_activity();
+        } else {
+
         }
-
-
-        update_activity();
-    } else {
-
     }
     if (splash_game_image_available
-        && (lv_scr_act() == scr_main)
+        && (ui_state == UI_STATE_MAIN)
         && (time_us_64() - time_screen > GUI_SCREEN_IMAGE_TIMEOUT_US)) {
-        ui_goto_screen(scr_splash);
+            ui_state = UI_STATE_SPLASH;
     }
 
     gui_tick();

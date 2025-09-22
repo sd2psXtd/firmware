@@ -3,7 +3,7 @@
 #include "lvgl.h"
 #include "ui_menu.h"
 
-#define GUI_SCREEN_IMAGE_TIMEOUT_US   (5 * 1000 * 1000)
+#define GUI_SCREEN_IMAGE_TIMEOUT_US   (3 * 1000 * 1000)
 
 void gui_init(void);
 void gui_task(void);
