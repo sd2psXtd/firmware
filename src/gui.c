@@ -338,7 +338,6 @@ static void evt_scr_main(lv_event_t *event) {
             lv_group_focus_obj(first);
             lv_event_stop_bubbling(event);
         }
-
         if (key == INPUT_KEY_PREV || key == INPUT_KEY_NEXT || key == INPUT_KEY_BACK || key == INPUT_KEY_ENTER) {
             if (settings_get_mode(true) == MODE_PS1) {
                 switch (key) {
@@ -355,9 +354,9 @@ static void evt_scr_main(lv_event_t *event) {
                     case INPUT_KEY_ENTER: ps2_mmceman_next_idx(true); break;
                 }
             }
+            if (lv_scr_act() != scr_main)
+                ui_goto_screen(scr_main);
         }
-        if (lv_scr_act() != scr_main)
-            ui_goto_screen(scr_main);
         time_screen = time_us_64();
     }
 }
@@ -1231,6 +1230,11 @@ void gui_task(void) {
         static ps2_cardman_state_t cardman_state = PS2_CM_STATE_NORMAL;
         static char card_idx_s[8];
         static char card_channel_s[8];
+
+
+        if ((lv_scr_act() == scr_splash)) {
+            ui_goto_screen(scr_main);
+        }
 
 
 
