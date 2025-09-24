@@ -1315,7 +1315,7 @@ void gui_task(void) {
     if (splash_game_image_available
         && (ui_state == UI_STATE_MAIN)
         && (time_us_64() - time_screen > GUI_SCREEN_IMAGE_TIMEOUT_US)) {
-            ui_state = UI_STATE_SPLASH;
+            ui_state = UI_STATE_GAME_IMG;
     }
 
     gui_tick();
