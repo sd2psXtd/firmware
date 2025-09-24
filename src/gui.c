@@ -1166,10 +1166,12 @@ void gui_task(void) {
 
     if (time_us_64() > GUI_SCREEN_IMAGE_TIMEOUT_US) {
         switch (ui_state) {
-            case UI_STATE_SPLASH:
             case UI_STATE_GAME_IMG:
                 ui_goto_screen(scr_splash);
                 break;
+            case UI_STATE_SPLASH:
+                // After initial splash time - move to main screen
+                ui_state = UI_STATE_MAIN;
             case UI_STATE_MAIN:
                 ui_goto_screen(scr_main);
                 break;
