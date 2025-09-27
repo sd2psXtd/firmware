@@ -615,7 +615,7 @@ static void create_main_screen(void) {
 
     lv_anim_init(&src_main_animation_template);
     lv_anim_set_delay(&src_main_animation_template, 1000); /*Wait 1 second to start the first scroll*/
-    lv_anim_set_repeat_count(&src_main_animation_template, LV_ANIM_REPEAT_INFINITE);
+    lv_anim_set_repeat_count(&src_main_animation_template, 0);
 
     lv_obj_remove_style(scr_main_idx_lbl, &src_main_label_style, LV_STATE_DEFAULT);
     lv_style_init(&src_main_label_style);
@@ -637,7 +637,7 @@ static void create_main_screen(void) {
     {
         lv_anim_init(&src_main_animation_template);
         lv_anim_set_delay(&src_main_animation_template, 1000); /*Wait 1 second to start the first scroll*/
-        lv_anim_set_repeat_count(&src_main_animation_template, LV_ANIM_REPEAT_INFINITE);
+        lv_anim_set_repeat_count(&src_main_animation_template, 0);
 
         /*Initialize the label style with the animation template*/
         lv_style_init(&src_main_label_style);
