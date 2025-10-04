@@ -1197,10 +1197,10 @@ void gui_task(void) {
             static char card_idx_s[8];
             static char card_channel_s[8];
 
-            lv_label_set_text(main_header, "PS1 Memory Card");
 
             if (displayed_card_idx != ps1_cardman_get_idx() || displayed_card_channel != ps1_cardman_get_channel() || cardman_state != ps1_cardman_get_state() ||
                 refresh_gui) {
+                lv_label_set_text(main_header, "PS1 Memory Card");
                 displayed_card_idx = ps1_cardman_get_idx();
                 displayed_card_channel = ps1_cardman_get_channel();
                 folder_name = ps1_cardman_get_folder_name();
