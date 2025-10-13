@@ -10,4 +10,4 @@ extern bool splash_game_image_available;
 extern void splash_init(void);
 extern bool splash_load_sd(void);
 extern void splash_install(void);
-extern void splash_update_current(const char* card_folder, const char* card_base);
+extern void splash_update_current(const char* card_folder, const char* card_base, int chan_idx);

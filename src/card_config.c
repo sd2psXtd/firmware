@@ -134,11 +134,18 @@ static void card_config_get_ini_name(const char* card_folder, const char* card_b
 
 }
 
-bool card_config_read_image(uint8_t buff[1032], const char* card_folder, const char* card_base) {
+bool card_config_read_image(uint8_t buff[1032], const char* card_folder, const char* card_base, int chan_idx) {
     char image_path[64];
+    char full_cardname[16];
     int fd;
 
-    card_config_get_image_name(card_folder, card_base, image_path);
+    snprintf(full_cardname, 16, "%s-%i", card_base, chan_idx);
+
+    card_config_get_image_name(card_folder, full_cardname, image_path);
+
+    if (!sd_exists(image_path)) {
+        card_config_get_image_name(card_folder, card_base, image_path);
+    }
 
     fd = sd_open(image_path, O_RDONLY);
     if (fd >= 0) {

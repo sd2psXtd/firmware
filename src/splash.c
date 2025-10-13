@@ -152,8 +152,8 @@ void splash_init(void) {
     }
 }
 
-void splash_update_current(const char* card_folder, const char* card_base) {
-    splash_game_image_available = card_config_read_image(splash_img, card_folder, card_base);
+void splash_update_current(const char* card_folder, const char* card_base, int chan_idx) {
+    splash_game_image_available = card_config_read_image(splash_img, card_folder, card_base, chan_idx);
 }
 
 bool splash_load_sd(void) {

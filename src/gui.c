@@ -1238,7 +1238,7 @@ void gui_task(void) {
                 } else {
                     lv_label_set_text(src_main_title_lbl, "");
                 }
-                splash_update_current(folder_name, cardman_state == PS1_CM_STATE_BOOT ? "BootCard" : folder_name);
+                splash_update_current(folder_name, cardman_state == PS1_CM_STATE_BOOT ? "BootCard" : folder_name, ps1_cardman_get_channel());
             }
 
             refresh_gui = false;
@@ -1301,7 +1301,7 @@ void gui_task(void) {
                     lv_label_set_text(src_main_title_lbl, "");
                 }
 
-                splash_update_current(folder_name, cardman_state == PS2_CM_STATE_BOOT ? "BootCard" : folder_name);
+                splash_update_current(folder_name, cardman_state == PS2_CM_STATE_BOOT ? "BootCard" : folder_name, ps2_cardman_get_channel());
 
                 refresh_gui = false;
             }
