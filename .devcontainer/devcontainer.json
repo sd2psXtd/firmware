@@ -37,7 +37,7 @@
 				],
 				"settings": {"clangd.path": "/usr/bin/clangd",
 							"cmake.cmakePath": "cmake",
-						"clangd.arguments": ["--query-driver", "/usr/bin/arm-none-eabi-gcc"]}
+						    "clangd.arguments": ["--query-driver=/usr/bin/arm-none-eabi-gcc,/usr/bin/arm-none-eabi-g++"]}
 
 			},
 

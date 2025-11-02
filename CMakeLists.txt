@@ -114,9 +114,7 @@ target_compile_options(sd2psx_common
                             -fno-jump-tables)
 
 target_compile_definitions(sd2psx_common PUBLIC
-                            USE_SPI_ARRAY_TRANSFER=1
-                            -DFEAT_PS2_CARDSIZE=1
-                            -DFEAT_PS2_MMCE=1)
+                            USE_SPI_ARRAY_TRANSFER=1)
 if (SD2PSX_WITH_PSRAM)
     target_compile_definitions(sd2psx_common PUBLIC "WITH_PSRAM=1")
 endif()
@@ -126,6 +124,7 @@ if (SD2PSX_WITH_GUI)
     target_sources(sd2psx_common PRIVATE
                 ${CMAKE_CURRENT_SOURCE_DIR}/src/gui.c
                 ${CMAKE_CURRENT_SOURCE_DIR}/src/oled.c
+                ${CMAKE_CURRENT_SOURCE_DIR}/src/splash.c
                 ${CMAKE_CURRENT_SOURCE_DIR}/src/ui_menu.c
                 ${CMAKE_CURRENT_SOURCE_DIR}/src/ui_theme_mono.c)
     target_link_libraries(sd2psx_common

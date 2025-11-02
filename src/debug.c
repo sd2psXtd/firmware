@@ -58,7 +58,7 @@ void fatal(int err, const char *format, ...) {
     vsnprintf(buf, sizeof(buf), format, args);
     va_end(args);
 
-    printf("%s\n", buf);
+    printf("(%i) %s\n", err, buf);
 #if WITH_GUI
     static int fatal_reentry;
     if (!fatal_reentry) {

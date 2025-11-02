@@ -7,3 +7,6 @@
 [submodule "ext/ESP8266SdFat"]
 	path = ext/ESP8266SdFat
 	url = https://github.com/sd2psx/ESP8266SdFat.git
+[submodule "ext/unidecode"]
+	path = ext/unidecode
+	url = https://github.com/avian2/unidecode.git

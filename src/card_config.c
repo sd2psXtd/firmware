@@ -85,6 +85,31 @@ static int parse_card_configuration(void *user, const char *section, const char 
     return 1;
 }
 
+
+static void card_config_get_image_name(const char* card_folder, const char* card_base, char* image_path) {
+    if (settings_get_mode(true) == MODE_PS1) {
+        snprintf(image_path, MAX_CFG_PATH_LENGTH, "MemoryCards/PS1/%s/%s.bin", card_folder, card_base);
+    } else {
+        switch (settings_get_ps2_variant()) {
+            case PS2_VARIANT_PROTO:
+                snprintf(image_path, MAX_CFG_PATH_LENGTH, "MemoryCards/PROT/%s/%s.bin", card_folder, card_base);
+            break;
+            case PS2_VARIANT_COH:
+                snprintf(image_path, MAX_CFG_PATH_LENGTH, "MemoryCards/COH/%s/%s.bin", card_folder, card_base);
+            break;
+            case PS2_VARIANT_SC2:
+                snprintf(image_path, MAX_CFG_PATH_LENGTH, "MemoryCards/SC2/%s/%s.bin", card_folder, card_base);
+            break;
+            case PS2_VARIANT_RETAIL:
+            default:
+                snprintf(image_path, MAX_CFG_PATH_LENGTH, "MemoryCards/PS2/%s/%s.bin", card_folder, card_base);
+            break;
+        }
+    }
+    log(LOG_TRACE, "image=%s\n", image_path);
+
+}
+
 static void card_config_get_ini_name(const char* card_folder, const char* card_base, char* config_path) {
     if (settings_get_mode(true) == MODE_PS1) {
         snprintf(config_path, MAX_CFG_PATH_LENGTH, "MemoryCards/PS1/%s/%s.ini", card_folder, card_base);
@@ -107,6 +132,31 @@ static void card_config_get_ini_name(const char* card_folder, const char* card_b
     }
     log(LOG_TRACE, "config_path=%s\n", config_path);
 
+}
+
+bool card_config_read_image(uint8_t buff[1032], const char* card_folder, const char* card_base, int chan_idx) {
+    char image_path[64];
+    char full_cardname[16];
+    int fd;
+
+    snprintf(full_cardname, 16, "%s-%i", card_base, chan_idx);
+
+    card_config_get_image_name(card_folder, full_cardname, image_path);
+
+    if (!sd_exists(image_path)) {
+        card_config_get_image_name(card_folder, card_base, image_path);
+    }
+
+    fd = sd_open(image_path, O_RDONLY);
+    if (fd >= 0) {
+        sd_read(fd, buff, 1032);
+        sd_close(fd);
+        log(LOG_TRACE, "Read image %s\n", image_path);
+        return true;
+    } else {
+        memset(buff, 0, 1032);
+        return false;
+    }
 }
 
 void card_config_read_channel_name(const char* card_folder, const char* card_base, const char* channel_number, char* name, size_t name_max_len) {
@@ -175,7 +225,7 @@ uint8_t card_config_get_max_channels(const char* card_folder, const char* card_b
 
 
 void card_config_get_card_folder(const char* game_id, char* card_folder, size_t card_folder_max_len) {
-    char mode[6];
+    char mode[9];
     parse_custom_card_folder_t ctx = {
         .game_id = game_id,
         .mode = mode,
@@ -202,7 +252,7 @@ void card_config_get_card_folder(const char* game_id, char* card_folder, size_t 
             break;
         }
     }
-    int fd = sd_open(CUSTOM_CARDS_CONFIG_PATH, O_RDONLY);
+    int fd =  sd_open(CUSTOM_CARDS_CONFIG_PATH, O_RDONLY);
     log(LOG_TRACE, "Looking for game_id=%s mode=%s \n", game_id, ctx.mode);
 
     if (fd >= 0) {

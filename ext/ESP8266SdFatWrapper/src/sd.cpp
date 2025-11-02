@@ -10,6 +10,12 @@ extern "C" {
 #include "sd.h"
 }
 
+#if LOG_LEVEL_SD == 0
+    #define log(x...)
+#else
+    #define log(level, fmt, x...) LOG_PRINT(LOG_LEVEL_SD, level, fmt, ##x)
+#endif
+
 #include <stdio.h>
 
 #ifndef NUM_FILES
@@ -26,6 +32,10 @@ extern "C" void sd_init() {
         SD_PERIPH.setTX(SD_MOSI);
         SD_PERIPH.setSCK(SD_SCK);
         SD_PERIPH.setCS(SD_CS);
+        gpio_set_drive_strength(SD_SCK, GPIO_DRIVE_STRENGTH_12MA);
+        gpio_set_drive_strength(SD_MOSI, GPIO_DRIVE_STRENGTH_12MA);
+        gpio_set_drive_strength(SD_CS, GPIO_DRIVE_STRENGTH_12MA);
+
 
         int ret = sd.begin(SdSpiConfig(SD_CS, DEDICATED_SPI, SD_BAUD, &SD_PERIPH));
         if (ret != 1) {
@@ -52,6 +62,10 @@ void sdCsWrite(SdCsPin_t pin, bool level) {
 
 extern "C" int sd_open(const char *path, int oflag) {
     size_t fd;
+
+    if (!sd_exists(path) && (oflag & O_CREAT) == 0) {
+        return -1;
+    }
 
     for (fd = 0; fd < NUM_FILES; ++fd)
         if (!files[fd].isOpen())
@@ -88,6 +102,7 @@ extern "C" void sd_flush(int fd) {
 extern "C" int sd_read(int fd, void *buf, size_t count) {
     CHECK_FD(fd);
 
+
     return files[fd].read(buf, count);
 }
 
@@ -118,8 +133,13 @@ extern "C" uint32_t sd_tell(int fd) {
 }
 
 extern "C" int sd_mkdir(const char *path) {
-    /* return 1 on error */
-    return sd.mkdir(path) != true;
+    if (sd_exists(path)) {
+        /* return 0 if the directory already exists */
+        return 0;
+    } else {
+        /* return 1 on error */
+        return sd.mkdir(path) != true;
+    }
 }
 
 extern "C" int sd_exists(const char *path) {

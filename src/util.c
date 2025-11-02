@@ -23,7 +23,7 @@ bool str_is_integer(const char *str) {
 
 bool try_set_named_card_folder(const char *cards_dir, int it_idx, char *folder_name, size_t folder_name_size) {
     bool ret = false;
-    int dir_fd, it_fd = -1;
+    int dir_fd = -1, it_fd = -1;
     char filename[MAX_GAME_ID_LENGTH + 1] = {}; // +1 byte to be able to tell whether the name was truncated or not
 
     dir_fd = sd_open(cards_dir, O_RDONLY);
