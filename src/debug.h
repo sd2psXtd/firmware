@@ -15,7 +15,7 @@
 #define LOG_LEVEL_PS2_HT     2
 #define LOG_LEVEL_PS2_S2M    2
 #define LOG_LEVEL_GUI        2
-#define LOG_LEVEL_CARD_CONF  4
+#define LOG_LEVEL_CARD_CONF  2
 #define LOG_LEVEL_PS1_MC     2
 #define LOG_LEVEL_PS1_CM     2
 #define LOG_LEVEL_PS1_MMCE   2
