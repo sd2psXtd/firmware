@@ -258,6 +258,7 @@ static game_lookup find_arcade_lookup(const char* game_id) {
 
 void __time_critical_func(game_db_extract_title_id)(const uint8_t* const in_title_id, char* const out_title_id, const size_t in_title_id_length, const size_t out_buffer_size) {
     uint16_t idx_in_title = 0, idx_out_title = 0;
+    uint8_t prefix_count = 0;
 
     while ( (in_title_id[idx_in_title] != 0x00)
             && (idx_in_title < in_title_id_length)
@@ -267,8 +268,14 @@ void __time_critical_func(game_db_extract_title_id)(const uint8_t* const in_titl
             break;
         } else if ((in_title_id[idx_in_title] == '\\') || (in_title_id[idx_in_title] == '/') || (in_title_id[idx_in_title] == ':')) {
             idx_out_title = 0;
+            prefix_count = 0;
         } else if (in_title_id[idx_in_title] == '_') {
             out_title_id[idx_out_title++] = '-';
+        } else if (isalpha((unsigned char)in_title_id[idx_in_title])) {
+            if (prefix_count++ < 4)
+                out_title_id[idx_out_title++] = in_title_id[idx_in_title];
+            else if((unsigned char)in_title_id[idx_in_title] == 'P')
+                out_title_id[idx_out_title++] = '-';
         } else if (in_title_id[idx_in_title] != '.') {
             out_title_id[idx_out_title++] = in_title_id[idx_in_title];
         } else {
