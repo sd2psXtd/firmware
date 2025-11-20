@@ -117,12 +117,12 @@ static uint8_t __time_critical_func(recv_cmd)(uint8_t* cmd, uint32_t sm) {
 
 #define receiveOrNextCmd(cmd)          \
     if ((recv_cmd(cmd, cmd_reader.sm) == RECEIVE_RESET) || !card_active) \
-    {DPRINTF("!R: %s:%u\n", __func__, __LINE__); \
+    { \
     return;}
 
 #define receiveOrNextCntrl(cmd)          \
     if ((recv_cmd(cmd, cntrl_reader.sm) == RECEIVE_RESET) || !card_active) \
-    {DPRINTF("!RC %s:%u\n", __func__, __LINE__); \
+    { \
     return;}
 
 static void __time_critical_func(ps1_mc_respond)(uint8_t ch) {
