@@ -23,3 +23,4 @@ static inline uint64_t __time_critical_func(RAM_time_us_64)() {
 }
 
 bool try_set_named_card_folder(const char *cards_dir, int it_idx, char *folder_name, size_t folder_name_size);
+int get_byte_array(size_t size, const char* origin, uint8_t* out);

@@ -28,6 +28,8 @@ uint8_t prt_key[16]     = {0x8C, 0x4B, 0xEF, 0xA6, 0xF4, 0x9A, 0x23, 0xA0, 0x9C,
 uint8_t *key = dex_key;
 uint8_t *keysource = ps2_keysource;
 
+uint8_t ov_iv[8]    = {0x42}; // can be overriden by `parse_card_configuration()` at settings.c
+uint8_t ov_nonce[8] = {0x42}; // can be overriden by `parse_card_configuration()` at settings.c
 uint8_t iv[8];
 uint8_t seed[8];
 uint8_t nonce[8];
@@ -99,9 +101,9 @@ void __time_critical_func(generateIvSeedNonce)() {
         break;
     }
     for (int i = 0; i < 8; i++) {
-        iv[i] = 0x42;
+        iv[i] = ov_iv[i];
         seed[i] = keysource[i] ^ iv[i];
-        nonce[i] = 0x42;
+        nonce[i] = ov_nonce[i];
     }
 }
 

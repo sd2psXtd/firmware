@@ -7,6 +7,19 @@
 #include "sd.h"
 #include "game_db/game_db.h"
 
+#include <errno.h>
+int get_byte_array(size_t size, const char* origin, uint8_t* out) {
+    if (strlen(origin) != (size*2))
+        return EINVAL;
+
+    char* pos = (char*)origin;
+    for (size_t count = 0; count < size; count++) {
+        sscanf(pos, "%2hhx", &out[count]);
+        pos += 2;
+    }
+    return 0;
+}
+
 bool str_is_integer(const char *str) {
     int i = 0;
 

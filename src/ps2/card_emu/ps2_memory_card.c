@@ -248,7 +248,7 @@ static void __time_critical_func(mc_main_loop)(void) {
             if (receive(&cmd) == RECEIVE_RESET)
                 continue;
 
-            log(LOG_TRACE, "%s: 0x81 %.02x\n", __func__, cmd);
+            DPRINTF("%s: 0x81 %02x\n", __func__, cmd);
             switch (cmd) {
                 case PS2_SIO2_CMD_0x11: ps2_mc_cmd_0x11(); break;
                 case PS2_SIO2_CMD_0x12: ps2_mc_cmd_0x12(); break;

@@ -3,6 +3,7 @@
 #include <stdio.h>
 #include <string.h>
 
+#include "util.h"
 #include "debug.h"
 #include "pico/multicore.h"
 #include "sd.h"
@@ -92,7 +93,7 @@ static int parse_card_configuration(void *user, const char *section, const char 
             default:
                 break;
         }
-    }else if (MATCH("PS2", "Variant")) {
+    } else if (MATCH("PS2", "Variant")) {
         _s->ps2_variant = PS2_VARIANT_RETAIL;
         if (strcmp(value, "PROTO") == 0) {
             _s->ps2_variant = PS2_VARIANT_PROTO;
@@ -101,6 +102,13 @@ static int parse_card_configuration(void *user, const char *section, const char 
         } else if (strcmp(value, "CONQUEST") == 0) {
             _s->ps2_variant = PS2_VARIANT_SC2;
         }
+    } else if (MATCH("PS2", "ALT_IV")) {
+        extern uint8_t ov_iv[8];
+        get_byte_array(sizeof(ov_iv), value, &ov_iv[0]);
+    } else if (MATCH("PS2", "ALT_NONCE")) {
+        extern uint8_t ov_nonce[8];
+        get_byte_array(sizeof(ov_nonce), value, &ov_nonce[0]);
+        
     } else if (MATCH("General", "Mode")
         && (strcmp(value, "PS2") == 0) != ((_s->sys_flags & SETTINGS_SYS_FLAGS_PS2_MODE) > 0)) {
         _s->sys_flags ^= SETTINGS_SYS_FLAGS_PS2_MODE;
