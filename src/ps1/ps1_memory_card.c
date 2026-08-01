@@ -495,6 +495,7 @@ static void __no_inline_not_in_flash_func(mc_main)(void) {
         {}
         mc_enter_response = 1;
 
+        reset_pio();
         mc_main_loop();
     }
 }
