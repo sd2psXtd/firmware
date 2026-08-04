@@ -127,14 +127,28 @@ static bool dirExists(char* dirname) {
     return true;
 }
 
+static uint8_t history_slot_fingerprint(const uint8_t *slot)
+{
+    uint8_t crc = 0xFF;
+
+    for (size_t i = 0; i < HISTORY_ENTRY_SIZE; i++) {
+        crc ^= slot[i];
+
+        for (uint8_t bit = 0; bit < 8; bit++) {
+            crc = (crc & 0x80) ? (uint8_t)((crc << 1) ^ 0x1D)
+                               : (uint8_t)(crc << 1);
+        }
+    }
+
+    return crc ^ 0xFF; // CRC-8/SAE-J1850
+}
+
 static void readSlots(uint8_t historyFile[HISTORY_FILE_SIZE], uint8_t slots[HISTORY_ENTRY_COUNT]) {
     for (int i = 0; i < HISTORY_ENTRY_COUNT; i++) {
         slots[i] = 0x00;
         if (historyFile[i * HISTORY_ENTRY_SIZE]) {
-            for (int j = i * HISTORY_ENTRY_SIZE + HISTORY_ENTRY_POS_LAUNCH; j < (i + 1) * HISTORY_ENTRY_SIZE; j++) {
-                slots[i] ^= historyFile[j];
-            }
-            log(LOG_INFO, "Found game %s with %02x XOR\n", (char*)&historyFile[i * HISTORY_ENTRY_SIZE], historyFile[i * HISTORY_ENTRY_SIZE + HISTORY_ENTRY_POS_LAUNCH]);
+            slots[i] = history_slot_fingerprint(&historyFile[i * HISTORY_ENTRY_SIZE]);
+            log(LOG_INFO, "Found game %s with %02x CRC\n", (char*)&historyFile[i * HISTORY_ENTRY_SIZE], historyFile[i * HISTORY_ENTRY_SIZE + HISTORY_ENTRY_POS_LAUNCH]);
         }
     }
 }
