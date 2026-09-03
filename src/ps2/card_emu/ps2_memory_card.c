@@ -44,6 +44,8 @@ volatile bool card_active;
 
 static volatile int mc_exit_request, mc_exit_response, mc_enter_request, mc_enter_response;
 
+static bool ps2_host_confirmed = false;
+
 static inline void __time_critical_func(RAM_pio_sm_drain_tx_fifo)(PIO pio, uint sm) {
     uint instr = (pio->sm[sm].shiftctrl & PIO_SM0_SHIFTCTRL_AUTOPULL_BITS) ? pio_encode_out(pio_null, 32) : pio_encode_pull(false, false);
     while (!pio_sm_is_tx_fifo_empty(pio, sm)) {
@@ -231,6 +233,29 @@ static void __time_critical_func(mc_main_loop)(void) {
 
 
         if (cmd == PS2_SIO2_CMD_IDENTIFIER) {
+            // ACK and DAT are normally configured as push-pull outputs for a PS2, but as such they
+            // may damage a PS1 or PS1 multitap. Therefore keep ACK open drain and DAT Hi-Z until
+            // the host is confirmed to be a PS2.
+            if (!ps2_host_confirmed) {
+                /* resp to 0x81 */
+                gpio_set_oeover(PIN_PSX_ACK, GPIO_OVERRIDE_HIGH);
+
+                /* sub cmd */
+                receive(&cmd);
+
+                /* release ACK */
+                gpio_set_oeover(PIN_PSX_ACK, GPIO_OVERRIDE_LOW);
+
+                if (cmd == PS2_SIO2_CMD_0x11) {
+                    log(LOG_INFO, "PS2 host confirmed, enabling ACK and DAT push-pull drivers\n");
+                    gpio_set_outover(PIN_PSX_ACK, GPIO_OVERRIDE_NORMAL);
+                    gpio_set_oeover(PIN_PSX_ACK, GPIO_OVERRIDE_NORMAL);
+                    gpio_set_oeover(PIN_PSX_DAT, GPIO_OVERRIDE_NORMAL);
+                    ps2_host_confirmed = true;
+                }
+                continue;
+            }
+
             //Don't respond to mcman after a card switch to trigger its internal reset
             if (mmceman_mcman_retry_counter > 0) {
                 log(LOG_WARN, "Ignoring mcman for another %i requests\n", mmceman_mcman_retry_counter);

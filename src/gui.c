@@ -727,15 +727,15 @@ static void create_menu_screen(void) {
         lv_obj_t *ps2_switch_warn = ui_menu_subpage_create(menu, NULL);
         {
             cont = ui_menu_cont_create(ps2_switch_warn);
-            ui_label_create(cont, "Do not insert");
+            ui_label_create(cont, "Avoid insert in");
             cont = ui_menu_cont_create(ps2_switch_warn);
-            ui_label_create(cont, "into PS1 when");
+            ui_label_create(cont, "PS1 while in PS2");
             cont = ui_menu_cont_create(ps2_switch_warn);
-            ui_label_create(cont, "set to PS2 mode!");
+            ui_label_create(cont, "mode. Safeguards");
             cont = ui_menu_cont_create(ps2_switch_warn);
-            ui_label_create(cont, "It may damage");
+            ui_label_create(cont, "may not prevent");
             cont = ui_menu_cont_create(ps2_switch_warn);
-            ui_label_create(cont, "card and console");
+            ui_label_create(cont, "all damage.");
 
             cont = ui_menu_cont_create_nav(ps2_switch_warn);
             ui_label_create(cont, "Confirm");
