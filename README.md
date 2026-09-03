@@ -47,10 +47,7 @@ When launching in PS2 mode, commands sent to *sd2psx* are monitored. Since PS1 s
 While in general this should be safe behavior, if *sd2psx* is used mainly in PS1, manual mode selection is recommended.
 
 > [!CAUTION]
-> **Note 1:** If *sd2psx* is connected to a PS1 in PS2 mode, there is always a risk of damaging your PS1 console. You have been warned!
-
-> [!CAUTION]
-> **Note 2:** Do not use *sd2psx* in dynamic mode on a PS1 multitap, as this **WILL** damage your PS1 multitap device.
+> If *sd2psx* is connected to a PS1 or a PS1 multitap in PS2 mode, there is always a risk of damaging your console / multitap. Safeguards have been implemented to minimize this risk, but they are not entirely foolproof. You have been warned!
 
 ## PS2: MMCEMAN and MMCEDRV Support
 
