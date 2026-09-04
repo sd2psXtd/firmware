@@ -1,4 +1,5 @@
 #include <ctype.h>
+#include <fcntl.h>
 #include <hardware/watchdog.h>
 #include <pico/bootrom.h>
 #include <pico/stdio.h>
@@ -12,6 +13,8 @@
 #endif
 #include "ps1/ps1_mmce.h"
 #include "ps2/mmceman/ps2_mmceman.h"
+#include "ps2/ps2_cardman.h"
+#include "sd.h"
 
 #include "debug.h"
 #include "serial_input.h"
@@ -20,6 +23,8 @@
 
 #define SERIAL_INPUT_BUFFER_SIZE 256
 #define SERIAL_INPUT_MAX_ARGS   8
+#define SERIAL_INPUT_PATH_SIZE  128
+#define SERIAL_INPUT_LS_MAX     512
 
 #define ASCII_BS  0x08
 #define ASCII_DEL 0x7F
@@ -43,6 +48,8 @@ typedef enum {
     SERIAL_INPUT_CMD_CHANNEL_IDX,
     SERIAL_INPUT_CMD_GAMEID,
     SERIAL_INPUT_CMD_VERSION,
+    SERIAL_INPUT_CMD_LS,
+    SERIAL_INPUT_CMD_STAT,
     SERIAL_INPUT_CMD_HELP
 } serial_input_cmd_t;
 
@@ -51,6 +58,7 @@ typedef struct {
     int idx;
     int channel;
     char gameid[16];
+    char path[SERIAL_INPUT_PATH_SIZE];
     const char* error;
 } serial_input_cmd_data_t;
 
@@ -60,6 +68,8 @@ static const char help_text[] =
     "Serial Input Commands:\n"
     "  help                                - Show this help\n"
     "  version                             - Show firmware version and settings\n"
+    "  ls [path]                           - List a directory on the SD card\n"
+    "  stat <path>                         - Show whether a path exists, its type and size\n"
     "  reset bl                            - Reset to bootloader\n"
     "  reset dev                           - Reset device\n"
     "  channel up                          - Channel up\n"
@@ -83,6 +93,7 @@ static void cmd_data_init(serial_input_cmd_data_t* cmd_data) {
     cmd_data->idx = -1;
     cmd_data->channel = -1;
     cmd_data->gameid[0] = '\0';
+    cmd_data->path[0] = '\0';
     cmd_data->error = NULL;
 }
 
@@ -184,6 +195,86 @@ static bool parse_optional_channel(int argc, char* argv[], int start_arg, int* c
     return true;
 }
 
+static bool copy_path_arg(const char* text, serial_input_cmd_data_t* cmd_data) {
+    if (strlen(text) >= sizeof(cmd_data->path)) {
+        cmd_data->error = "Path is too long";
+        return false;
+    }
+    strcpy(cmd_data->path, text);
+    return true;
+}
+
+/* The SD card is shared with the card emulation, whose file work runs
+ * from the same core0 loop as this parser, so the only thing to avoid is
+ * walking the card while a switch or card creation is mid-flight. */
+static bool sd_is_busy(void) {
+    return (settings_get_mode(true) == MODE_PS2) && !ps2_cardman_is_idle();
+}
+
+static void cmd_stat(const char* path) {
+    int fd;
+
+    if (sd_is_busy()) {
+        printf("Busy: card operation in progress\n");
+        return;
+    }
+    if (!sd_exists(path)) {
+        printf("Missing: %s\n", path);
+        return;
+    }
+    fd = sd_open(path, O_RDONLY);
+    if (fd < 0) {
+        printf("Exists but cannot open: %s\n", path);
+        return;
+    }
+    if (sd_is_dir(fd)) {
+        printf("Dir: %s\n", path);
+    } else {
+        printf("File: %s size %d\n", path, sd_filesize(fd));
+    }
+    sd_close(fd);
+}
+
+static void cmd_ls(const char* path) {
+    int dir, entry, count = 0;
+    char name[SERIAL_INPUT_PATH_SIZE];
+
+    if (sd_is_busy()) {
+        printf("Busy: card operation in progress\n");
+        return;
+    }
+    if (!sd_exists(path)) {
+        printf("Missing: %s\n", path);
+        return;
+    }
+    dir = sd_open(path, O_RDONLY);
+    if (dir < 0) {
+        printf("Exists but cannot open: %s\n", path);
+        return;
+    }
+    if (!sd_is_dir(dir)) {
+        printf("Not a directory: %s\n", path);
+        sd_close(dir);
+        return;
+    }
+    /* sd_iterate_dir(dir, -1) opens the next entry into a free slot and
+     * advances the directory's position, so closing each entry and
+     * asking with -1 again walks the whole directory. */
+    while ((count < SERIAL_INPUT_LS_MAX) && ((entry = sd_iterate_dir(dir, -1)) >= 0)) {
+        name[0] = '\0';
+        sd_get_name(entry, name, sizeof(name));
+        if (sd_is_dir(entry)) {
+            printf("D %s\n", name);
+        } else {
+            printf("F %d %s\n", sd_filesize(entry), name);
+        }
+        sd_close(entry);
+        count++;
+    }
+    sd_close(dir);
+    printf("Total: %d%s\n", count, (count >= SERIAL_INPUT_LS_MAX) ? " (truncated)" : "");
+}
+
 static void parse_command(char* input, serial_input_cmd_data_t* cmd_data) {
     char* argv[SERIAL_INPUT_MAX_ARGS];
     int argc;
@@ -205,6 +296,16 @@ static void parse_command(char* input, serial_input_cmd_data_t* cmd_data) {
         cmd_data->cmd = SERIAL_INPUT_CMD_HELP;
     } else if ((argc == 1) && (strcmp(argv[0], "version") == 0)) {
         cmd_data->cmd = SERIAL_INPUT_CMD_VERSION;
+    } else if ((argc >= 1) && (argc <= 2) && (strcmp(argv[0], "ls") == 0)) {
+        cmd_data->cmd = SERIAL_INPUT_CMD_LS;
+        if (!copy_path_arg((argc == 2) ? argv[1] : "/", cmd_data)) {
+            cmd_data->cmd = SERIAL_INPUT_CMD_INVALID;
+        }
+    } else if ((argc == 2) && (strcmp(argv[0], "stat") == 0)) {
+        cmd_data->cmd = SERIAL_INPUT_CMD_STAT;
+        if (!copy_path_arg(argv[1], cmd_data)) {
+            cmd_data->cmd = SERIAL_INPUT_CMD_INVALID;
+        }
     } else if ((argc == 2) && (strcmp(argv[0], "reset") == 0) && (strcmp(argv[1], "bl") == 0)) {
         cmd_data->cmd = SERIAL_INPUT_CMD_RESET_TO_BOOTLOADER;
     } else if ((argc == 2) && (strcmp(argv[0], "reset") == 0) && (strcmp(argv[1], "dev") == 0)) {
@@ -417,6 +518,12 @@ static void execute_command(const serial_input_cmd_data_t* cmd_data) {
             printf("PS2 Variant: %s\n", variant_name);
             break;
         }
+        case SERIAL_INPUT_CMD_LS:
+            cmd_ls(cmd_data->path);
+            break;
+        case SERIAL_INPUT_CMD_STAT:
+            cmd_stat(cmd_data->path);
+            break;
         case SERIAL_INPUT_CMD_HELP:
             printf("%s", help_text);
             break;
