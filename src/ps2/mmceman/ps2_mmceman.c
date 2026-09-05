@@ -131,9 +131,11 @@ void ps2_mmceman_task(void) {
         ps2_history_tracker_init();
 
         // close old card
+        log(LOG_TRACE, "SW1 exit (retry=%u)\n", mmceman_mcman_retry_counter);
         ps2_memory_card_exit();
         log(LOG_TRACE, "%s After Exit\n", __func__);
         ps2_mc_data_interface_flush();
+        log(LOG_TRACE, "SW3 flush done\n");
         ps2_cardman_close();
         log(LOG_TRACE, "%s After Close\n", __func__);
 
@@ -151,8 +153,11 @@ void ps2_mmceman_task(void) {
         mmceman_mcman_retry_counter = 5;
 
         // open new card
+        log(LOG_TRACE, "SW5 open\n");
         ps2_cardman_open();
+        log(LOG_TRACE, "SW6 open done\n");
         ps2_memory_card_enter();
+        log(LOG_TRACE, "SW7 enter done\n");
 
         log(LOG_INFO, "%s Card switch took %u ms\n", __func__, (time_us_32() - switching_time)/1000U);
     }
