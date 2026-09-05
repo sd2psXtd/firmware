@@ -243,15 +243,19 @@ static void __time_critical_func(mc_main_loop)(void) {
                 /* sub cmd */
                 receive(&cmd);
 
-                /* release ACK */
-                gpio_set_oeover(PIN_PSX_ACK, GPIO_OVERRIDE_LOW);
-
                 if (cmd == PS2_SIO2_CMD_0x11) {
                     log(LOG_INFO, "PS2 host confirmed, enabling ACK and DAT push-pull drivers\n");
                     gpio_set_outover(PIN_PSX_ACK, GPIO_OVERRIDE_NORMAL);
                     gpio_set_oeover(PIN_PSX_ACK, GPIO_OVERRIDE_NORMAL);
                     gpio_set_oeover(PIN_PSX_DAT, GPIO_OVERRIDE_NORMAL);
+
+                    /* resp to 0x11 */
+                    ps2_mc_cmd_0x11();
+
                     ps2_host_confirmed = true;
+                } else {
+                    /* release ACK */
+                    gpio_set_oeover(PIN_PSX_ACK, GPIO_OVERRIDE_LOW);
                 }
                 continue;
             }
