@@ -69,7 +69,6 @@ static test_t psram_tests[] = {
 void __time_critical_func(psram_read_dma)(uint32_t addr, void *vbuf, size_t sz, void (*cb)(void)) {
     uint8_t *buf = vbuf;
     critical_section_enter_blocking(&crit_psram);
-    gpio_put(spi.cs_pin, 0);
     pio_qspi_read8_dma(&spi, addr, buf, sz, cb);
     critical_section_exit(&crit_psram);
 }
@@ -77,7 +76,6 @@ void __time_critical_func(psram_read_dma)(uint32_t addr, void *vbuf, size_t sz, 
 void __time_critical_func(psram_write_dma)(uint32_t addr, void *vbuf, size_t sz, void (*cb)(void)) {
     uint8_t *buf = vbuf;
     critical_section_enter_blocking(&crit_psram);
-    gpio_put(spi.cs_pin, 0);
     pio_qspi_write8_dma(&spi, addr, buf, sz, cb);
     critical_section_exit(&crit_psram);
 }

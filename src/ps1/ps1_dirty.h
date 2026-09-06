@@ -19,8 +19,8 @@ static inline void __time_critical_func(ps1_dirty_unlock)(void) {
 }
 
 static inline void __time_critical_func(ps1_dirty_lockout_renew)(void) {
-    /* lockout for 100ms, store time in ms */
-    ps1_dirty_lockout = (uint32_t)(RAM_time_us_64() / 1000) + 100;
+    /* lockout for 500ms, store time in ms */
+    ps1_dirty_lockout = (uint32_t)(RAM_time_us_64() / 1000) + 500;
 }
 
 static inline int __time_critical_func(ps1_dirty_lockout_expired)(void) {
