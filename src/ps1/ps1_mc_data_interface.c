@@ -35,7 +35,6 @@ static void __time_critical_func(ps1_mc_data_interface_rx_done)() {
 }
 
 void __time_critical_func(ps1_mc_data_interface_start_dma)(uint32_t page) {
-    ps1_dirty_lockout_renew();
     /* the spinlock will be unlocked by the DMA irq once all data is tx'd */
     ps1_dirty_lock();
     dma_in_progress = true;
