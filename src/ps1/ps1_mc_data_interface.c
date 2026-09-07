@@ -63,24 +63,26 @@ uint8_t* __time_critical_func(ps1_mc_data_interface_get_page)(uint32_t page) {
     return ret;
 }
 
-void __time_critical_func(ps1_mc_data_interface_write_mc)(uint32_t page, void *buf) {
-    if (page * PS1_PAGE_SIZE + PS1_PAGE_SIZE <= PS1_CARD_SIZE) {
+void __time_critical_func(ps1_mc_data_interface_write_byte)(uint32_t address, uint8_t byte) {    
+    ps1_dirty_lockout_renew();
 #if WITH_PSRAM
-        psram_wait_for_dma();
-        ps1_dirty_lockout_renew();
-        ps1_dirty_lock();
-        psram_write_dma(page * PS1_PAGE_SIZE, buf, PS1_PAGE_SIZE, NULL);
-        psram_wait_for_dma();
-        ps1_dirty_mark(page);
-        ps1_dirty_unlock();
+    card[address%PS1_PAGE_SIZE] = byte;
 #else
-        memcpy(&card[page * PS1_PAGE_SIZE], buf, PS1_PAGE_SIZE);
-        ps1_dirty_lock();
-        ps1_dirty_mark(page);
-        ps1_dirty_unlock();
+    card[address] = byte;
 #endif
-        write_occured = true;
-    }
+    write_occured = true;
+}
+
+void __time_critical_func(ps1_mc_data_interface_write_mc)(uint32_t page) {
+    ps1_dirty_lockout_renew();
+    ps1_dirty_lock();
+#if WITH_PSRAM
+    psram_wait_for_dma();
+    psram_write_dma(page * PS1_PAGE_SIZE, card, PS1_PAGE_SIZE, NULL);
+    psram_wait_for_dma();
+#endif
+    ps1_dirty_mark(page);
+    ps1_dirty_unlock();
 }
 
 void __time_critical_func(ps1_mc_data_interface_wait_for_byte)(uint32_t offset) {

@@ -30,7 +30,6 @@ static uint64_t us_startup;
 static volatile int reset;
 static uint8_t flag;
 static uint8_t* curr_page = NULL;
-static uint8_t writetmp[PS1_PAGE_SIZE];
 static bool ps2_multitap = false;
 static volatile bool card_active = false;
 
@@ -245,7 +244,7 @@ static void __time_critical_func(mc_cmd_write)(void) {
     prev = page_lsb;
     for (offset = 0; offset < 128; offset++) {
         respondOrNextCmd(prev);   receiveOrNextCmd(&in);
-        writetmp[offset] = in;
+        ps1_mc_data_interface_write_byte(((page_msb * 256) + page_lsb) * 128 + offset, in);
         chk ^= in;
         prev = in;
     }
@@ -253,7 +252,7 @@ static void __time_critical_func(mc_cmd_write)(void) {
     respondOrNextCmd(0x5C);           receiveOrNextCmd(&_);
     respondOrNextCmd(0x5D);           receiveOrNextCmd(&_);
     if (in == chk) {
-        ps1_mc_data_interface_write_mc((page_msb * 256) + page_lsb, writetmp);
+        ps1_mc_data_interface_write_mc((page_msb * 256) + page_lsb);
         respondOrNextCmd(0x47);
     } else {
         respondOrNextCmd(0x4E);
