@@ -98,6 +98,7 @@ target_include_directories(sd2psx_common
                 PUBLIC
                     ${CMAKE_CURRENT_SOURCE_DIR}/src
                 PRIVATE )
+target_link_libraries(sd2psx_common PRIVATE sd2psx_version)
 
 target_link_libraries(sd2psx_common
                     PRIVATE

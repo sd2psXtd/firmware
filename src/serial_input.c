@@ -16,6 +16,7 @@
 #include "debug.h"
 #include "serial_input.h"
 #include "settings.h"
+#include "version.h"
 
 #define SERIAL_INPUT_BUFFER_SIZE 256
 #define SERIAL_INPUT_MAX_ARGS   8
@@ -41,6 +42,7 @@ typedef enum {
     SERIAL_INPUT_CMD_CARD_IDX,
     SERIAL_INPUT_CMD_CHANNEL_IDX,
     SERIAL_INPUT_CMD_GAMEID,
+    SERIAL_INPUT_CMD_VERSION,
     SERIAL_INPUT_CMD_HELP
 } serial_input_cmd_t;
 
@@ -57,6 +59,7 @@ static const char prompt[] = "> ";
 static const char help_text[] =
     "Serial Input Commands:\n"
     "  help                                - Show this help\n"
+    "  version                             - Show firmware version and settings\n"
     "  reset bl                            - Reset to bootloader\n"
     "  reset dev                           - Reset device\n"
     "  channel up                          - Channel up\n"
@@ -200,6 +203,8 @@ static void parse_command(char* input, serial_input_cmd_data_t* cmd_data) {
 
     if ((argc == 1) && (strcmp(argv[0], "help") == 0)) {
         cmd_data->cmd = SERIAL_INPUT_CMD_HELP;
+    } else if ((argc == 1) && (strcmp(argv[0], "version") == 0)) {
+        cmd_data->cmd = SERIAL_INPUT_CMD_VERSION;
     } else if ((argc == 2) && (strcmp(argv[0], "reset") == 0) && (strcmp(argv[1], "bl") == 0)) {
         cmd_data->cmd = SERIAL_INPUT_CMD_RESET_TO_BOOTLOADER;
     } else if ((argc == 2) && (strcmp(argv[0], "reset") == 0) && (strcmp(argv[1], "dev") == 0)) {
@@ -395,6 +400,23 @@ static void execute_command(const serial_input_cmd_data_t* cmd_data) {
             gui_request_refresh();
             #endif
             break;
+        case SERIAL_INPUT_CMD_VERSION: {
+            const char* variant_name = "Unknown";
+            switch (settings_get_ps2_variant()) {
+                case PS2_VARIANT_RETAIL: variant_name = "Retail"; break;
+                case PS2_VARIANT_PROTO: variant_name = "Proto"; break;
+                case PS2_VARIANT_COH: variant_name = "Arcade"; break;
+                case PS2_VARIANT_SC2: variant_name = "Conquest"; break;
+                default: break;
+            }
+            printf("Version: %s\n", sd2psx_version);
+            printf("Commit: %s\n", sd2psx_commit);
+            printf("Branch: %s\n", sd2psx_branch);
+            printf("HW Variant: %s\n", sd2psx_variant);
+            printf("Mode: %s\n", (settings_get_mode(true) == MODE_PS2) ? "PS2" : "PS1");
+            printf("PS2 Variant: %s\n", variant_name);
+            break;
+        }
         case SERIAL_INPUT_CMD_HELP:
             printf("%s", help_text);
             break;
