@@ -168,7 +168,6 @@ static void __time_critical_func(ps2_mc_data_interface_rx_done)() {
 }
 
 void __time_critical_func(ps2_mc_data_interface_start_dma)(volatile ps2_mcdi_page_t* page_p) {
-    ps2_dirty_lockout_renew();
     /* the spinlock will be unlocked by the DMA irq once all data is tx'd */
     ps2_dirty_lock();
     psram_wait_for_dma();
