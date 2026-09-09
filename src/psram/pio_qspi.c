@@ -97,6 +97,9 @@ void __time_critical_func(pio_qspi_write8_dma)(const pio_spi_inst_t *spi, uint32
 
     if (dma_channel_is_busy(PIO_SPI_DMA_RX_DATA_CHAN)) printf("WARNING!!!DMA ALREADY ACTIVE!!!!!!!!!\n");
     while (dma_active) {tight_loop_contents();};
+    // dma_active switching to false means dma_rx_done ran, which also means CS was raised to 1
+    // pull it back down to 0
+    gpio_put(spi->cs_pin, 0);
     dma_active = true;
     dma_done_cb = cb;
 
@@ -130,6 +133,9 @@ void __time_critical_func(pio_qspi_read8_dma)(const pio_spi_inst_t *spi, uint32_
 
     if (dma_active) printf("WARNING!!!DMA ALREADY ACTIVE!!!!!!!!!\n");
     while (dma_active) {tight_loop_contents();};
+    // dma_active switching to false means dma_rx_done ran, which also means CS was raised to 1
+    // pull it back down to 0
+    gpio_put(spi->cs_pin, 0);
     dma_active = true;
     dma_done_cb = cb;
 
