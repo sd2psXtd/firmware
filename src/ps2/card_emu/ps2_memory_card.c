@@ -12,6 +12,8 @@
 #include "ps2_mc_commands.h"
 #include "ps2_mc_internal.h"
 #include "mmceman/ps2_mmceman.h"
+#include "ps2_mc_data_interface.h"
+#include "ps2_memory_card.h"
 #include "mmceman/ps2_mmceman_commands.h"
 #include "mmceman/ps2_mmceman_fs.h"
 #include "ps2_mc_spi.pio.h"
@@ -123,6 +125,11 @@ uint8_t __time_critical_func(receive)(uint8_t *cmd) {
             if (reset) {
                 return RECEIVE_RESET;
             }
+            /* a card switch must be able to interrupt a command the
+             * console stopped clocking mid-way (e.g. it was reset) */
+            if (mc_exit_request) {
+                return RECEIVE_RESET;
+            }
         }
         (*cmd) = (pio_sm_get(pio0, cmd_reader.sm) >> 24);
         return RECEIVE_OK;
@@ -151,7 +158,13 @@ uint8_t __time_critical_func(receiveFirst)(uint8_t *cmd) {
 }
 
 void __time_critical_func(mc_respond)(uint8_t ch) {
-    pio_sm_put_blocking(pio0, dat_writer.sm, ch);
+    /* same as pio_sm_put_blocking, but do not wait forever on a console
+     * that stopped clocking when a card switch wants this core back */
+    while (pio_sm_is_tx_fifo_full(pio0, dat_writer.sm)) {
+        if (mc_exit_request)
+            return;
+    }
+    pio_sm_put(pio0, dat_writer.sm, ch);
 }
 
 
@@ -450,8 +463,16 @@ void ps2_memory_card_exit(void) {
     mc_exit_request = 1;
     while (!mc_exit_response) {
         if (time_us_64() > exit_timeout) {
+            /* core1 did not come back: reset it and start it again. The
+             * restarted core must be able to claim the PIO state machines
+             * (they are still claimed by the dead run, and pio_claim_unused_sm
+             * panics on that) and must not inherit a spinlock the dead run
+             * was holding for an in-flight PSRAM DMA. */
+            log(LOG_WARN, "EXIT core1 did not ack in 1s - hard reset\n");
             multicore_reset_core1();
+            ps2_mc_data_interface_reset();
             multicore_launch_core1(ps2_memory_card_main);
+            exit_timeout = time_us_64() + (1000 * 1000);
         }
     };
     mc_exit_request = mc_exit_response = 0;

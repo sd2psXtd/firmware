@@ -341,6 +341,17 @@ bool __time_critical_func(ps2_mc_data_interface_delay_required)(void) {
     return delay_reuired;
 }
 
+/* Called by core0 after it hard-reset core1 during a card switch. Core1
+ * may have died between ps2_mc_data_interface_start_dma() taking the
+ * dirty spinlock and the DMA completion IRQ releasing it. */
+void ps2_mc_data_interface_reset(void) {
+#if WITH_PSRAM
+    psram_wait_for_dma();
+    dma_in_progress = false;
+    ps2_dirty_unlock();
+#endif
+}
+
 void ps2_mc_data_interface_flush(void) {
     while ((sdmode && (op_fill_status() > 0))
     #ifdef WITH_PSRAM
