@@ -147,8 +147,13 @@ void ps2_mmceman_task(void) {
         /* Set retry counter to stop the sd2psx from
          * responding to the next 5 requests from mcman.
          * This causes mmcman to clear it's cache and invalidate
-         * handles, preventing a cache flush bug from causing corruption */
-        mmceman_mcman_retry_counter = 5;
+         * handles, preventing a cache flush bug from causing corruption.
+         * Arcade variants (COH, SC2) identify the card once at boot and do
+         * not retry, so they get no refusals. */
+        if ((settings_get_ps2_variant() == PS2_VARIANT_COH) || (settings_get_ps2_variant() == PS2_VARIANT_SC2))
+            mmceman_mcman_retry_counter = 0;
+        else
+            mmceman_mcman_retry_counter = 5;
 
         // open new card
         ps2_cardman_open();
