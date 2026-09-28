@@ -151,12 +151,12 @@ extern "C" int sd_write_isolated(int fd, void *buf) {
     CHECK_FD(fd);
     size_t count = 512;
     int retry = 5;
-    sd.card()->setIsolatedSectorWriteCmd(true);
+    sd.card()->setSingleSectorWriteCmd(true);
     size_t ret = files[fd].write(buf, count);
     while (ret != count && retry-- > 0) {
         ret = files[fd].write(buf, count);
     }
-    sd.card()->setIsolatedSectorWriteCmd(false);
+    sd.card()->setSingleSectorWriteCmd(false);
 
     return ret;
 }
