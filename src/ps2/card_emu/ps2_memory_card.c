@@ -1,4 +1,5 @@
 #include "hardware/pio.h"
+#include "hardware/sync.h"
 #include "history_tracker/ps2_history_tracker.h"
 #include "ps2_cardman.h"
 #include "debug.h"
@@ -15,6 +16,8 @@
 #include "mmceman/ps2_mmceman_commands.h"
 #include "mmceman/ps2_mmceman_fs.h"
 #include "ps2_mc_spi.pio.h"
+#include "usb/mca_transport.h"
+#include "usb/mca_usb.h"
 
 #include <settings.h>
 #include <stdbool.h>
@@ -116,7 +119,7 @@ static void __time_critical_func(card_deselected)(uint gpio, uint32_t event_mask
 }
 
 
-uint8_t __time_critical_func(receive)(uint8_t *cmd) {
+static uint8_t __time_critical_func(pio_receive)(uint8_t *cmd) {
     do {
         while (pio_sm_is_rx_fifo_empty(pio0, cmd_reader.sm) && pio_sm_is_rx_fifo_empty(pio0, cmd_reader.sm) && pio_sm_is_rx_fifo_empty(pio0, cmd_reader.sm) &&
             pio_sm_is_rx_fifo_empty(pio0, cmd_reader.sm) && pio_sm_is_rx_fifo_empty(pio0, cmd_reader.sm) && 1) {
@@ -130,7 +133,7 @@ uint8_t __time_critical_func(receive)(uint8_t *cmd) {
     while (0);
 }
 
-uint8_t __time_critical_func(receiveFirst)(uint8_t *cmd) {
+static uint8_t __time_critical_func(pio_receiveFirst)(uint8_t *cmd) {
     do {
         while (pio_sm_is_rx_fifo_empty(pio0, cmd_reader.sm)
                 && pio_sm_is_rx_fifo_empty(pio0, cmd_reader.sm)
@@ -150,9 +153,41 @@ uint8_t __time_critical_func(receiveFirst)(uint8_t *cmd) {
     while (0);
 }
 
-void __time_critical_func(mc_respond)(uint8_t ch) {
+static void __time_critical_func(pio_mc_respond)(uint8_t ch) {
     pio_sm_put_blocking(pio0, dat_writer.sm, ch);
 }
+
+typedef uint8_t (*ps2_mc_receive_fn_t)(uint8_t *);
+typedef void (*ps2_mc_send_fn_t)(uint8_t);
+
+static ps2_mc_receive_fn_t ps2_receive_fn = pio_receive;
+static ps2_mc_send_fn_t ps2_send_fn = pio_mc_respond;
+static bool ps2_transport_mca;
+
+void ps2_memory_card_set_mca_transport(bool enabled) {
+    /* Called by core 0 only after the emulation loop has exited. */
+    if (enabled == ps2_transport_mca)
+        return;
+
+    ps2_transport_mca = enabled;
+    term = 0xFF;
+    ps2_mc_auth_invalidate();
+    ps2_receive_fn = enabled ? mca_transport_receive : pio_receive;
+    ps2_send_fn = enabled ? mca_transport_respond : pio_mc_respond;
+}
+
+uint8_t __time_critical_func(receive)(uint8_t *cmd) { return ps2_receive_fn(cmd); }
+uint8_t __time_critical_func(receiveFirst)(uint8_t *cmd) {
+    uint8_t result = ps2_transport_mca
+        ? mca_transport_receive_first(cmd, &mc_exit_request)
+        : pio_receiveFirst(cmd);
+    /* The PIO path sets this when the card is selected. MCA has no /CS edge,
+     * but each USB transaction is likewise active once its first byte arrives. */
+    if (ps2_transport_mca && result == RECEIVE_OK)
+        card_active = true;
+    return result;
+}
+void __time_critical_func(mc_respond)(uint8_t ch) { ps2_send_fn(ch); }
 
 
 const uint8_t EccTable[] = {
@@ -197,7 +232,11 @@ static void __time_critical_func(mc_main_loop)(void) {
     while (1) {
         uint8_t cmd = 0;
 
-        while (!reset && !reset && !reset && !reset && !reset) {
+        if (mc_exit_request) {
+            mc_exit_response = 1;
+            break;
+        }
+        while (!reset && !reset && !reset && !reset && !reset && !ps2_transport_mca) {
             if (mc_exit_request) {
                 mc_exit_response = 1;
                 return;
@@ -236,7 +275,7 @@ static void __time_critical_func(mc_main_loop)(void) {
             // ACK and DAT are normally configured as push-pull outputs for a PS2, but as such they
             // may damage a PS1 or PS1 multitap. Therefore keep ACK open drain and DAT Hi-Z until
             // the host is confirmed to be a PS2.
-            if (!ps2_host_confirmed) {
+            if (!ps2_host_confirmed && !ps2_transport_mca) {
                 /* resp to 0x81 */
                 gpio_set_oeover(PIN_PSX_ACK, GPIO_OVERRIDE_HIGH);
 
@@ -261,7 +300,10 @@ static void __time_critical_func(mc_main_loop)(void) {
             }
 
             //Don't respond to mcman after a card switch to trigger its internal reset
-            if (mmceman_mcman_retry_counter > 0) {
+            /* Refusing these requests resets the physical console's mcman
+             * cache. An MCA request must be completed instead: skipping it
+             * leaves the USB transport permanently stuck in PROCESSING. */
+            if (!ps2_transport_mca && mmceman_mcman_retry_counter > 0) {
                 log(LOG_WARN, "Ignoring mcman for another %i requests\n", mmceman_mcman_retry_counter);
                 mmceman_mcman_retry_counter--;
                 continue;
@@ -357,8 +399,13 @@ static void __time_critical_func(mc_main_loop)(void) {
             continue;
         } else {
             // not for us
+            if (ps2_transport_mca)
+                mca_transport_abort();
             continue;
         }
+
+        if (ps2_transport_mca)
+            mca_transport_complete();
     }
 }
 
@@ -448,12 +495,18 @@ void ps2_memory_card_exit(void) {
         return;
 
     mc_exit_request = 1;
+    /* Only MCA can leave core 1 asleep waiting for the next request. */
+    if (ps2_transport_mca)
+        __sev();
     while (!mc_exit_response) {
         if (time_us_64() > exit_timeout) {
             multicore_reset_core1();
             multicore_launch_core1(ps2_memory_card_main);
         }
     };
+    /* A queued USB request must not remain PROCESSING across a card switch. */
+    if (ps2_transport_mca && mca_transport_abort())
+        mca_usb_reject_pending_request();
     mc_exit_request = mc_exit_response = 0;
     memcard_running = 0;
     mmceman_mcman_retry_counter = 5;

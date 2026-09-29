@@ -8,3 +8,4 @@ void ps2_memory_card_enter(void);
 void ps2_memory_card_exit(void);
 void ps2_memory_card_unload(void);
 bool ps2_memory_card_running(void);
+void ps2_memory_card_set_mca_transport(bool enabled);

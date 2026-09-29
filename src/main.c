@@ -16,15 +16,20 @@
 #include "pico/time.h"
 #include "sd.h"
 #include "settings.h"
+#if WITH_GUI
+#include "gui.h"
+#endif
 #if WITH_PSRAM
 #include "psram/psram.h"
 #endif
 
 #include "ps2.h"
+#include "ps2/ps2_cardman.h"
 #include "ps1.h"
 
 #include "game_db/game_db.h"
 #include "version.h"
+#include "usb/mca_usb.h"
 
 
 uint flash_capacity = 0;
@@ -72,7 +77,16 @@ static void debug_task(void) {
     serial_input_process();
 }
 
-
+static void start_usb_for_card(void) {
+    bool enabled = settings_get_mca_enabled();
+    if (mca_usb_is_enabled() != enabled) {
+        mca_usb_set_enabled(enabled);
+#if WITH_GUI
+        gui_mca_mode_changed();
+#endif
+    }
+    mca_usb_start();
+}
 
 int main() {
     int mhz = 240;
@@ -85,8 +99,12 @@ int main() {
     set_sys_clock_khz(mhz * 1000, true);
     clock_configure(clk_peri, 0, CLOCKS_CLK_PERI_CTRL_AUXSRC_VALUE_CLK_SYS, mhz * 1000000, mhz * 1000000);
 
+    /* Select the saved transport before starting the card emulator. */
+    settings_init();
+    mca_usb_init();
+
 #if DEBUG_USB_UART
-    stdio_usb_init();
+    /* CDC stdio is registered when Pico USB starts. */
 #else
     stdio_uart_init_full(UART_PERIPH, UART_BAUD, UART_TX, UART_RX);
 #endif
@@ -103,7 +121,6 @@ int main() {
     QPRINTF("CIV base: 0x%X\n", FLASH_OFF_CIV);
     QPRINTF("Splash base: 0x%X\n", FLASH_OFF_SPLASH);
 
-    settings_init();
 #if WITH_PSRAM
     psram_init();
 #endif
@@ -120,10 +137,15 @@ int main() {
             QPRINTF("Starting PS2 mode...\n");
             ps2_init();
             settings_load_sd();
-#if DEBUG_USB_UART == 0
-            stdio_usb_init();
-#endif
+            /* ps2_init() opens the card, but PSRAM loading or card creation
+             * continues in ps2_task(). Finish it before exposing MCA to USB. */
+            if (!mca_usb_is_started() && settings_get_mca_enabled()) {
+                while (!ps2_cardman_is_idle())
+                    ps2_task();
+            }
+            start_usb_for_card();
             do {
+                mca_usb_task();
                 debug_task();
             } while(ps2_task());
             ps2_deinit();
@@ -132,17 +154,12 @@ int main() {
             QPRINTF("Starting PS1 mode...\n");
             ps1_init();
             settings_load_sd();
-
-#if DEBUG_USB_UART == 0
-            stdio_usb_init();
-#endif
+            start_usb_for_card();
             do {
+                mca_usb_task();
                 debug_task();
             } while(ps1_task());
             ps1_deinit();
         }
-#if DEBUG_USB_UART == 0
-        stdio_usb_deinit();
-#endif
     }
 }

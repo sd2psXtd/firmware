@@ -619,6 +619,14 @@ void ps2_mc_auth_keyStoreResetAck() {
     request_keystore_reset = false;
 }
 
+void ps2_mc_auth_invalidate(void) {
+    /* A newly presented MCA PS2 card must not inherit auth state. */
+    auth_state = AUTH_STATE_IDLE;
+    auth_valid = false;
+    request_keystore_reset = false;
+    generateIvSeedNonce();
+}
+
 bool ps2_mc_auth_isValid() {
     return auth_valid;
 }
