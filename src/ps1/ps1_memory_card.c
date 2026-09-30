@@ -133,13 +133,16 @@ static void ps1_mca_send(uint8_t ch) { mca_transport_respond(ch); }
 
 static ps1_mc_receive_fn_t ps1_mc_receive_fn = ps1_pio_receive;
 static ps1_mc_send_fn_t ps1_mc_send_fn = ps1_pio_send;
-static bool ps1_transport_mca;
 
-void ps1_memory_card_set_mca_transport(bool enabled) {
-    /* Called by core 0 only after the emulation loop has exited. */
-    ps1_transport_mca = enabled;
-    ps1_mc_receive_fn = enabled ? ps1_mca_receive : ps1_pio_receive;
-    ps1_mc_send_fn = enabled ? ps1_mca_send : ps1_pio_send;
+static void ps1_memory_card_select_transport(void) {
+    /* Select once on core-1 startup; settings changes restart the mode. */
+    if (settings_get_mca_enabled()) {
+        ps1_mc_receive_fn = ps1_mca_receive;
+        ps1_mc_send_fn = ps1_mca_send;
+    } else {
+        ps1_mc_receive_fn = ps1_pio_receive;
+        ps1_mc_send_fn = ps1_pio_send;
+    }
 }
 
 static uint8_t __time_critical_func(recv_mc)(uint8_t *cmd) {
@@ -147,7 +150,7 @@ static uint8_t __time_critical_func(recv_mc)(uint8_t *cmd) {
 }
 
 #define receiveOrNextCmd(cmd)          \
-    if ((recv_mc(cmd) == RECEIVE_RESET) || (!card_active && !ps1_transport_mca)) \
+    if ((recv_mc(cmd) == RECEIVE_RESET) || (!card_active && ps1_mc_receive_fn == ps1_pio_receive)) \
     { \
     return;}
 
@@ -161,7 +164,7 @@ static void __time_critical_func(ps1_mc_respond)(uint8_t ch) {
 }
 
 #define respondOrNextCmd(cmd)          \
-    if (card_active || ps1_transport_mca) ps1_mc_respond(cmd);\
+    if (card_active || ps1_mc_receive_fn == ps1_mca_receive) ps1_mc_respond(cmd);\
     else {DPRINTF("!RR: %s:%u\n", __func__, __LINE__); return;}
 
 /*
@@ -463,7 +466,7 @@ static void __time_critical_func(mc_main_loop)(void) {
             mc_exit_response = 1;
             break;
         }
-        while (!reset && !reset && !reset && !reset && !reset && !ps1_transport_mca) {
+        while (!reset && !reset && !reset && !reset && !reset && ps1_mc_receive_fn == ps1_pio_receive) {
             if (mc_exit_request) {
                 mc_exit_response = 1;
                 return;
@@ -503,7 +506,7 @@ static void __time_critical_func(mc_main_loop)(void) {
                 case 'W': mc_cmd_write(); break;
                 default: DPRINTF("Unknown command: 0x%.02x\n", ch); break;
             }
-            if (ps1_transport_mca)
+            if (ps1_mc_receive_fn == ps1_mca_receive)
                 mca_transport_complete();
         } else if ((0x01 == ch) && (settings_get_ps1_controllercombo())) {
             mc_read_controller();
@@ -584,6 +587,7 @@ static void my_gpio_set_irq_enabled_with_callback(uint gpio, uint32_t events, bo
 
 void ps1_memory_card_main(void) {
     multicore_lockout_victim_init();
+    ps1_memory_card_select_transport();
 
     init_pio();
 
@@ -608,7 +612,7 @@ void ps1_memory_card_exit(void) {
     mc_exit_request = 1;
     while (!mc_exit_response)
     {}
-    if (ps1_transport_mca)
+    if (ps1_mc_receive_fn == ps1_mca_receive)
         mca_transport_abort();
     mc_exit_request = mc_exit_response = 0;
     memcard_running = 0;

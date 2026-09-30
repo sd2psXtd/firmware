@@ -133,14 +133,14 @@ void ps2_mmceman_task(void) {
 
         // close old card
         ps2_memory_card_exit();
-        if (mca_usb_is_enabled())
+        if (settings_get_mca_enabled())
             mca_usb_card_switch_begin();
         log(LOG_TRACE, "%s After Exit\n", __func__);
         ps2_mc_data_interface_flush();
         ps2_cardman_close();
         log(LOG_TRACE, "%s After Close\n", __func__);
 
-        if (mca_usb_is_enabled())
+        if (settings_get_mca_enabled())
             mca_usb_card_switch_delay();
 #if WITH_GUI
         gui_do_ps2_card_switch();
@@ -161,7 +161,7 @@ void ps2_mmceman_task(void) {
 
         // open new card
         ps2_cardman_open();
-        if (mca_usb_is_enabled())
+        if (settings_get_mca_enabled())
             mca_usb_card_switch_end();
 
         ps2_memory_card_enter();

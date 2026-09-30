@@ -21,6 +21,7 @@
 #include "ps1_dirty.h"
 #include "ps1_memory_card.h"
 #include "ps1_mmce.h"
+#include "usb/mca_usb.h"
 
 
 #ifdef PMC_BUTTONS
@@ -86,7 +87,8 @@ bool ps1_task() {
     led_task();
 #endif
     ps1_mc_data_interface_task();
-    if ((settings_get_mode(true) == MODE_PS2))
+    if (settings_get_mode(true) == MODE_PS2 ||
+        mca_usb_profile_is_mca() != settings_get_mca_enabled())
         return false;
 
     return true;

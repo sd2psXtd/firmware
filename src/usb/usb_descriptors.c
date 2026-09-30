@@ -48,7 +48,7 @@ static tusb_desc_device_t const desc_mca_device = {
 };
 
 uint8_t const *tud_descriptor_device_cb(void) {
-    return (uint8_t const *)(mca_usb_is_enabled() ? &desc_mca_device : &desc_pico_device);
+    return (uint8_t const *)(mca_usb_profile_is_mca() ? &desc_mca_device : &desc_pico_device);
 }
 
 enum {
@@ -85,7 +85,7 @@ TU_VERIFY_STATIC(sizeof(desc_pico) == PICO_TOTAL_LEN, "Pico configuration length
 
 uint8_t const *tud_descriptor_configuration_cb(uint8_t index) {
     (void)index;
-    return mca_usb_is_enabled() ? desc_mca : desc_pico;
+    return mca_usb_profile_is_mca() ? desc_mca : desc_pico;
 }
 
 uint16_t const *tud_descriptor_string_cb(uint8_t index, uint16_t langid) {
@@ -101,7 +101,7 @@ uint16_t const *tud_descriptor_string_cb(uint8_t index, uint16_t langid) {
         desc[1] = 0x0409;
         return desc;
     }
-    if (mca_usb_is_enabled() || index >= sizeof(strings) / sizeof(strings[0]))
+    if (mca_usb_profile_is_mca() || index >= sizeof(strings) / sizeof(strings[0]))
         return NULL;
     if (!serial[0])
         pico_get_unique_board_id_string(serial, sizeof(serial));

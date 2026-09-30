@@ -34,7 +34,6 @@
 #include "ui_menu.h"
 #include "ui_theme_mono.h"
 #include "version/version.h"
-#include "usb/mca_usb.h"
 
 #if LOG_LEVEL_GUI == 0
     #define log(x...)
@@ -444,7 +443,7 @@ void evt_menu_page(lv_event_t *event) {
 }
 
 static void update_main_header(void) {
-    if (mca_usb_is_enabled()) {
+    if (settings_get_mca_enabled()) {
         lv_label_set_text(main_header, settings_get_mode(true) == MODE_PS2 ? "USB MCA: PS2" : "USB MCA: PS1");
     } else if (settings_get_mode(true) == MODE_PS1) {
         lv_label_set_text(main_header, "PS1 Memory Card");
@@ -592,14 +591,14 @@ static void evt_switch_to_ps2(lv_event_t *event) {
 
 static void evt_toggle_mca(lv_event_t *event) {
     (void)event;
-    mca_usb_set_enabled(!mca_usb_is_enabled());
+    settings_set_mca_enabled(!settings_get_mca_enabled());
     gui_mca_mode_changed();
     lv_event_stop_bubbling(event);
 }
 
 void gui_mca_mode_changed(void) {
     if (lbl_mca)
-        lv_label_set_text(lbl_mca, mca_usb_is_enabled() ? "On" : "Off");
+        lv_label_set_text(lbl_mca, settings_get_mca_enabled() ? "On" : "Off");
     update_main_header();
     gui_request_refresh();
 }
@@ -1045,7 +1044,7 @@ static void create_menu_screen(void) {
 
         cont = ui_menu_cont_create_nav(main_page);
         ui_label_create_grow(cont, "PS3 Adapter");
-        lbl_mca = ui_label_create(cont, mca_usb_is_enabled() ? "On" : "Off");
+        lbl_mca = ui_label_create(cont, settings_get_mca_enabled() ? "On" : "Off");
         lv_obj_add_event_cb(cont, evt_toggle_mca, LV_EVENT_CLICKED, NULL);
 
         cont = ui_menu_cont_create_nav(main_page);

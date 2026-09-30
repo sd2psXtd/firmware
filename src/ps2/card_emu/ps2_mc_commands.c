@@ -158,6 +158,8 @@ inline __attribute__((always_inline)) void __time_critical_func(ps2_mc_cmd_setRe
     (void)ck;  // TODO: validate checksum
 
     readptr = 0;
+    /* A new read supersedes any uncommitted write transaction. */
+    is_write = 0;
 
     eccptr = readecc;
     RESET_ECC(eccptr)

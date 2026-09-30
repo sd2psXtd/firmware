@@ -21,8 +21,13 @@ bool mca_transport_submit(const uint8_t *data, uint16_t len);
 bool mca_transport_response_ready(void);
 uint16_t mca_transport_take_response(uint8_t *dst, uint16_t max_len);
 
+/* Core-1 idle polling; requests and exits need no event signaling. */
 uint8_t mca_transport_receive_first(uint8_t *byte, volatile int *exit_request);
 uint8_t mca_transport_receive(uint8_t *byte);
 void mca_transport_respond(uint8_t byte);
 void mca_transport_complete(void);
 bool mca_transport_abort(void); /* True if a pending response was discarded. */
+
+/* Read-only diagnostic sample: state, active, then LE16 rx_len/rx_pos/tx_len.
+ * Core 1 can advance during sampling; this does not lock or alter the transfer. */
+void mca_transport_get_progress(uint8_t progress[8]);

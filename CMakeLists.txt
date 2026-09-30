@@ -54,6 +54,7 @@ add_executable(${TARGET_NAME}
     ext/fnv/hash_64a.c
 
     src/usb/mca_transport.c
+    src/usb/mca_page_transfer.c
     src/usb/mca_usb.c
     src/usb/usb_descriptors.c
 )
@@ -115,6 +116,7 @@ target_link_libraries(sd2psx_common
                         hardware_gpio
                         hardware_watchdog
                         pico_multicore
+                        pico_stdio_usb_headers
                         inih)
 
 target_compile_options(sd2psx_common

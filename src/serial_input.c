@@ -20,7 +20,6 @@
 #include "debug.h"
 #include "serial_input.h"
 #include "settings.h"
-#include "usb/mca_usb.h"
 #include "version.h"
 
 #define SERIAL_INPUT_BUFFER_SIZE 256
@@ -476,7 +475,7 @@ static void execute_command(const serial_input_cmd_data_t* cmd_data) {
             break;
         case SERIAL_INPUT_CMD_MCA_MODE:
             printf("Switching USB to MCA (serial will disconnect)\n");
-            mca_usb_set_enabled(true);
+            settings_set_mca_enabled(true);
             #if WITH_GUI
             gui_mca_mode_changed();
             #endif
@@ -561,7 +560,7 @@ static void submit_line(void) {
 
     execute_command(&cmd_data);
 #if DEBUG_USB_UART
-    if (cmd_data.cmd == SERIAL_INPUT_CMD_MCA_MODE && mca_usb_is_enabled()) {
+    if (cmd_data.cmd == SERIAL_INPUT_CMD_MCA_MODE && settings_get_mca_enabled()) {
         /* CDC disappeared with the Pico USB profile. Start a fresh prompt
          * when the GUI later switches back to Pico CDC. */
         prompt_started = false;

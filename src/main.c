@@ -78,14 +78,10 @@ static void debug_task(void) {
 }
 
 static void start_usb_for_card(void) {
-    bool enabled = settings_get_mca_enabled();
-    if (mca_usb_is_enabled() != enabled) {
-        mca_usb_set_enabled(enabled);
-#if WITH_GUI
-        gui_mca_mode_changed();
-#endif
-    }
-    mca_usb_start();
+    /* An SD override is applied by the same mode restart as a GUI toggle.
+     * Do not enumerate a deferred profile that is about to be replaced. */
+    if (settings_get_mca_enabled() == mca_usb_profile_is_mca())
+        mca_usb_start();
 }
 
 int main() {
@@ -133,6 +129,8 @@ int main() {
     sd_init();
 
     while (1) {
+        /* The previous mode has stopped core 1 and released its hardware. */
+        mca_usb_prepare();
         if (settings_get_mode(true) == MODE_PS2) {
             QPRINTF("Starting PS2 mode...\n");
             ps2_init();

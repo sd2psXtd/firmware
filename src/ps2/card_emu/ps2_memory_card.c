@@ -11,6 +11,7 @@
 #include "pico/platform.h"
 #include "ps2_mc_auth.h"
 #include "ps2_mc_commands.h"
+#include "ps2_mc_data_interface.h"
 #include "ps2_mc_internal.h"
 #include "mmceman/ps2_mmceman.h"
 #include "mmceman/ps2_mmceman_commands.h"
@@ -39,10 +40,13 @@ typedef struct {
     uint32_t sm;
 } pio_t;
 
-pio_t cmd_reader, dat_writer;
+/* A state-machine handle remains valid until unload, even if settings change. */
+pio_t cmd_reader = { .sm = UINT32_MAX }, dat_writer = { .sm = UINT32_MAX };
 uint8_t term = 0xFF;
 
-static int memcard_running;
+static volatile int memcard_running;
+static uint64_t exit_deadline;
+static bool core1_needs_restart;
 volatile bool card_active;
 
 static volatile int mc_exit_request, mc_exit_response, mc_enter_request, mc_enter_response;
@@ -86,6 +90,9 @@ static void __time_critical_func(reset_pio)(void) {
 
 static void __time_critical_func(init_pio)(void) {
 
+    /* Fresh PIO setup restores ACK open-drain/DAT Hi-Z. Core-1 reset retains
+     * RAM, so require 81 11 again before enabling the physical output drivers. */
+    ps2_host_confirmed = false;
     mmceman_tx_queued = false;
     mmceman_tx_byte = 0x0;
 
@@ -161,31 +168,29 @@ typedef uint8_t (*ps2_mc_receive_fn_t)(uint8_t *);
 typedef void (*ps2_mc_send_fn_t)(uint8_t);
 
 static ps2_mc_receive_fn_t ps2_receive_fn = pio_receive;
+static ps2_mc_receive_fn_t ps2_receive_first_fn = pio_receiveFirst;
 static ps2_mc_send_fn_t ps2_send_fn = pio_mc_respond;
-static bool ps2_transport_mca;
 
-void ps2_memory_card_set_mca_transport(bool enabled) {
-    /* Called by core 0 only after the emulation loop has exited. */
-    if (enabled == ps2_transport_mca)
-        return;
+static uint8_t ps2_mca_receive_first(uint8_t *cmd) {
+    return mca_usb_receive_first(cmd, &mc_exit_request);
+}
 
-    ps2_transport_mca = enabled;
-    term = 0xFF;
-    ps2_mc_auth_invalidate();
-    ps2_receive_fn = enabled ? mca_transport_receive : pio_receive;
-    ps2_send_fn = enabled ? mca_transport_respond : pio_mc_respond;
+static void ps2_memory_card_select_transport(void) {
+    /* Select once on core-1 startup; a transport change restarts the mode. */
+    if (settings_get_mca_enabled()) {
+        ps2_receive_fn = mca_transport_receive;
+        ps2_receive_first_fn = ps2_mca_receive_first;
+        ps2_send_fn = mca_transport_respond;
+    } else {
+        ps2_receive_fn = pio_receive;
+        ps2_receive_first_fn = pio_receiveFirst;
+        ps2_send_fn = pio_mc_respond;
+    }
 }
 
 uint8_t __time_critical_func(receive)(uint8_t *cmd) { return ps2_receive_fn(cmd); }
 uint8_t __time_critical_func(receiveFirst)(uint8_t *cmd) {
-    uint8_t result = ps2_transport_mca
-        ? mca_transport_receive_first(cmd, &mc_exit_request)
-        : pio_receiveFirst(cmd);
-    /* The PIO path sets this when the card is selected. MCA has no /CS edge,
-     * but each USB transaction is likewise active once its first byte arrives. */
-    if (ps2_transport_mca && result == RECEIVE_OK)
-        card_active = true;
-    return result;
+    return ps2_receive_first_fn(cmd);
 }
 void __time_critical_func(mc_respond)(uint8_t ch) { ps2_send_fn(ch); }
 
@@ -231,12 +236,13 @@ void calcECC(uint8_t *ecc, const uint8_t *data) {
 static void __time_critical_func(mc_main_loop)(void) {
     while (1) {
         uint8_t cmd = 0;
+        uint8_t received;
 
         if (mc_exit_request) {
             mc_exit_response = 1;
             break;
         }
-        while (!reset && !reset && !reset && !reset && !reset && !ps2_transport_mca) {
+        while (!reset && !reset && !reset && !reset && !reset && cmd_reader.sm != UINT32_MAX) {
             if (mc_exit_request) {
                 mc_exit_response = 1;
                 return;
@@ -261,7 +267,7 @@ static void __time_critical_func(mc_main_loop)(void) {
             continue;
         }
 
-        uint8_t received = receiveFirst(&cmd);
+        received = receiveFirst(&cmd);
 
         if (received == RECEIVE_EXIT) {
             mc_exit_response = 1;
@@ -275,7 +281,7 @@ static void __time_critical_func(mc_main_loop)(void) {
             // ACK and DAT are normally configured as push-pull outputs for a PS2, but as such they
             // may damage a PS1 or PS1 multitap. Therefore keep ACK open drain and DAT Hi-Z until
             // the host is confirmed to be a PS2.
-            if (!ps2_host_confirmed && !ps2_transport_mca) {
+            if (!ps2_host_confirmed && cmd_reader.sm != UINT32_MAX) {
                 /* resp to 0x81 */
                 gpio_set_oeover(PIN_PSX_ACK, GPIO_OVERRIDE_HIGH);
 
@@ -303,7 +309,7 @@ static void __time_critical_func(mc_main_loop)(void) {
             /* Refusing these requests resets the physical console's mcman
              * cache. An MCA request must be completed instead: skipping it
              * leaves the USB transport permanently stuck in PROCESSING. */
-            if (!ps2_transport_mca && mmceman_mcman_retry_counter > 0) {
+            if (cmd_reader.sm != UINT32_MAX && mmceman_mcman_retry_counter > 0) {
                 log(LOG_WARN, "Ignoring mcman for another %i requests\n", mmceman_mcman_retry_counter);
                 mmceman_mcman_retry_counter--;
                 continue;
@@ -399,12 +405,12 @@ static void __time_critical_func(mc_main_loop)(void) {
             continue;
         } else {
             // not for us
-            if (ps2_transport_mca)
+            if (cmd_reader.sm == UINT32_MAX)
                 mca_transport_abort();
             continue;
         }
 
-        if (ps2_transport_mca)
+        if (cmd_reader.sm == UINT32_MAX)
             mca_transport_complete();
     }
 }
@@ -412,14 +418,17 @@ static void __time_critical_func(mc_main_loop)(void) {
 static void __no_inline_not_in_flash_func(mc_main)(void) {
     while (1) {
         while (!mc_enter_request) {}
-        mc_enter_response = 1;
-
         ps2_history_tracker_card_changed();
         memcard_running = 1;
+        /* An interrupted write belongs to the old card/session. */
+        is_write = 0;
+        writeptr = 0;
         mmceman_transfer_stage = 0;
         mmceman_callback = NULL;
 
-        reset_pio();
+        if (cmd_reader.sm != UINT32_MAX)
+            reset_pio();
+        mc_enter_response = 1;
         mc_main_loop();
         log(LOG_TRACE, "%s exit\n", __func__);
     }
@@ -436,11 +445,14 @@ static void __time_critical_func(RAM_gpio_default_irq_handler)(void) {
     uint core = get_core_num();
     gpio_irq_callback_t callback = callbacks[core];
     io_bank0_irq_ctrl_hw_t *irq_ctrl_base = core ? &iobank0_hw->proc1_irq_ctrl : &iobank0_hw->proc0_irq_ctrl;
-    for (uint gpio = 0; gpio < NUM_BANK0_GPIOS; gpio += 8) {
-        uint32_t events8 = irq_ctrl_base->ints[gpio >> 3u];
+    uint gpio, i;
+    uint32_t events8, events;
+
+    for (gpio = 0; gpio < NUM_BANK0_GPIOS; gpio += 8) {
+        events8 = irq_ctrl_base->ints[gpio >> 3u];
         // note we assume events8 is 0 for non-existent GPIO
-        for (uint i = gpio; events8 && i < gpio + 8; i++) {
-            uint32_t events = events8 & 0xfu;
+        for (i = gpio; events8 && i < gpio + 8; i++) {
+            events = events8 & 0xfu;
             if (events) {
                 RAM_gpio_acknowledge_irq(i, events);
                 if (callback) {
@@ -474,63 +486,95 @@ static void my_gpio_set_irq_enabled_with_callback(uint gpio, uint32_t events, bo
 
 void ps2_memory_card_main(void) {
     multicore_lockout_victim_init();
-    init_pio();
-
+    ps2_memory_card_select_transport();
+    if (!settings_get_mca_enabled()) {
+        /* A timed-out exit can relaunch using the existing PIO resources. */
+        if (cmd_reader.sm == UINT32_MAX)
+            init_pio();
+        my_gpio_set_irq_enabled_with_callback(PIN_PSX_SEL, GPIO_IRQ_EDGE_RISE, 1, card_deselected);
+        gpio_set_slew_rate(PIN_PSX_DAT, GPIO_SLEW_RATE_FAST);
+        gpio_set_drive_strength(PIN_PSX_DAT, GPIO_DRIVE_STRENGTH_12MA);
+    }
 
     us_startup = time_us_64();
     log(LOG_TRACE, "Secondary core!\n");
-
-    my_gpio_set_irq_enabled_with_callback(PIN_PSX_SEL, GPIO_IRQ_EDGE_RISE, 1, card_deselected);
-
-    gpio_set_slew_rate(PIN_PSX_DAT, GPIO_SLEW_RATE_FAST);
-    gpio_set_drive_strength(PIN_PSX_DAT, GPIO_DRIVE_STRENGTH_12MA);
 
     mc_main();
 }
 
 
-void ps2_memory_card_exit(void) {
-    uint64_t exit_timeout = time_us_64() + (1000 * 1000);
-    if (!memcard_running)
-        return;
+bool ps2_memory_card_try_exit(void) {
+    bool stopped = !memcard_running;
+    bool restart;
 
-    mc_exit_request = 1;
-    /* Only MCA can leave core 1 asleep waiting for the next request. */
-    if (ps2_transport_mca)
-        __sev();
-    while (!mc_exit_response) {
-        if (time_us_64() > exit_timeout) {
-            multicore_reset_core1();
-            multicore_launch_core1(ps2_memory_card_main);
+    if (!stopped) {
+        if (!mc_exit_request) {
+            exit_deadline = time_us_64() + 1000000;
+            mc_exit_request = 1;
         }
-    };
-    /* A queued USB request must not remain PROCESSING across a card switch. */
-    if (ps2_transport_mca && mca_transport_abort())
-        mca_usb_reject_pending_request();
-    mc_exit_request = mc_exit_response = 0;
-    memcard_running = 0;
-    mmceman_mcman_retry_counter = 5;
-    log(LOG_TRACE, "MEMCARD EXIT END!\n");
+        restart = !mc_exit_response && time_us_64() >= exit_deadline;
+        if (mc_exit_response || restart) {
+            if (restart) {
+                multicore_reset_core1();
+                core1_needs_restart = true;
+            }
+            /* Core 1 is stopped: no later commit may see this staging. */
+            is_write = 0;
+            writeptr = 0;
+            mc_exit_request = mc_exit_response = 0;
+            memcard_running = 0;
+            mmceman_mcman_retry_counter = 5;
+            stopped = true;
+            log(LOG_TRACE, "MEMCARD EXIT END!\n");
+        }
+    }
+    if (stopped)
+        mca_usb_card_exit();
+    return stopped;
+}
+
+void ps2_memory_card_exit(void) {
+    while (!ps2_memory_card_try_exit()) {
+        /* Core 1 may be waiting for an SD read/cache slot or PSRAM loading.
+         * Do not starve the work that lets it reach the exit boundary. */
+        ps2_cardman_task();
+        if (ps2_cardman_is_idle())
+            ps2_mc_data_interface_task();
+    }
 }
 
 void ps2_memory_card_enter(void) {
-    if (memcard_running)
-        return;
-
-    generateIvSeedNonce();
-    mc_enter_request = 1;
-    while (!mc_enter_response) {}
-    mc_enter_request = mc_enter_response = 0;
+    /* A pending mode change must unload the old hardware before relaunch.
+     * Normal card reentry keeps the selected handlers until mode teardown. */
+    if (!memcard_running && (!core1_needs_restart ||
+            settings_get_mca_enabled() == (cmd_reader.sm == UINT32_MAX))) {
+        /* A forced exit leaves core 1 stopped. Relaunch only on reentry,
+         * so mode deinit cannot race a new PIO allocation. */
+        if (core1_needs_restart) {
+            core1_needs_restart = false;
+            multicore_launch_core1(ps2_memory_card_main);
+        }
+        generateIvSeedNonce();
+        mc_enter_request = 1;
+        while (!mc_enter_response) {}
+        mc_enter_request = mc_enter_response = 0;
+    }
 }
 
 void ps2_memory_card_unload(void) {
-    pio_remove_program(pio0, &cmd_reader_program, cmd_reader.offset);
-    pio_sm_unclaim(pio0, cmd_reader.sm);
-    pio_remove_program(pio0, &dat_writer_program, dat_writer.offset);
-    pio_sm_unclaim(pio0, dat_writer.sm);
-    log(LOG_TRACE, "Unclaimed %u, %u!\n", cmd_reader.sm, dat_writer.sm);
-
-
+    core1_needs_restart = false;
+    if (cmd_reader.sm != UINT32_MAX) {
+        /* Core 0 owns deinit after core 1 was reset, including its GPIO mask. */
+        hw_clear_bits(&iobank0_hw->proc1_irq_ctrl.inte[PIN_PSX_SEL / 8],
+                      (uint32_t)GPIO_IRQ_EDGE_RISE << (4 * (PIN_PSX_SEL % 8)));
+        pio_set_sm_mask_enabled(pio0, (1 << cmd_reader.sm) | (1 << dat_writer.sm), false);
+        pio_remove_program(pio0, &cmd_reader_program, cmd_reader.offset);
+        pio_sm_unclaim(pio0, cmd_reader.sm);
+        pio_remove_program(pio0, &dat_writer_program, dat_writer.offset);
+        pio_sm_unclaim(pio0, dat_writer.sm);
+        log(LOG_TRACE, "Unclaimed %u, %u!\n", cmd_reader.sm, dat_writer.sm);
+        cmd_reader.sm = dat_writer.sm = UINT32_MAX;
+    }
 }
 
 bool ps2_memory_card_running(void) {
