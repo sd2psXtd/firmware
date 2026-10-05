@@ -21,6 +21,7 @@
 #include "ps1_dirty.h"
 #include "ps1_memory_card.h"
 #include "ps1_mmce.h"
+#include "ps1_mmce_fs.h"
 
 
 #ifdef PMC_BUTTONS
@@ -53,6 +54,7 @@ void ps1_init() {
 
     ps1_cardman_init();
     ps1_dirty_init();
+    ps1_mmce_fs_init();
 
 #if WITH_GUI
     gui_init();
@@ -72,6 +74,7 @@ void ps1_init() {
 }
 
 bool ps1_task() {
+    ps1_mmce_fs_run();
     ps1_mmce_task();
 
 #if WITH_GUI
@@ -98,6 +101,7 @@ void ps1_deinit(void) {
 
     while(ps1_dirty_activity)
         ps1_dirty_task();
+    ps1_mmce_fs_reset();
     ps1_cardman_close();
     multicore_reset_core1();
     ps1_memory_card_unload();

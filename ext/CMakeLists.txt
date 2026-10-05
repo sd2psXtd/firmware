@@ -57,6 +57,9 @@ target_link_libraries(sd_fat
 
 target_link_libraries(sd_fat PRIVATE sd2psx_common)
 
+# MMCE FS paths and directory entries are UTF-8 on the wire.
+target_compile_definitions(sd_fat PRIVATE USE_UTF8_LONG_NAMES=1)
+
 if (WITH_PSRAM)
     target_compile_definitions(sd_fat PRIVATE NUM_FILES=16)
 else()

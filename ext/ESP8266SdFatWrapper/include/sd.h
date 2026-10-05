@@ -2,6 +2,7 @@
 
 #include <fcntl.h>
 #include <stdbool.h>
+#include <stddef.h>
 #include <stdint.h>
 
 #define SEEK_SET 0
@@ -69,6 +70,9 @@ int sd_close(int fd);
 void sd_flush(int fd);
 int sd_read(int fd, void *buf, size_t count);
 int sd_write(int fd, void *buf, size_t count);
+/* Checked MMCE storage path: one write, accepted prefix from position progress.
+ * Nonzero return denotes failure; accepted bytes can still be nonzero. */
+int sd_write_once(int fd, const void *buf, uint32_t count, uint32_t *written);
 int sd_seek(int fd, int32_t offset, int whence);
 uint32_t sd_tell(int fd);
 int sd_getStat(int fd, sd_file_stat_t* const sd_stat);
@@ -83,6 +87,8 @@ int sd_rename(const char* old_path, const char* new_path);
 int sd_get_stat(int fd, ps2_fileio_stat_t* const ps2_fileio_stat);
 
 int sd_iterate_dir(int dir, int it);
+/* 1 = opened entry, 0 = EOF, -1 = I/O/invalid descriptor, -2 = no free descriptor. */
+int sd_iterate_dir_checked(int dir, int *entry);
 size_t sd_get_name(int fd, char* name, size_t size);
 bool sd_is_dir(int fd);
 int sd_fd_is_open(int fd);

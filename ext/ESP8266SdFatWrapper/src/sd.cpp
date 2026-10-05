@@ -87,6 +87,8 @@ void sdCsWrite(SdCsPin_t pin, bool level) {
     gpio_put(pin, level);
 }
 
+static bool sd_append_mode[NUM_FILES];
+
 extern "C" int sd_open(const char *path, int oflag) {
     size_t fd;
 
@@ -108,11 +110,12 @@ extern "C" int sd_open(const char *path, int oflag) {
     if (!files[fd].isOpen())
         return -1;
 
+    sd_append_mode[fd] = (oflag & O_APPEND) != 0;
     return fd;
 }
 
-#define CHECK_FD(fd) if (fd >= NUM_FILES || !files[fd].isOpen()) return -1;
-#define CHECK_FD_VOID(fd) if (fd >= NUM_FILES || !files[fd].isOpen()) return;
+#define CHECK_FD(fd) if (fd < 0 || fd >= NUM_FILES || !files[fd].isOpen()) return -1;
+#define CHECK_FD_VOID(fd) if (fd < 0 || fd >= NUM_FILES || !files[fd].isOpen()) return;
 
 extern "C" int sd_close(int fd) {
     CHECK_FD(fd);
@@ -158,6 +161,25 @@ extern "C" int sd_seek(int fd, int32_t offset, int whence) {
     return 1;
 }
 
+
+extern "C" int sd_write_once(int fd, const void *buf, uint32_t count, uint32_t *written) {
+    if (!written)
+        return -1;
+    *written = 0;
+    CHECK_FD(fd);
+    if (!buf && count)
+        return -1;
+    if (!count)
+        return 0;
+    uint64_t before = sd_append_mode[fd] ? files[fd].fileSize() : files[fd].curPosition();
+    size_t reported = files[fd].write(buf, count);
+    uint64_t after = files[fd].curPosition();
+    /* SdFat may report zero after accepting a prefix and advancing the position. */
+    uint64_t progress = after >= before ? after - before : 0;
+    *written = progress <= count ? (uint32_t)progress : 0;
+    return reported == count && *written == count ? 0 : -1;
+}
+
 extern "C" uint32_t sd_tell(int fd) {
     CHECK_FD(fd);
 
@@ -199,22 +221,47 @@ extern "C" int sd_remove(const char* path) {
 }
 
 extern "C" int sd_iterate_dir(int dir, int it) {
+    CHECK_FD(dir);
     if (it == -1) {
         for (it = 0; it < NUM_FILES; ++it)
             if (!files[it].isOpen())
                 break;
     }
+    if (it < 0 || it >= NUM_FILES)
+        return -1;
     if (!files[it].openNext(&files[dir], O_RDONLY)) {
         it = -1;
     }
     return it;
 }
 
+extern "C" int sd_iterate_dir_checked(int dir, int *entry) {
+    CHECK_FD(dir);
+    if (!entry || !files[dir].isDirectory())
+        return -1;
+    *entry = -1;
+    int fd;
+    for (fd = 0; fd < NUM_FILES; ++fd)
+        if (!files[fd].isOpen())
+            break;
+    if (fd == NUM_FILES)
+        return -2;
+    if (!files[fd].openNext(&files[dir], O_RDONLY))
+        return files[dir].getError() ? -1 : 0;
+    sd_append_mode[fd] = false;
+    *entry = fd;
+    return 1;
+}
+
 extern "C" size_t sd_get_name(int fd, char* name, size_t size) {
+    if (fd < 0 || fd >= NUM_FILES || !files[fd].isOpen() || !name || !size)
+        return 0;
     return files[fd].getName(name, size);
 }
 
 extern "C" bool sd_is_dir(int fd) {
+    if (fd < 0 || fd >= NUM_FILES || !files[fd].isOpen())
+        return false;
     return files[fd].isDirectory();
 }
 
@@ -300,6 +347,7 @@ extern "C" uint64_t sd_tell64(int fd) {
 }
 
 extern "C" int sd_seek64(int fd, int64_t offset, int whence) {
+    CHECK_FD(fd);
     if (whence == 0) {
         return files[fd].seekSet((uint64_t)offset) != true;
     } else if (whence == 1) {

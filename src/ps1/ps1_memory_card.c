@@ -6,6 +6,8 @@
 #include "pico/multicore.h"
 #include "ps1_mc_data_interface.h"
 #include "ps1_mmce.h"
+#include "ps1_mmce_fs.h"
+#include "ps1_mmce_fs_commands.h"
 #include "string.h"
 #include <settings.h>
 #include <stdbool.h>
@@ -33,15 +35,14 @@ static uint8_t* curr_page = NULL;
 static bool ps2_multitap = false;
 static volatile bool card_active = false;
 
-typedef struct {
-    uint32_t offset;
-    uint32_t sm;
-} pio_t;
 
-static pio_t cmd_reader, dat_writer, cntrl_reader, ack_generator;
+
+pio_t ack_generator;
+static pio_t cmd_reader, dat_writer, cntrl_reader;//, ack_generator;
 static volatile int mc_exit_request, mc_exit_response, mc_enter_request, mc_enter_response;
 
-enum { RECEIVE_RESET, RECEIVE_EXIT, RECEIVE_OK };
+static void my_gpio_set_irq_callback(gpio_irq_callback_t callback);
+
 
 
 static void __time_critical_func(reset_pio)(void) {
@@ -101,6 +102,9 @@ static void __time_critical_func(init_pio)(void) {
 
 static void __time_critical_func(card_deselected)(uint gpio, uint32_t event_mask) {
     if (gpio == PIN_PSX_SEL && (event_mask & GPIO_IRQ_EDGE_RISE)) {
+        /* The staged FS client raises /CS between every transfer (params
+           transfer, then FS_POLL transfers), so a clean /CS rise must not
+           abort the pending session or Core 0 operation. */
         reset_pio();
         card_active = false;
     } else if (gpio == PIN_PSX_SEL && (event_mask & GPIO_IRQ_EDGE_FALL)) {
@@ -109,37 +113,58 @@ static void __time_critical_func(card_deselected)(uint gpio, uint32_t event_mask
 
 }
 
-static uint8_t __time_critical_func(recv_cmd)(uint8_t* cmd, uint32_t sm) {
-    while (pio_sm_is_rx_fifo_empty(pio0, sm) && pio_sm_is_rx_fifo_empty(pio0, sm))  {
-        if (mc_exit_request)
-            return RECEIVE_EXIT;
-        if (reset)
-            return RECEIVE_RESET;
+/* Shared command transport. */
+bool __time_critical_func(ps1_memory_card_sio_active)(void) {
+    return card_active;
+}
+
+uint8_t __time_critical_func(recv_cmd)(uint8_t* cmd, ps1_mc_receiver_t receiver) {
+    uint32_t sm = receiver == PS1_MC_READER ? cmd_reader.sm : cntrl_reader.sm;
+    uint8_t result = RECEIVE_OK;
+    while (pio_sm_is_rx_fifo_empty(pio0, sm) && pio_sm_is_rx_fifo_empty(pio0, sm)) {
+        if (mc_exit_request) {
+            result = RECEIVE_EXIT;
+            break;
+        }
+        if (reset) {
+            result = RECEIVE_RESET;
+            break;
+        }
     }
-    *cmd = (pio_sm_get(pio0, sm) >> 24);
-    return RECEIVE_OK;
+    if (result == RECEIVE_OK) {
+        *cmd = (uint8_t)(pio_sm_get(pio0, sm) >> 24U);
+    }
+    return result;
 }
 
-#define recv_cntrl(cmd) recv_cmd(cmd, cntrl_reader.sm)
-#define recv_mc(cmd)    recv_cmd(cmd, cmd_reader.sm)
-
-#define receiveOrNextCmd(cmd)          \
-    if ((recv_cmd(cmd, cmd_reader.sm) == RECEIVE_RESET) || !card_active) \
-    { \
-    return;}
-
-#define receiveOrNextCntrl(cmd)          \
-    if ((recv_cmd(cmd, cntrl_reader.sm) == RECEIVE_RESET) || !card_active) \
-    { \
-    return;}
-
-static void __time_critical_func(ps1_mc_respond)(uint8_t ch) {
-    pio_sm_put_blocking(pio0, dat_writer.sm, ~ch & 0xFF);
+void __time_critical_func(ps1_mc_respond)(uint8_t response) {
+    pio_sm_put_blocking(pio0, dat_writer.sm, ~response & 0xFFU);
 }
 
-#define respondOrNextCmd(cmd)          \
-    if (card_active) ps1_mc_respond(cmd);\
-    else {DPRINTF("!RR: %s:%u\n", __func__, __LINE__); return;}
+/* Memory-card command macros. */
+#define receiveOrNextCmd(cmd)                                \
+    do {                                                     \
+        if (recv_mc(cmd) == RECEIVE_RESET || !card_active) { \
+            return;                                          \
+        }                                                    \
+    } while (0)
+
+#define receiveOrNextCntrl(cmd)                                 \
+    do {                                                        \
+        if (recv_cntrl(cmd) == RECEIVE_RESET || !card_active) { \
+            return;                                             \
+        }                                                       \
+    } while (0)
+
+#define respondOrNextCmd(response)                       \
+    do {                                                 \
+        if (card_active) {                               \
+            ps1_mc_respond(response);                    \
+        } else {                                         \
+            DPRINTF("!RR: %s:%u\n", __func__, __LINE__); \
+            return;                                      \
+        }                                                \
+    } while (0)
 
 /*
   Send Reply Comment
@@ -207,7 +232,7 @@ static void __time_critical_func(mc_cmd_read)(bool long_read) {
             ps1_mc_data_interface_wait_for_byte(offset);
             respondOrNextCmd(curr_page[offset]);
             chk ^= curr_page[offset];
-            receiveOrNextCmd(&_)
+            receiveOrNextCmd(&_);
         }
         page++;
         ps1_mc_data_interface_setup_read_page(page);
@@ -339,6 +364,7 @@ static void __time_critical_func(mc_mmce_reset)(void) {
     ps1_mmce_reset(false);
 }
 
+
 /**
   01h  Hi-Z  Controller address
   42h  idlo  Receive ID bit0..7 (variable) and Send Read Command (ASCII "B")
@@ -438,16 +464,17 @@ static void __time_critical_func(mc_main_loop)(void) {
 
         while (!reset && !reset && !reset && !reset && !reset) {
             if (mc_exit_request) {
-                mc_exit_response = 1;
                 return;
             }
         }
         reset = 0;
+        /* reset_pio() fires on every /CS rise; staged sessions intentionally
+           survive this boundary. An interrupted handler stops when its next
+           receive observes RECEIVE_RESET. */
         uint8_t received = recv_mc(&ch);
 
         if (received != RECEIVE_OK) {
             if (received == RECEIVE_EXIT) {
-                mc_exit_response = 1;
                 break;
             }
             /* If this ch belongs to the next command sequence */
@@ -459,8 +486,9 @@ static void __time_critical_func(mc_main_loop)(void) {
         if (0x81 == ch) { /* Command is for MC - process! */
             ps1_mc_respond(flag);
 
-            if (recv_mc(&ch) == RECEIVE_RESET)
+            if (recv_mc(&ch) == RECEIVE_RESET) {
                 continue;
+            }
 
             switch (ch) {
                 case 0x20: mc_mmce_ping(); break;
@@ -470,6 +498,7 @@ static void __time_critical_func(mc_main_loop)(void) {
                 case 0x24: mc_mmce_prev_index(); break;
                 case 0x25: mc_mmce_next_index(); break;
                 case 0x27: mc_mmce_reset(); break;
+                case 0x28: ps1_mmce_fs_command(); break;
                 case 'B': mc_cmd_read(true); break;
                 case 'R': mc_cmd_read(false); break;
                 case 'S': mc_cmd_get_card_id(); break;
@@ -481,17 +510,16 @@ static void __time_critical_func(mc_main_loop)(void) {
         } else if ((0x21 == ch) && !ps2_multitap) {
             ps1_mc_respond(0x00);
 
-            if (RECEIVE_RESET == recv_mc(&ch))
+            if (recv_mc(&ch) == RECEIVE_RESET) {
                 continue;
+            }
 
             if (0x53 == ch) {
                 ps1_mc_respond(0x0F);
             } else if (ch == 0x21) {      // PS2 multitap is also sending 0x21 as configuration command
                 ps2_multitap = true;
             }
-        } else {
         }
-
     }
 
 }
@@ -504,6 +532,28 @@ static void __no_inline_not_in_flash_func(mc_main)(void) {
 
         reset_pio();
         mc_main_loop();
+        ps1_mmce_fs_commands_abort();
+
+
+        if (settings_get_mode(true) != MODE_PS1) {
+            log(LOG_TRACE, "Mode changed to PS2, exiting memcard core\n");
+
+            irq_set_enabled(IO_IRQ_BANK0, false);
+
+            gpio_set_irq_enabled(
+                PIN_PSX_SEL,
+                GPIO_IRQ_EDGE_RISE | GPIO_IRQ_EDGE_FALL,
+                false
+            );
+
+            // Removes PS1's handler and clears PS1's callbacks[1].
+            my_gpio_set_irq_callback(NULL);
+            mc_exit_response = 1;
+            return;
+        } else {
+            log(LOG_TRACE, "Mode still PS1, reinitializing memcard core\n");
+            mc_exit_response = 1;
+        }
     }
 }
 
@@ -548,8 +598,11 @@ static void my_gpio_set_irq_callback(gpio_irq_callback_t callback) {
 }
 
 static void my_gpio_set_irq_enabled_with_callback(uint gpio, uint32_t events, bool enabled, gpio_irq_callback_t callback) {
-    gpio_set_irq_enabled(gpio, events, enabled);
+
     my_gpio_set_irq_callback(callback);
+
+    gpio_set_irq_enabled(gpio, events, enabled);
+
     if (enabled) irq_set_enabled(IO_IRQ_BANK0, true);
 }
 

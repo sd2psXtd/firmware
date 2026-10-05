@@ -5,6 +5,7 @@
 #include "ps1_memory_card.h"
 #include "ps1_cardman.h"
 #include "ps1_mmce.h"
+#include "ps1_mmce_fs.h"
 #include "debug.h"
 #include "game_db/game_db.h"
 #include "settings.h"
@@ -91,10 +92,12 @@ void ps1_mmce_task(void) {
 
     if ((mmce_switching_timeout < time_us_64())
         && !input_is_any_down()
+        && ps1_mmce_fs_idle()
         && (ps1_cardman_needs_update())) {
 
         ps1_memory_card_exit();
         ps1_mc_data_interface_flush();
+        ps1_mmce_fs_reset();
         ps1_cardman_close();
 #ifdef WITH_GUI
         gui_do_ps1_card_switch();
