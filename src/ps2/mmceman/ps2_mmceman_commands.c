@@ -351,7 +351,8 @@ inline __attribute__((always_inline)) void __time_critical_func(ps2_mmceman_cmd_
     op_data = ps2_mmceman_fs_get_op_data();
 
     mc_respond(0x0); receiveOrNextCmd(&cmd);                  //Reservered
-    mc_respond(0x0); receiveOrNextCmd((uint8_t*)&op_data->fd);//File descriptor
+    mc_respond(0x0); receiveOrNextCmd(&cmd);                  //File descriptor
+    op_data->fd = (int)cmd;
 
     log(LOG_INFO, "%s: fd: %i\n", __func__, op_data->fd);
 
@@ -401,11 +402,12 @@ inline __attribute__((always_inline)) void __time_critical_func(ps2_mmceman_cmd_
 
             mc_respond(0x0); receiveOrNextCmd(&cmd);                   //Reserved byte
             mc_respond(0x0); receiveOrNextCmd(&cmd);                   //Transfer mode (not implemented)
-            mc_respond(0x0); receiveOrNextCmd((uint8_t*)&op_data->fd); //File descriptor
+            mc_respond(0x0); receiveOrNextCmd(&cmd);                   //File descriptor
             mc_respond(0x0); receiveOrNextCmd(&len8[0x3]);             //Len MSB
             mc_respond(0x0); receiveOrNextCmd(&len8[0x2]);             //Len MSB - 1
             mc_respond(0x0); receiveOrNextCmd(&len8[0x1]);             //Len MSB - 2
             mc_respond(0x0); receiveOrNextCmd(&len8[0x0]);             //Len MSB - 3
+            op_data->fd = (int)cmd;
 
             log(LOG_INFO, "%s: fd: %i, len %u\n", __func__, op_data->fd, op_data->length);
 
@@ -596,11 +598,13 @@ inline __attribute__((always_inline)) void __time_critical_func(ps2_mmceman_cmd_
 
             mc_respond(0x0); receiveOrNextCmd(&cmd);                   //Reserved byte
             mc_respond(0x0); receiveOrNextCmd(&cmd);                   //Transfer mode (Unused)
-            mc_respond(0x0); receiveOrNextCmd((uint8_t*)&op_data->fd); //File descriptor
+            mc_respond(0x0); receiveOrNextCmd(&cmd);                   //File descriptor
             mc_respond(0x0); receiveOrNextCmd(&len8[0x3]);             //Len MSB
             mc_respond(0x0); receiveOrNextCmd(&len8[0x2]);             //Len MSB - 1
             mc_respond(0x0); receiveOrNextCmd(&len8[0x1]);             //Len MSB - 2
             mc_respond(0x0); receiveOrNextCmd(&len8[0x0]);             //Len MSB - 3
+
+            op_data->fd = (int)cmd;
 
             log(LOG_INFO, "%s, Mode: %i\n", __func__, cmd);
             log(LOG_INFO, "%s: fd: %i, len %u\n", __func__, op_data->fd, op_data->length);
@@ -727,7 +731,9 @@ inline __attribute__((always_inline)) void __time_critical_func(ps2_mmceman_cmd_
     op_data->whence = 0;
 
     mc_respond(0x0); receiveOrNextCmd(&cmd);        //Reserved
-    mc_respond(0x0); receiveOrNextCmd((uint8_t*)&op_data->fd);
+    mc_respond(0x0); receiveOrNextCmd(&cmd);        // File Descriptor
+
+    op_data->fd = (int)cmd;
 
     mc_respond(0x0); receiveOrNextCmd(&offset8[0x3]);
     mc_respond(0x0); receiveOrNextCmd(&offset8[0x2]);
@@ -1259,7 +1265,8 @@ inline __attribute__((always_inline)) void __time_critical_func(ps2_mmceman_cmd_
     op_data->position64 = 0;
 
     mc_respond(0x0); receiveOrNextCmd(&cmd); //padding
-    mc_respond(0x0); receiveOrNextCmd((uint8_t*)&op_data->fd);
+    mc_respond(0x0); receiveOrNextCmd(&cmd); // File Descriptor
+    op_data->fd = (int)cmd;
 
     mc_respond(0x0); receiveOrNextCmd(&offset8[0x7]);
     mc_respond(0x0); receiveOrNextCmd(&offset8[0x6]);
@@ -1415,10 +1422,11 @@ inline __attribute__((always_inline)) void __time_critical_func(ps2_mmceman_cmd_
             count8  = (uint8_t*)&count;
 
             mc_respond(0x0); receiveOrNextCmd(&cmd); //Reserved byte
-            mc_respond(0x0); receiveOrNextCmd((uint8_t*)&op_data->fd); //File descriptor
+            mc_respond(0x0); receiveOrNextCmd(&cmd); //File descriptor
             mc_respond(0x0); receiveOrNextCmd(&sector8[0x2]);
             mc_respond(0x0); receiveOrNextCmd(&sector8[0x1]);
             mc_respond(0x0); receiveOrNextCmd(&sector8[0x0]);
+            op_data->fd = (int)cmd;
 
             offset = ((uint64_t)sector) * 2048;
 
