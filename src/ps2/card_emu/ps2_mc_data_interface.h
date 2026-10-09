@@ -44,3 +44,4 @@ bool ps2_mc_data_interface_get_sdmode(void);
 void ps2_mc_data_interface_task(void);
 void ps2_mc_data_interface_init(void);
 void ps2_mc_data_interface_flush(void);
+void ps2_mc_data_interface_reset(void);
