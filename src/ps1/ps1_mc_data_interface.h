@@ -4,8 +4,6 @@
 #include <stdint.h>
 #include <stdbool.h>
 
-#define PS1_PAGE_SIZE   128
-
 // Core 1
 
 void ps1_mc_data_interface_setup_read_page(uint32_t page);

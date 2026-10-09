@@ -6,6 +6,9 @@
 #else
     #define CACHE_SIZE 1024 * 128
 #endif
+
+#define DIRTY_FLUSHBUF_SIZE (512 * 16)
+
 typedef union {
     struct {
         uint16_t dirty_heap[1024];
@@ -23,3 +26,4 @@ typedef union {
 
 extern bigmem_t bigmem;
 extern uint8_t cache[CACHE_SIZE];
+extern uint8_t dirty_flushbuf[DIRTY_FLUSHBUF_SIZE];

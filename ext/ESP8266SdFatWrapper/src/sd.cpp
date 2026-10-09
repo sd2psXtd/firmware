@@ -136,10 +136,27 @@ extern "C" int sd_read(int fd, void *buf, size_t count) {
 extern "C" int sd_write(int fd, void *buf, size_t count) {
     CHECK_FD(fd);
     int retry = 5;
+    uint64_t pos = files[fd].curPosition();
+    size_t ret = files[fd].write(buf, count);
+    while (ret != count && retry-- > 0) {
+        /* a failed write leaves the cursor advanced by whatever it did manage to write, so rewind
+           before trying again */
+        if (files[fd].seekSet(pos)) ret = files[fd].write(buf, count);
+    }
+
+    return ret;
+}
+
+extern "C" int sd_write_isolated(int fd, void *buf) {
+    CHECK_FD(fd);
+    size_t count = 512;
+    int retry = 5;
+    sd.card()->setSingleSectorWriteCmd(true);
     size_t ret = files[fd].write(buf, count);
     while (ret != count && retry-- > 0) {
         ret = files[fd].write(buf, count);
     }
+    sd.card()->setSingleSectorWriteCmd(false);
 
     return ret;
 }

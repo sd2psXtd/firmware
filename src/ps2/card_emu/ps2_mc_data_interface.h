@@ -4,9 +4,6 @@
 #include <stdint.h>
 #include <stdbool.h>
 
-#define PS2_PAGE_SIZE   512
-
-
 typedef struct {
     size_t page;
     enum {
