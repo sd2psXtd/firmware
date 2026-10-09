@@ -11,9 +11,11 @@
 #include "pico/time.h"
 #include "ps2_cardman.h"
 #include "ps2_mc_internal.h"
+#include "ps2_mc_auth.h"
 #include "ps2_mc_data_interface.h"
 #include "debug.h"
 #include "settings.h"
+#include "usb/mca_transport.h"
 
 
 #if LOG_LEVEL_PS2_MC == 0
@@ -55,9 +57,12 @@ static void __time_critical_func(delayed_response)(char ch, uint32_t delay, cons
 
 inline __attribute__((always_inline)) void __time_critical_func(ps2_mc_cmd_0x11)(void) {
     uint8_t _ = 0U;
+    uint8_t response_term =
+        (mca_transport_is_active() && !ps2_mc_auth_isValid()) ? 0x66 : term;
+
     mc_respond(0x2B);
     receiveOrNextCmd(&_);
-    mc_respond(term);
+    mc_respond(response_term);
 }
 
 inline __attribute__((always_inline)) void __time_critical_func(ps2_mc_cmd_0x12)(void) {
@@ -153,6 +158,8 @@ inline __attribute__((always_inline)) void __time_critical_func(ps2_mc_cmd_setRe
     (void)ck;  // TODO: validate checksum
 
     readptr = 0;
+    /* A new read supersedes any uncommitted write transaction. */
+    is_write = 0;
 
     eccptr = readecc;
     RESET_ECC(eccptr)
@@ -294,7 +301,7 @@ inline __attribute__((always_inline)) void __time_critical_func(ps2_mc_cmd_readD
 
             delayed_response(b, PS2_MAX_ACK_DELAY_MID, __func__);
 
-            if (readptr <= PS2_PAGE_SIZE) {
+            if (readptr < PS2_PAGE_SIZE) {
                 if (settings_get_ps2_variant() == PS2_VARIANT_SC2) {
                     conquestECC ^= ((uint32_t)b) << 24;    // MSB-first
                     for (int B = 0; B < 8; B++) {

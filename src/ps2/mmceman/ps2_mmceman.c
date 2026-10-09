@@ -22,6 +22,7 @@
 #include "game_db/game_db.h"
 #include "input.h"
 #include "settings.h"
+#include "usb/mca_usb.h"
 
 #include "pico/platform.h"
 
@@ -132,12 +133,15 @@ void ps2_mmceman_task(void) {
 
         // close old card
         ps2_memory_card_exit();
+        if (settings_get_mca_enabled())
+            mca_usb_card_switch_begin();
         log(LOG_TRACE, "%s After Exit\n", __func__);
         ps2_mc_data_interface_flush();
         ps2_cardman_close();
         log(LOG_TRACE, "%s After Close\n", __func__);
 
-        sleep_ms(500);
+        if (settings_get_mca_enabled())
+            mca_usb_card_switch_delay();
 #if WITH_GUI
         gui_do_ps2_card_switch();
         log(LOG_TRACE, "%s After GUI\n", __func__);
@@ -157,6 +161,9 @@ void ps2_mmceman_task(void) {
 
         // open new card
         ps2_cardman_open();
+        if (settings_get_mca_enabled())
+            mca_usb_card_switch_end();
+
         ps2_memory_card_enter();
 
         log(LOG_INFO, "%s Card switch took %u ms\n", __func__, (time_us_32() - switching_time)/1000U);

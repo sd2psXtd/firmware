@@ -16,6 +16,7 @@
 #include "debug.h"
 #include "ps1/ps1_memory_card.h"
 #include "game_db/game_db.h"
+#include "usb/mca_transport.h"
 
 static uint64_t us_startup;
 
@@ -121,10 +122,35 @@ static uint8_t __time_critical_func(recv_cmd)(uint8_t* cmd, uint32_t sm) {
 }
 
 #define recv_cntrl(cmd) recv_cmd(cmd, cntrl_reader.sm)
-#define recv_mc(cmd)    recv_cmd(cmd, cmd_reader.sm)
+
+typedef uint8_t (*ps1_mc_receive_fn_t)(uint8_t *);
+typedef void (*ps1_mc_send_fn_t)(uint8_t);
+
+static uint8_t __time_critical_func(ps1_pio_receive)(uint8_t *cmd) { return recv_cmd(cmd, cmd_reader.sm); }
+static uint8_t ps1_mca_receive(uint8_t *cmd) { return mca_transport_receive(cmd); }
+static void __time_critical_func(ps1_pio_send)(uint8_t ch) { pio_sm_put_blocking(pio0, dat_writer.sm, ~ch & 0xFF); }
+static void ps1_mca_send(uint8_t ch) { mca_transport_respond(ch); }
+
+static ps1_mc_receive_fn_t ps1_mc_receive_fn = ps1_pio_receive;
+static ps1_mc_send_fn_t ps1_mc_send_fn = ps1_pio_send;
+
+static void ps1_memory_card_select_transport(void) {
+    /* Select once on core-1 startup; settings changes restart the mode. */
+    if (settings_get_mca_enabled()) {
+        ps1_mc_receive_fn = ps1_mca_receive;
+        ps1_mc_send_fn = ps1_mca_send;
+    } else {
+        ps1_mc_receive_fn = ps1_pio_receive;
+        ps1_mc_send_fn = ps1_pio_send;
+    }
+}
+
+static uint8_t __time_critical_func(recv_mc)(uint8_t *cmd) {
+    return ps1_mc_receive_fn(cmd);
+}
 
 #define receiveOrNextCmd(cmd)          \
-    if ((recv_cmd(cmd, cmd_reader.sm) == RECEIVE_RESET) || !card_active) \
+    if ((recv_mc(cmd) == RECEIVE_RESET) || (!card_active && ps1_mc_receive_fn == ps1_pio_receive)) \
     { \
     return;}
 
@@ -134,11 +160,11 @@ static uint8_t __time_critical_func(recv_cmd)(uint8_t* cmd, uint32_t sm) {
     return;}
 
 static void __time_critical_func(ps1_mc_respond)(uint8_t ch) {
-    pio_sm_put_blocking(pio0, dat_writer.sm, ~ch & 0xFF);
+    ps1_mc_send_fn(ch);
 }
 
 #define respondOrNextCmd(cmd)          \
-    if (card_active) ps1_mc_respond(cmd);\
+    if (card_active || ps1_mc_receive_fn == ps1_mca_receive) ps1_mc_respond(cmd);\
     else {DPRINTF("!RR: %s:%u\n", __func__, __LINE__); return;}
 
 /*
@@ -436,7 +462,11 @@ static void __time_critical_func(mc_main_loop)(void) {
     while (1) {
         uint8_t ch = 0x00;
 
-        while (!reset && !reset && !reset && !reset && !reset) {
+        if (mc_exit_request) {
+            mc_exit_response = 1;
+            break;
+        }
+        while (!reset && !reset && !reset && !reset && !reset && ps1_mc_receive_fn == ps1_pio_receive) {
             if (mc_exit_request) {
                 mc_exit_response = 1;
                 return;
@@ -476,6 +506,8 @@ static void __time_critical_func(mc_main_loop)(void) {
                 case 'W': mc_cmd_write(); break;
                 default: DPRINTF("Unknown command: 0x%.02x\n", ch); break;
             }
+            if (ps1_mc_receive_fn == ps1_mca_receive)
+                mca_transport_complete();
         } else if ((0x01 == ch) && (settings_get_ps1_controllercombo())) {
             mc_read_controller();
         } else if ((0x21 == ch) && !ps2_multitap) {
@@ -555,6 +587,7 @@ static void my_gpio_set_irq_enabled_with_callback(uint gpio, uint32_t events, bo
 
 void ps1_memory_card_main(void) {
     multicore_lockout_victim_init();
+    ps1_memory_card_select_transport();
 
     init_pio();
 
@@ -579,6 +612,8 @@ void ps1_memory_card_exit(void) {
     mc_exit_request = 1;
     while (!mc_exit_response)
     {}
+    if (ps1_mc_receive_fn == ps1_mca_receive)
+        mca_transport_abort();
     mc_exit_request = mc_exit_response = 0;
     memcard_running = 0;
 }

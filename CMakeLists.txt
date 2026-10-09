@@ -52,6 +52,11 @@ add_executable(${TARGET_NAME}
     src/wear_leveling/wear_leveling_rp2040_flash.c
 
     ext/fnv/hash_64a.c
+
+    src/usb/mca_transport.c
+    src/usb/mca_page_transfer.c
+    src/usb/mca_usb.c
+    src/usb/usb_descriptors.c
 )
 
 target_compile_definitions(
@@ -61,6 +66,7 @@ target_compile_definitions(
 
 target_include_directories(${TARGET_NAME} PUBLIC
     ext/fnv
+    src/usb
 )
 
 target_link_libraries(${TARGET_NAME}
@@ -76,6 +82,8 @@ target_link_libraries(${TARGET_NAME}
         ps1_card
         ps2_card
         sd_fat
+        tinyusb_device
+        tinyusb_board
 )
 
 add_dependencies(${TARGET_NAME} gamedb)
@@ -108,6 +116,7 @@ target_link_libraries(sd2psx_common
                         hardware_gpio
                         hardware_watchdog
                         pico_multicore
+                        pico_stdio_usb_headers
                         inih)
 
 target_compile_options(sd2psx_common

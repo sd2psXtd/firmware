@@ -2,6 +2,7 @@
 
 
 #include <stdint.h>
+#include <stdbool.h>
 
 #define MMCE_PS1_GAME_ID     (1U)
 #define MMCE_PS1_NXT_CH      (2U)

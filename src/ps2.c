@@ -19,6 +19,7 @@
 #include "history_tracker/ps2_history_tracker.h"
 #include "ps2_cardman.h"
 #include "debug.h"
+#include "usb/mca_usb.h"
 
 #include <stdio.h>
 
@@ -128,7 +129,8 @@ bool ps2_task(void) {
     }
 
     if (((settings_get_mode(true) == MODE_PS1)
-            || ps2_variant != settings_get_ps2_variant())
+            || ps2_variant != settings_get_ps2_variant()
+            || mca_usb_profile_is_mca() != settings_get_mca_enabled())
         && (ps2_cardman_is_idle())
         && !ps2_history_tracker_needs_refresh())
         return false;
