@@ -128,9 +128,9 @@ void __time_critical_func(generateResponse)() {
 inline __attribute__((always_inline)) void __time_critical_func(ps2_mc_auth_probe)(void) {
     uint8_t _;
     /* probe support ? */
-    mc_respond(0x2B);
+    ps2_card_backend_pio.respond(0x2B);
     receiveOrNextCmd(&_);
-    mc_respond(term);
+    ps2_card_backend_pio.respond(term);
 }
 
 inline __attribute__((always_inline)) void __time_critical_func(ps2_mc_auth_getIv)(void) {
@@ -138,27 +138,27 @@ inline __attribute__((always_inline)) void __time_critical_func(ps2_mc_auth_getI
     log(LOG_INFO, "iv : %02X %02X %02X %02X %02X %02X %02X %02X\n", ARG8(iv));
 
     /* get IV */
-    mc_respond(0x2B);
+    ps2_card_backend_pio.respond(0x2B);
     receiveOrNextCmd(&_);
-    mc_respond(iv[7]);
+    ps2_card_backend_pio.respond(iv[7]);
     receiveOrNextCmd(&_);
-    mc_respond(iv[6]);
+    ps2_card_backend_pio.respond(iv[6]);
     receiveOrNextCmd(&_);
-    mc_respond(iv[5]);
+    ps2_card_backend_pio.respond(iv[5]);
     receiveOrNextCmd(&_);
-    mc_respond(iv[4]);
+    ps2_card_backend_pio.respond(iv[4]);
     receiveOrNextCmd(&_);
-    mc_respond(iv[3]);
+    ps2_card_backend_pio.respond(iv[3]);
     receiveOrNextCmd(&_);
-    mc_respond(iv[2]);
+    ps2_card_backend_pio.respond(iv[2]);
     receiveOrNextCmd(&_);
-    mc_respond(iv[1]);
+    ps2_card_backend_pio.respond(iv[1]);
     receiveOrNextCmd(&_);
-    mc_respond(iv[0]);
+    ps2_card_backend_pio.respond(iv[0]);
     receiveOrNextCmd(&_);
-    mc_respond(XOR8(iv));
+    ps2_card_backend_pio.respond(XOR8(iv));
     receiveOrNextCmd(&_);
-    mc_respond(term);
+    ps2_card_backend_pio.respond(term);
 }
 
 inline __attribute__((always_inline)) void __time_critical_func(ps2_mc_auth_getSeed)(void) {
@@ -166,35 +166,35 @@ inline __attribute__((always_inline)) void __time_critical_func(ps2_mc_auth_getS
     log(LOG_INFO, "seed : %02X %02X %02X %02X %02X %02X %02X %02X\n", ARG8(seed));
 
     /* get seed */
-    mc_respond(0x2B);
+    ps2_card_backend_pio.respond(0x2B);
     receiveOrNextCmd(&_);
-    mc_respond(seed[7]);
+    ps2_card_backend_pio.respond(seed[7]);
     receiveOrNextCmd(&_);
-    mc_respond(seed[6]);
+    ps2_card_backend_pio.respond(seed[6]);
     receiveOrNextCmd(&_);
-    mc_respond(seed[5]);
+    ps2_card_backend_pio.respond(seed[5]);
     receiveOrNextCmd(&_);
-    mc_respond(seed[4]);
+    ps2_card_backend_pio.respond(seed[4]);
     receiveOrNextCmd(&_);
-    mc_respond(seed[3]);
+    ps2_card_backend_pio.respond(seed[3]);
     receiveOrNextCmd(&_);
-    mc_respond(seed[2]);
+    ps2_card_backend_pio.respond(seed[2]);
     receiveOrNextCmd(&_);
-    mc_respond(seed[1]);
+    ps2_card_backend_pio.respond(seed[1]);
     receiveOrNextCmd(&_);
-    mc_respond(seed[0]);
+    ps2_card_backend_pio.respond(seed[0]);
     receiveOrNextCmd(&_);
-    mc_respond(XOR8(seed));
+    ps2_card_backend_pio.respond(XOR8(seed));
     receiveOrNextCmd(&_);
-    mc_respond(term);
+    ps2_card_backend_pio.respond(term);
 }
 
 inline __attribute__((always_inline)) void __time_critical_func(ps2_mc_auth_dummy3)(void) {
     uint8_t _;
     /* dummy 3 */
-    mc_respond(0x2B);
+    ps2_card_backend_pio.respond(0x2B);
     receiveOrNextCmd(&_);
-    mc_respond(term);
+    ps2_card_backend_pio.respond(term);
 }
 
 inline __attribute__((always_inline)) void __time_critical_func(ps2_mc_auth_getNonce)(void) {
@@ -202,62 +202,62 @@ inline __attribute__((always_inline)) void __time_critical_func(ps2_mc_auth_getN
     log(LOG_INFO, "nonce : %02X %02X %02X %02X %02X %02X %02X %02X\n", ARG8(nonce));
 
     /* get nonce */
-    mc_respond(0x2B);
+    ps2_card_backend_pio.respond(0x2B);
     receiveOrNextCmd(&_);
-    mc_respond(nonce[7]);
+    ps2_card_backend_pio.respond(nonce[7]);
     receiveOrNextCmd(&_);
-    mc_respond(nonce[6]);
+    ps2_card_backend_pio.respond(nonce[6]);
     receiveOrNextCmd(&_);
-    mc_respond(nonce[5]);
+    ps2_card_backend_pio.respond(nonce[5]);
     receiveOrNextCmd(&_);
-    mc_respond(nonce[4]);
+    ps2_card_backend_pio.respond(nonce[4]);
     receiveOrNextCmd(&_);
-    mc_respond(nonce[3]);
+    ps2_card_backend_pio.respond(nonce[3]);
     receiveOrNextCmd(&_);
-    mc_respond(nonce[2]);
+    ps2_card_backend_pio.respond(nonce[2]);
     receiveOrNextCmd(&_);
-    mc_respond(nonce[1]);
+    ps2_card_backend_pio.respond(nonce[1]);
     receiveOrNextCmd(&_);
-    mc_respond(nonce[0]);
+    ps2_card_backend_pio.respond(nonce[0]);
     receiveOrNextCmd(&_);
-    mc_respond(XOR8(nonce));
+    ps2_card_backend_pio.respond(XOR8(nonce));
     receiveOrNextCmd(&_);
-    mc_respond(term);
+    ps2_card_backend_pio.respond(term);
 }
 
 inline __attribute__((always_inline)) void __time_critical_func(ps2_mc_auth_dummy5)(void) {
     uint8_t _;
     /* dummy 5 */
-    mc_respond(0x2B);
+    ps2_card_backend_pio.respond(0x2B);
     receiveOrNextCmd(&_);
-    mc_respond(term);
+    ps2_card_backend_pio.respond(term);
 }
 
 inline __attribute__((always_inline)) void __time_critical_func(ps2_mc_auth_mechaChallenge3)(void) {
     uint8_t _;
     /* MechaChallenge3 */
-    mc_respond(0xFF);
+    ps2_card_backend_pio.respond(0xFF);
     receiveOrNextCmd(&MechaChallenge3[7]);
-    mc_respond(0xFF);
+    ps2_card_backend_pio.respond(0xFF);
     receiveOrNextCmd(&MechaChallenge3[6]);
-    mc_respond(0xFF);
+    ps2_card_backend_pio.respond(0xFF);
     receiveOrNextCmd(&MechaChallenge3[5]);
-    mc_respond(0xFF);
+    ps2_card_backend_pio.respond(0xFF);
     receiveOrNextCmd(&MechaChallenge3[4]);
-    mc_respond(0xFF);
+    ps2_card_backend_pio.respond(0xFF);
     receiveOrNextCmd(&MechaChallenge3[3]);
-    mc_respond(0xFF);
+    ps2_card_backend_pio.respond(0xFF);
     receiveOrNextCmd(&MechaChallenge3[2]);
-    mc_respond(0xFF);
+    ps2_card_backend_pio.respond(0xFF);
     receiveOrNextCmd(&MechaChallenge3[1]);
-    mc_respond(0xFF);
+    ps2_card_backend_pio.respond(0xFF);
     receiveOrNextCmd(&MechaChallenge3[0]);
     /* TODO: checksum below */
-    mc_respond(0xFF);
+    ps2_card_backend_pio.respond(0xFF);
     receiveOrNextCmd(&_);
-    mc_respond(0x2B);
+    ps2_card_backend_pio.respond(0x2B);
     receiveOrNextCmd(&_);
-    mc_respond(term);
+    ps2_card_backend_pio.respond(term);
 
     log(LOG_INFO, "MechaChallenge3 : %02X %02X %02X %02X %02X %02X %02X %02X\n", ARG8(MechaChallenge3));
 }
@@ -265,28 +265,28 @@ inline __attribute__((always_inline)) void __time_critical_func(ps2_mc_auth_mech
 inline __attribute__((always_inline)) void __time_critical_func(ps2_mc_auth_mechaChallenge2)(void) {
     uint8_t _ = 0U;
     /* MechaChallenge2 */
-    mc_respond(0xFF);
+    ps2_card_backend_pio.respond(0xFF);
     receiveOrNextCmd(&MechaChallenge2[7]);
-    mc_respond(0xFF);
+    ps2_card_backend_pio.respond(0xFF);
     receiveOrNextCmd(&MechaChallenge2[6]);
-    mc_respond(0xFF);
+    ps2_card_backend_pio.respond(0xFF);
     receiveOrNextCmd(&MechaChallenge2[5]);
-    mc_respond(0xFF);
+    ps2_card_backend_pio.respond(0xFF);
     receiveOrNextCmd(&MechaChallenge2[4]);
-    mc_respond(0xFF);
+    ps2_card_backend_pio.respond(0xFF);
     receiveOrNextCmd(&MechaChallenge2[3]);
-    mc_respond(0xFF);
+    ps2_card_backend_pio.respond(0xFF);
     receiveOrNextCmd(&MechaChallenge2[2]);
-    mc_respond(0xFF);
+    ps2_card_backend_pio.respond(0xFF);
     receiveOrNextCmd(&MechaChallenge2[1]);
-    mc_respond(0xFF);
+    ps2_card_backend_pio.respond(0xFF);
     receiveOrNextCmd(&MechaChallenge2[0]);
     /* TODO: checksum below */
-    mc_respond(0xFF);
+    ps2_card_backend_pio.respond(0xFF);
     receiveOrNextCmd(&_);
-    mc_respond(0x2B);
+    ps2_card_backend_pio.respond(0x2B);
     receiveOrNextCmd(&_);
-    mc_respond(term);
+    ps2_card_backend_pio.respond(term);
 
     log(LOG_INFO, "MechaChallenge2 : %02X %02X %02X %02X %02X %02X %02X %02X\n", ARG8(MechaChallenge2));
 }
@@ -294,52 +294,52 @@ inline __attribute__((always_inline)) void __time_critical_func(ps2_mc_auth_mech
 inline __attribute__((always_inline)) void __time_critical_func(ps2_mc_auth_dummy8)(void) {
     uint8_t _ = 0U;
     /* dummy 8 */
-    mc_respond(0x2B);
+    ps2_card_backend_pio.respond(0x2B);
     receiveOrNextCmd(&_);
-    mc_respond(term);
+    ps2_card_backend_pio.respond(term);
 }
 
 inline __attribute__((always_inline)) void __time_critical_func(ps2_mc_auth_dummy9)(void) {
     uint8_t _ = 0U;
     /* dummy 9 */
-    mc_respond(0x2B);
+    ps2_card_backend_pio.respond(0x2B);
     receiveOrNextCmd(&_);
-    mc_respond(term);
+    ps2_card_backend_pio.respond(term);
 }
 
 inline __attribute__((always_inline)) void __time_critical_func(ps2_mc_auth_dummyA)(void) {
     uint8_t _ = 0U;
     /* This is where real memory cards error out if the console is using different magicgate keys. eg: COH-H10020 plugged to a retail console */
-    mc_respond(0x2B);
+    ps2_card_backend_pio.respond(0x2B);
     receiveOrNextCmd(&_);
-    mc_respond(term);
+    ps2_card_backend_pio.respond(term);
 }
 
 inline __attribute__((always_inline)) void __time_critical_func(ps2_mc_auth_mechaChallenge1)(void) {
     uint8_t _ = 0;
     /* MechaChallenge1 */
-    mc_respond(0xFF);
+    ps2_card_backend_pio.respond(0xFF);
     receiveOrNextCmd(&MechaChallenge1[7]);
-    mc_respond(0xFF);
+    ps2_card_backend_pio.respond(0xFF);
     receiveOrNextCmd(&MechaChallenge1[6]);
-    mc_respond(0xFF);
+    ps2_card_backend_pio.respond(0xFF);
     receiveOrNextCmd(&MechaChallenge1[5]);
-    mc_respond(0xFF);
+    ps2_card_backend_pio.respond(0xFF);
     receiveOrNextCmd(&MechaChallenge1[4]);
-    mc_respond(0xFF);
+    ps2_card_backend_pio.respond(0xFF);
     receiveOrNextCmd(&MechaChallenge1[3]);
-    mc_respond(0xFF);
+    ps2_card_backend_pio.respond(0xFF);
     receiveOrNextCmd(&MechaChallenge1[2]);
-    mc_respond(0xFF);
+    ps2_card_backend_pio.respond(0xFF);
     receiveOrNextCmd(&MechaChallenge1[1]);
-    mc_respond(0xFF);
+    ps2_card_backend_pio.respond(0xFF);
     receiveOrNextCmd(&MechaChallenge1[0]);
     /* TODO: checksum below */
-    mc_respond(0xFF);
+    ps2_card_backend_pio.respond(0xFF);
     receiveOrNextCmd(&_);
-    mc_respond(0x2B);
+    ps2_card_backend_pio.respond(0x2B);
     receiveOrNextCmd(&_);
-    mc_respond(term);
+    ps2_card_backend_pio.respond(term);
 
     log(LOG_INFO, "MechaChallenge1 : %02X %02X %02X %02X %02X %02X %02X %02X\n", ARG8(MechaChallenge1));
 }
@@ -347,17 +347,17 @@ inline __attribute__((always_inline)) void __time_critical_func(ps2_mc_auth_mech
 inline __attribute__((always_inline)) void __time_critical_func(ps2_mc_auth_dummyC)(void) {
     uint8_t _ = 0;
     /* dummy C */
-    mc_respond(0x2B);
+    ps2_card_backend_pio.respond(0x2B);
     receiveOrNextCmd(&_);
-    mc_respond(term);
+    ps2_card_backend_pio.respond(term);
 }
 
 inline __attribute__((always_inline)) void __time_critical_func(ps2_mc_auth_dummyD)(void) {
     uint8_t _ = 0;
     /* dummy D */
-    mc_respond(0x2B);
+    ps2_card_backend_pio.respond(0x2B);
     receiveOrNextCmd(&_);
-    mc_respond(term);
+    ps2_card_backend_pio.respond(term);
 }
 
 inline __attribute__((always_inline)) void __time_critical_func(ps2_mc_auth_dummyE)(void) {
@@ -367,103 +367,103 @@ inline __attribute__((always_inline)) void __time_critical_func(ps2_mc_auth_dumm
     log(LOG_INFO, "CardResponse1 : %02X %02X %02X %02X %02X %02X %02X %02X\n", ARG8(CardResponse1));
     log(LOG_INFO, "CardResponse2 : %02X %02X %02X %02X %02X %02X %02X %02X\n", ARG8(CardResponse2));
     log(LOG_INFO, "CardResponse3 : %02X %02X %02X %02X %02X %02X %02X %02X\n", ARG8(CardResponse3));
-    mc_respond(0x2B);
+    ps2_card_backend_pio.respond(0x2B);
     receiveOrNextCmd(&_);
-    mc_respond(term);
+    ps2_card_backend_pio.respond(term);
 }
 
 inline __attribute__((always_inline)) void __time_critical_func(ps2_mc_auth_cardResponse1)(void) {
     uint8_t _ = 0;
     /* CardResponse1 */
-    mc_respond(0x2B);
+    ps2_card_backend_pio.respond(0x2B);
     receiveOrNextCmd(&_);
-    mc_respond(CardResponse1[7]);
+    ps2_card_backend_pio.respond(CardResponse1[7]);
     receiveOrNextCmd(&_);
-    mc_respond(CardResponse1[6]);
+    ps2_card_backend_pio.respond(CardResponse1[6]);
     receiveOrNextCmd(&_);
-    mc_respond(CardResponse1[5]);
+    ps2_card_backend_pio.respond(CardResponse1[5]);
     receiveOrNextCmd(&_);
-    mc_respond(CardResponse1[4]);
+    ps2_card_backend_pio.respond(CardResponse1[4]);
     receiveOrNextCmd(&_);
-    mc_respond(CardResponse1[3]);
+    ps2_card_backend_pio.respond(CardResponse1[3]);
     receiveOrNextCmd(&_);
-    mc_respond(CardResponse1[2]);
+    ps2_card_backend_pio.respond(CardResponse1[2]);
     receiveOrNextCmd(&_);
-    mc_respond(CardResponse1[1]);
+    ps2_card_backend_pio.respond(CardResponse1[1]);
     receiveOrNextCmd(&_);
-    mc_respond(CardResponse1[0]);
+    ps2_card_backend_pio.respond(CardResponse1[0]);
     receiveOrNextCmd(&_);
-    mc_respond(XOR8(CardResponse1));
+    ps2_card_backend_pio.respond(XOR8(CardResponse1));
     receiveOrNextCmd(&_);
-    mc_respond(term);
+    ps2_card_backend_pio.respond(term);
 }
 
 inline __attribute__((always_inline)) void __time_critical_func(ps2_mc_auth_dummy10)(void) {
     uint8_t _ = 0;
     /* dummy 10 */
-    mc_respond(0x2B);
+    ps2_card_backend_pio.respond(0x2B);
     receiveOrNextCmd(&_);
-    mc_respond(term);
+    ps2_card_backend_pio.respond(term);
 }
 
 inline __attribute__((always_inline)) void __time_critical_func(ps2_mc_auth_cardResponse2)(void) {
     uint8_t _ = 0;
     /* CardResponse2 */
-    mc_respond(0x2B);
+    ps2_card_backend_pio.respond(0x2B);
     receiveOrNextCmd(&_);
-    mc_respond(CardResponse2[7]);
+    ps2_card_backend_pio.respond(CardResponse2[7]);
     receiveOrNextCmd(&_);
-    mc_respond(CardResponse2[6]);
+    ps2_card_backend_pio.respond(CardResponse2[6]);
     receiveOrNextCmd(&_);
-    mc_respond(CardResponse2[5]);
+    ps2_card_backend_pio.respond(CardResponse2[5]);
     receiveOrNextCmd(&_);
-    mc_respond(CardResponse2[4]);
+    ps2_card_backend_pio.respond(CardResponse2[4]);
     receiveOrNextCmd(&_);
-    mc_respond(CardResponse2[3]);
+    ps2_card_backend_pio.respond(CardResponse2[3]);
     receiveOrNextCmd(&_);
-    mc_respond(CardResponse2[2]);
+    ps2_card_backend_pio.respond(CardResponse2[2]);
     receiveOrNextCmd(&_);
-    mc_respond(CardResponse2[1]);
+    ps2_card_backend_pio.respond(CardResponse2[1]);
     receiveOrNextCmd(&_);
-    mc_respond(CardResponse2[0]);
+    ps2_card_backend_pio.respond(CardResponse2[0]);
     receiveOrNextCmd(&_);
-    mc_respond(XOR8(CardResponse2));
+    ps2_card_backend_pio.respond(XOR8(CardResponse2));
     receiveOrNextCmd(&_);
-    mc_respond(term);
+    ps2_card_backend_pio.respond(term);
 }
 
 inline __attribute__((always_inline)) void __time_critical_func(ps2_mc_auth_dummy12)(void) {
     uint8_t _ = 0;
     /* dummy 12 */
-    mc_respond(0x2B);
+    ps2_card_backend_pio.respond(0x2B);
     receiveOrNextCmd(&_);
-    mc_respond(term);
+    ps2_card_backend_pio.respond(term);
 }
 
 inline __attribute__((always_inline)) void __time_critical_func(ps2_mc_auth_cardResponse3)(void) {
     uint8_t _ = 0;
     /* CardResponse3 */
-    mc_respond(0x2B);
+    ps2_card_backend_pio.respond(0x2B);
     receiveOrNextCmd(&_);
-    mc_respond(CardResponse3[7]);
+    ps2_card_backend_pio.respond(CardResponse3[7]);
     receiveOrNextCmd(&_);
-    mc_respond(CardResponse3[6]);
+    ps2_card_backend_pio.respond(CardResponse3[6]);
     receiveOrNextCmd(&_);
-    mc_respond(CardResponse3[5]);
+    ps2_card_backend_pio.respond(CardResponse3[5]);
     receiveOrNextCmd(&_);
-    mc_respond(CardResponse3[4]);
+    ps2_card_backend_pio.respond(CardResponse3[4]);
     receiveOrNextCmd(&_);
-    mc_respond(CardResponse3[3]);
+    ps2_card_backend_pio.respond(CardResponse3[3]);
     receiveOrNextCmd(&_);
-    mc_respond(CardResponse3[2]);
+    ps2_card_backend_pio.respond(CardResponse3[2]);
     receiveOrNextCmd(&_);
-    mc_respond(CardResponse3[1]);
+    ps2_card_backend_pio.respond(CardResponse3[1]);
     receiveOrNextCmd(&_);
-    mc_respond(CardResponse3[0]);
+    ps2_card_backend_pio.respond(CardResponse3[0]);
     receiveOrNextCmd(&_);
-    mc_respond(XOR8(CardResponse3));
+    ps2_card_backend_pio.respond(XOR8(CardResponse3));
     receiveOrNextCmd(&_);
-    mc_respond(term);
+    ps2_card_backend_pio.respond(term);
 
     auth_state = AUTH_STATE_WAIT_CONFIRM;
 }
@@ -473,44 +473,44 @@ static inline __attribute__((always_inline)) void __time_critical_func(ps2_mc_au
     auth_state = AUTH_STATE_IDLE;
     auth_valid = true;
     /* dummy 14 */
-    mc_respond(0x2B);
+    ps2_card_backend_pio.respond(0x2B);
     receiveOrNextCmd(&_);
-    mc_respond(term);
+    ps2_card_backend_pio.respond(term);
 }
 
 inline __attribute__((always_inline)) void __time_critical_func(ps2_mc_sessionKeyEncr)(void) {
     uint8_t _ = 0;
     uint8_t subcmd = 0;
     /* session key encrypt */
-    mc_respond(0xFF);
+    ps2_card_backend_pio.respond(0xFF);
     receiveOrNextCmd(&subcmd);
     if (subcmd == 0x50 || subcmd == 0x40) {
-        mc_respond(0x2B);
+        ps2_card_backend_pio.respond(0x2B);
         receiveOrNextCmd(&_);
-        mc_respond(term);
+        ps2_card_backend_pio.respond(term);
     } else if (subcmd == 0x51 || subcmd == 0x41) {
-        /* host mc_responds key to us */
+        /* host ps2_card_backend_pio.responds key to us */
         for (size_t i = 0; i < sizeof(hostkey); ++i) {
-            mc_respond(0xFF);
+            ps2_card_backend_pio.respond(0xFF);
             receiveOrNextCmd(&hostkey[i]);
         }
-        mc_respond(0x2B);
+        ps2_card_backend_pio.respond(0x2B);
         receiveOrNextCmd(&_);
-        mc_respond(term);
+        ps2_card_backend_pio.respond(term);
     } else if (subcmd == 0x52 || subcmd == 0x42) {
         /* now we encrypt/decrypt the key */
-        mc_respond(0x2B);
+        ps2_card_backend_pio.respond(0x2B);
         receiveOrNextCmd(&_);
-        mc_respond(term);
+        ps2_card_backend_pio.respond(term);
     } else if (subcmd == 0x53 || subcmd == 0x43) {
-        mc_respond(0x2B);
+        ps2_card_backend_pio.respond(0x2B);
         receiveOrNextCmd(&_);
-        /* we mc_respond key to the host */
+        /* we ps2_card_backend_pio.respond key to the host */
         for (size_t i = 0; i < sizeof(hostkey); ++i) {
-            mc_respond(hostkey[i]);
+            ps2_card_backend_pio.respond(hostkey[i]);
             receiveOrNextCmd(&_);
         }
-        mc_respond(term);
+        ps2_card_backend_pio.respond(term);
     } else {
         log(LOG_WARN, "!! unknown subcmd %02X -> %02X\n", 0xF2, subcmd);
     }
@@ -518,7 +518,7 @@ inline __attribute__((always_inline)) void __time_critical_func(ps2_mc_sessionKe
 
 inline __attribute__((always_inline)) void __time_critical_func(ps2_mc_auth)(void) {
     uint8_t subcmd = 0;
-    mc_respond(0xFF);
+    ps2_card_backend_pio.respond(0xFF);
 
     receiveOrNextCmd(&subcmd);
     log(LOG_TRACE, "MC Auth: %02X\n", subcmd);
@@ -569,7 +569,7 @@ inline __attribute__((always_inline)) void __time_critical_func(ps2_mc_auth_keyS
     // TODO: it fails to get detected at all when ps2_magicgate==0, check if it's intentional
     uint8_t _ = 0U;
     /* SIO_MEMCARD_KEY_SELECT */
-    mc_respond(0xFF);
+    ps2_card_backend_pio.respond(0xFF);
     receiveOrNextCmd(&_);
     DPRINTF("KeySelect: requested %d key\n", _);
     if (PS2_VARIANT_RETAIL == settings_get_ps2_variant()) {
@@ -592,9 +592,9 @@ inline __attribute__((always_inline)) void __time_critical_func(ps2_mc_auth_keyS
                 break;
         };
     }
-    mc_respond(0x2B);
+    ps2_card_backend_pio.respond(0x2B);
     receiveOrNextCmd(&_);
-    mc_respond(term);
+    ps2_card_backend_pio.respond(term);
 }
 
 inline __attribute__((always_inline)) void __time_critical_func(ps2_mc_auth_reset)(void) {
@@ -604,11 +604,11 @@ inline __attribute__((always_inline)) void __time_critical_func(ps2_mc_auth_rese
         auth_state = AUTH_STATE_IDLE;
         request_keystore_reset = !auth_valid;
     }
-    mc_respond(0xFF);
+    ps2_card_backend_pio.respond(0xFF);
     receiveOrNextCmd(&_);
-    mc_respond(0x2B);
+    ps2_card_backend_pio.respond(0x2B);
     receiveOrNextCmd(&_);
-    mc_respond(term);
+    ps2_card_backend_pio.respond(term);
 }
 
 bool ps2_mc_auth_keyStoreResetRequired() {
