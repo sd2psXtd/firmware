@@ -143,5 +143,4 @@ void ps2_deinit(void) {
         ps2_mc_data_interface_task();
     multicore_reset_core1();
     ps2_cardman_close();
-    ps2_memory_card_unload();
 }

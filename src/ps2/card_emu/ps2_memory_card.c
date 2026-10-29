@@ -11,9 +11,9 @@
 #include "mmceman/ps2_mmceman.h"
 #include "mmceman/ps2_mmceman_commands.h"
 #include "mmceman/ps2_mmceman_fs.h"
-#include "ps2_mc_spi.pio.h"
 #include "ps2_card_backend_pio.h"
 
+#include <hardware/watchdog.h>
 #include <settings.h>
 #include <stdbool.h>
 #include <stdint.h>
@@ -223,6 +223,7 @@ static void __time_critical_func(mc_main_loop)(void) {
 static void __no_inline_not_in_flash_func(mc_main)(void) {
     while (1) {
         while (!mc_enter_request) {}
+        log(LOG_TRACE, "Entering memcard core\n");
         mc_enter_response = 1;
 
         ps2_history_tracker_card_changed();
@@ -230,18 +231,17 @@ static void __no_inline_not_in_flash_func(mc_main)(void) {
         mmceman_transfer_stage = 0;
         mmceman_callback = NULL;
 
+        log(LOG_TRACE, "Resetting PIO for PS2 memory card emulation\n");
         ps2_card_backend_pio.reset();
         mc_main_loop();
 
         log(LOG_TRACE, "%s exit\n", __func__);
         if (settings_get_mode(true) != MODE_PS2 || settings_get_ps2_variant() != memcard_variant) {
             log(LOG_TRACE, "Mode or variant changed, exiting memcard core\n");
-            ps2_card_backend_pio.shutdown();
-            mc_exit_response = 1;
             return;
         } else {
-            log(LOG_TRACE, "Mode still PS2, reinitializing memcard core\n");
             mc_exit_response = 1;
+            log(LOG_TRACE, "Mode still PS2, reinitializing memcard core\n");
         }
     }
 }
@@ -251,8 +251,13 @@ void ps2_memory_card_main(void) {
     multicore_lockout_victim_init();
     memcard_variant = settings_get_ps2_variant();
     log(LOG_TRACE, "Secondary core!\n");
-    ps2_card_backend_pio.memory_card_startup();
+    ps2_card_backend_pio.init();
+    ps2_card_backend_pio.startup();
     mc_main();
+    ps2_card_backend_pio.shutdown();
+    ps2_card_backend_pio.deinit();
+    mc_exit_response = 1;
+    log(LOG_TRACE, "Secondary core exit!\n");
 }
 
 
@@ -261,16 +266,25 @@ void ps2_memory_card_exit(void) {
     if (!memcard_running)
         return;
 
+    int variant = settings_get_ps2_variant();
+
     mc_exit_request = 1;
     while (!mc_exit_response) {
         if (time_us_64() > exit_timeout) {
-            multicore_reset_core1();
-            multicore_launch_core1(ps2_memory_card_main);
+            log(LOG_ERROR, "MEMCARD EXIT TIMEOUT! This is an unrecoverable error! Rebooting...\n");
+            watchdog_reboot(0, 0, 0);
+            while (true) {
+                tight_loop_contents();
+            }
         }
     };
     mc_exit_request = mc_exit_response = 0;
     memcard_running = 0;
-    mmceman_mcman_retry_counter = 5;
+
+    if ((variant == PS2_VARIANT_COH) || (variant == PS2_VARIANT_SC2) )
+        mmceman_mcman_retry_counter = 0;
+    else
+        mmceman_mcman_retry_counter = 5;
     log(LOG_TRACE, "MEMCARD EXIT END!\n");
 }
 
@@ -282,9 +296,4 @@ void ps2_memory_card_enter(void) {
     mc_enter_request = 1;
     while (!mc_enter_response) {}
     mc_enter_request = mc_enter_response = 0;
-}
-
-
-void ps2_memory_card_unload(void) {
-    ps2_card_backend_pio.deinit();
 }

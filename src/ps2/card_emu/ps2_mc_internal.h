@@ -17,10 +17,12 @@
 
 
 typedef struct {
+
     /**
-     * @brief Initialize the memory card backend
+     * @brief Initialize the memory card backend and allocate resources
      */
     void (*init)(void);
+
     /**
      * @brief Deinitialize the memory card backend and free resources
      */
@@ -30,21 +32,14 @@ typedef struct {
      * @brief End current transfer and reset the backend state
      */
     void (*reset)(void);
-    /**
-     * @brief Enter the memory card backend
-     */
-    void (*enter)(void);
-    /**
-     * @brief Exit the memory card backend
-     */
-    void (*exit)(void);
+
     void (*shutdown)(void);
 
     uint8_t (*receive)(uint8_t *cmd);
     uint8_t (*receiveFirst)(uint8_t *cmd);
     void    (*respond)(uint8_t ch);
 
-    void (*memory_card_startup)(void);
+    void (*startup)(void);
 
     bool (*probe)(void);
 } ps2_memory_card_backend_t;
