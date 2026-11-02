@@ -29,8 +29,6 @@
     #define log(level, fmt, x...) LOG_PRINT(LOG_LEVEL_PS2_CM, level, fmt, ##x)
 #endif
 
-#define BLOCK_SIZE   (512)
-
 #define CARD_HOME_ARCADE     "MemoryCards/COH"
 #define CARD_HOME_CONQUEST   "MemoryCards/SC2"
 #define CARD_HOME_PS2        "MemoryCards/PS2"
@@ -40,13 +38,13 @@
 static int sector_count = -1;
 
 #if WITH_PSRAM
-#define SECTOR_COUNT_8MB (PS2_CARD_SIZE_8M / BLOCK_SIZE)
+#define SECTOR_COUNT_8MB (PS2_CARD_SIZE_8M / PS2_PAGE_SIZE)
 uint8_t available_sectors[SECTOR_COUNT_8MB / 8];  // bitmap
 #define PSRAM_AVAILABLE true
 #else
 #define PSRAM_AVAILABLE false
 #endif
-static uint8_t flushbuf[BLOCK_SIZE];
+static uint8_t flushbuf[PS2_PAGE_SIZE];
 int cardman_fd = -1;
 
 int current_read_sector = 0, priority_sector = -1;
@@ -120,10 +118,10 @@ int ps2_cardman_read_sector(int sector, void *buf512) {
     if (cardman_fd < 0)
         return -1;
 
-    if (sd_seek(cardman_fd, sector * BLOCK_SIZE, SEEK_SET) != 0)
+    if (sd_seek(cardman_fd, sector * PS2_PAGE_SIZE, SEEK_SET) != 0)
         return -1;
 
-    if (sd_read(cardman_fd, buf512, BLOCK_SIZE) != BLOCK_SIZE)
+    if (sd_read(cardman_fd, buf512, PS2_PAGE_SIZE) != PS2_PAGE_SIZE)
         return -1;
 
     return 0;
@@ -166,10 +164,36 @@ int ps2_cardman_write_sector(int sector, void *buf512) {
     if (cardman_fd < 0)
         return -1;
 
-    if (sd_seek(cardman_fd, sector * BLOCK_SIZE, SEEK_SET) != 0)
+    if (sd_seek(cardman_fd, sector * PS2_PAGE_SIZE, SEEK_SET) != 0)
         return -1;
 
-    if (sd_write(cardman_fd, buf512, BLOCK_SIZE) != BLOCK_SIZE)
+    if (sd_write(cardman_fd, buf512, PS2_PAGE_SIZE) != PS2_PAGE_SIZE)
+        return -1;
+
+    return 0;
+}
+
+int ps2_cardman_write_sectors(void *buffer, int sectors_count, int first_sector) {
+    if (cardman_fd < 0)
+        return -1;
+
+    if (sd_seek(cardman_fd, first_sector * PS2_PAGE_SIZE, SEEK_SET) != 0)
+        return -1;
+
+    if (sd_write(cardman_fd, buffer, sectors_count * PS2_PAGE_SIZE) != sectors_count * PS2_PAGE_SIZE)
+        return -1;
+
+    return 0;
+}
+
+int ps2_cardman_write_isolated_sector(void *buffer, int sector) {
+    if (cardman_fd < 0)
+        return -1;
+
+    if (sd_seek(cardman_fd, sector * PS2_PAGE_SIZE, SEEK_SET) != 0)
+        return -1;
+
+    if (sd_write_isolated(cardman_fd, buffer) != PS2_PAGE_SIZE)
         return -1;
 
     return 0;
@@ -448,22 +472,22 @@ static void ps2_cardman_continue(void) {
                     break;
                 }
 
-                size_t pos = sector_idx * BLOCK_SIZE;
+                size_t pos = sector_idx * PS2_PAGE_SIZE;
                 if (sd_seek(cardman_fd, pos, 0) != 0)
                     fatal(ERR_CARDMAN, "cannot read memcard\nseek");
 
-                if (sd_read(cardman_fd, flushbuf, BLOCK_SIZE) != BLOCK_SIZE)
+                if (sd_read(cardman_fd, flushbuf, PS2_PAGE_SIZE) != PS2_PAGE_SIZE)
                     fatal(ERR_CARDMAN, "cannot read memcard\nread %u", pos);
 
                 log(LOG_TRACE, "Writing pos %u\n", pos);
-                psram_write_dma(pos, flushbuf, BLOCK_SIZE, NULL);
+                psram_write_dma(pos, flushbuf, PS2_PAGE_SIZE, NULL);
 
                 psram_wait_for_dma();
 
                 ps2_cardman_mark_sector_available(sector_idx);
                 ps2_dirty_unlock();
 
-                cardprog_pos = cardman_sectors_done * BLOCK_SIZE;
+                cardprog_pos = cardman_sectors_done * PS2_PAGE_SIZE;
 
                 if (cardman_cb)
                     cardman_cb(100U * (uint64_t)cardprog_pos / (uint64_t)card_size, false);
@@ -479,7 +503,7 @@ static void ps2_cardman_continue(void) {
     } else if (cardman_operation == CARDMAN_CREATE) {
         uint64_t slice_start = time_us_64();
         while ((ps2_mmceman_fs_idle()) && (time_us_64() - slice_start < MAX_SLICE_LENGTH)) {
-            cardprog_pos = cardman_sectors_done * BLOCK_SIZE;
+            cardprog_pos = cardman_sectors_done * PS2_PAGE_SIZE;
             if (cardprog_pos >= card_size) {
                 sd_flush(cardman_fd);
                 log(LOG_INFO, "OK!\n");
@@ -496,17 +520,17 @@ static void ps2_cardman_continue(void) {
             }
             if (ps2_mc_data_interface_get_sdmode()) {
                 genblock(cardprog_pos, flushbuf);
-                sd_write(cardman_fd, flushbuf, BLOCK_SIZE);
+                sd_write(cardman_fd, flushbuf, PS2_PAGE_SIZE);
             } else {
 #if WITH_PSRAM
                 ps2_dirty_lock();
                 psram_wait_for_dma();
 
                 // read back from PSRAM to make sure to retain already rewritten sectors, if any
-                psram_read_dma(cardprog_pos, flushbuf, BLOCK_SIZE, NULL);
+                psram_read_dma(cardprog_pos, flushbuf, PS2_PAGE_SIZE, NULL);
                 psram_wait_for_dma();
 
-                if (sd_write(cardman_fd, flushbuf, BLOCK_SIZE) != BLOCK_SIZE)
+                if (sd_write(cardman_fd, flushbuf, PS2_PAGE_SIZE) != PS2_PAGE_SIZE)
                     fatal(ERR_CARDMAN, "cannot init memcard");
 
                 ps2_dirty_unlock();
@@ -547,16 +571,16 @@ static bool ps2_check_cardsize(uint32_t filesize) {
 #if WITH_PSRAM
 static void ps2_cardman_initializePSRAMCard(void) {
         // quickly generate and write an empty card into PSRAM so that it's immediately available, takes about ~0.6s
-    for (size_t pos = 0; pos < card_size; pos += BLOCK_SIZE) {
+    for (size_t pos = 0; pos < card_size; pos += PS2_PAGE_SIZE) {
         if (card_size == PS2_CARD_SIZE_8M)
             genblock(pos, flushbuf);
         else
-            memset(flushbuf, 0xFF, BLOCK_SIZE);
+            memset(flushbuf, 0xFF, PS2_PAGE_SIZE);
 
         ps2_dirty_lock();
-        psram_write_dma(pos, flushbuf, BLOCK_SIZE, NULL);
+        psram_write_dma(pos, flushbuf, PS2_PAGE_SIZE, NULL);
         psram_wait_for_dma();
-        ps2_cardman_mark_sector_available(pos / BLOCK_SIZE);
+        ps2_cardman_mark_sector_available(pos / PS2_PAGE_SIZE);
         ps2_dirty_unlock();
     }
     log(LOG_TRACE, "%s created empty PSRAM image... \n", __func__);
@@ -682,7 +706,7 @@ void ps2_cardman_open(void) {
     }
     cardprog_start = time_us_64();
 
-    sector_count = card_size / BLOCK_SIZE;
+    sector_count = card_size / PS2_PAGE_SIZE;
 
     log(LOG_INFO, "Open Finished!\n");
 }
