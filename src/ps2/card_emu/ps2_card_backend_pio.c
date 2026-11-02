@@ -26,40 +26,41 @@ typedef struct {
 } pio_t;
 
 
-static void pio_reset(void);
-static void pio_init(void);
-static void pio_deinit(void);
-static uint8_t pio_receiveFirst(uint8_t *cmd);
-static uint8_t pio_receive(uint8_t *cmd);
-static void pio_respond(uint8_t ch);
-static bool pio_probe(void);
-static void pio_irq_startup(void);
-static void pio_irq_shutdown(void);
-static void pio_memory_card_startup(void);
+static void ps2_pio_reset(void);
+static void ps2_pio_init(void);
+static void ps2_pio_deinit(void);
+static uint8_t ps2_pio_receiveFirst(uint8_t *cmd);
+static uint8_t ps2_pio_receive(uint8_t *cmd);
+static void ps2_pio_respond(uint8_t ch);
+static bool ps2_pio_probe(void);
+static void ps2_pio_irq_startup(void);
+static void ps2_pio_irq_shutdown(void);
+static void ps2_pio_memory_card_startup(void);
+
+
 static void pio_set_irq_callback(gpio_irq_callback_t callback);
 
 
 static pio_t cmd_reader, dat_writer;
-static bool pio_initialized;
-static bool pio_irq_registered;
+static bool ps2_pio_initialized;
 static bool ps2_host_confirmed;
 static gpio_irq_callback_t callbacks[NUM_CORES];
 
 ps2_memory_card_backend_t ps2_card_backend_pio = {
-    .init = pio_init,
-    .deinit = pio_deinit,
-    .reset = pio_reset,
-    .startup = pio_memory_card_startup,
-    .shutdown = pio_irq_shutdown,
+    .init = ps2_pio_init,
+    .deinit = ps2_pio_deinit,
+    .reset = ps2_pio_reset,
+    .startup = ps2_pio_memory_card_startup,
+    .shutdown = ps2_pio_irq_shutdown,
 
-    .receive = pio_receive,
-    .receiveFirst = pio_receiveFirst,
-    .respond = pio_respond,
+    .receive = ps2_pio_receive,
+    .receiveFirst = ps2_pio_receiveFirst,
+    .respond = ps2_pio_respond,
 
-    .probe = pio_probe,
+    .probe = ps2_pio_probe,
 };
 
-static void __time_critical_func(pio_reset)(void) {
+static void __time_critical_func(ps2_pio_reset)(void) {
 
     /* NOTE: If the TX FIFO's not empty and this intr is triggered in the middle
      * of a MMCEMAN FS function, it's a safe bet the PS2 was reset or the SD2PSX was unplugged */
@@ -85,16 +86,16 @@ static void __time_critical_func(pio_reset)(void) {
     pio_enable_sm_mask_in_sync(pio0, sm_mask);
 
     if (mmceman_tx_queued) {
-        pio_respond(mmceman_tx_byte); //Preemptively place byte on tx for proper alignment with mmce fs read packets
+        ps2_pio_respond(mmceman_tx_byte); //Preemptively place byte on tx for proper alignment with mmce fs read packets
         mmceman_tx_queued = false;
         mmceman_tx_byte = 0;
     }
 
-    reset = 1;
+    ps2_reset = 1;
 }
 
-static void __time_critical_func(pio_init)(void) {
-    if (pio_initialized)
+static void __time_critical_func(ps2_pio_init)(void) {
+    if (ps2_pio_initialized)
         // This should never happen, but if it does, we want to avoid reinitializing the PIO and causing a crash
         return;
     log(LOG_TRACE, "Initializing PIO for PS2 memory card emulation\n");
@@ -122,27 +123,27 @@ static void __time_critical_func(pio_init)(void) {
 
     cmd_reader_program_init(pio0, cmd_reader.sm, cmd_reader.offset);
     dat_writer_program_init(pio0, dat_writer.sm, dat_writer.offset);
-    pio_initialized = true;
+    ps2_pio_initialized = true;
 
     log(LOG_TRACE, "PIO initialized for PS2 memory card emulation\n");
 }
 
 
-static uint8_t __time_critical_func(pio_receive)(uint8_t *cmd) {
+static uint8_t __time_critical_func(ps2_pio_receive)(uint8_t *cmd) {
     do {
         while (pio_sm_is_rx_fifo_empty(pio0, cmd_reader.sm) && pio_sm_is_rx_fifo_empty(pio0, cmd_reader.sm) && pio_sm_is_rx_fifo_empty(pio0, cmd_reader.sm) &&
             pio_sm_is_rx_fifo_empty(pio0, cmd_reader.sm) && pio_sm_is_rx_fifo_empty(pio0, cmd_reader.sm) && 1) {
-            if (reset) {
-                return RECEIVE_RESET;
+            if (ps2_reset) {
+                return PS2_RECEIVE_RESET;
             }
         }
         (*cmd) = (pio_sm_get(pio0, cmd_reader.sm) >> 24);
-        return RECEIVE_OK;
+        return PS2_RECEIVE_OK;
     }
     while (0);
 }
 
-static uint8_t __time_critical_func(pio_receiveFirst)(uint8_t *cmd) {
+static uint8_t __time_critical_func(ps2_pio_receiveFirst)(uint8_t *cmd) {
     do {
         while (pio_sm_is_rx_fifo_empty(pio0, cmd_reader.sm)
                 && pio_sm_is_rx_fifo_empty(pio0, cmd_reader.sm)
@@ -150,24 +151,24 @@ static uint8_t __time_critical_func(pio_receiveFirst)(uint8_t *cmd) {
                 && pio_sm_is_rx_fifo_empty(pio0, cmd_reader.sm)
                 && pio_sm_is_rx_fifo_empty(pio0, cmd_reader.sm)
                 && 1) {
-            if (reset)
-                return RECEIVE_RESET;
-            if (mc_exit_request)
-                return RECEIVE_EXIT;
+            if (ps2_reset)
+                return PS2_RECEIVE_RESET;
+            if (ps2_mc_exit_request)
+                return PS2_RECEIVE_EXIT;
         }
         (*cmd) = (pio_sm_get(pio0, cmd_reader.sm) >> 24);
-        card_active = true;
-        return RECEIVE_OK;
+        ps2_card_active = true;
+        return PS2_RECEIVE_OK;
     }
     while (0);
 }
 
-static void __time_critical_func(pio_respond)(uint8_t ch) {
+static void __time_critical_func(ps2_pio_respond)(uint8_t ch) {
     pio_sm_put_blocking(pio0, dat_writer.sm, ch);
 }
 
 
-static bool __time_critical_func(pio_probe)(void) {
+static bool __time_critical_func(ps2_pio_probe)(void) {
     if (ps2_host_confirmed)
         return false;
 
@@ -175,7 +176,7 @@ static bool __time_critical_func(pio_probe)(void) {
 
     /* ACK stays open drain and DAT Hi-Z until the host is known to be a PS2. */
     gpio_set_oeover(PIN_PSX_ACK, GPIO_OVERRIDE_HIGH);
-    pio_receive(&cmd);
+    ps2_pio_receive(&cmd);
 
     if (cmd == PS2_SIO2_CMD_0x11) {
         log(LOG_INFO, "PS2 host confirmed, enabling ACK and DAT push-pull drivers\n");
@@ -191,18 +192,23 @@ static bool __time_critical_func(pio_probe)(void) {
     return true;
 }
 
-static void pio_deinit(void) {
-    if (!pio_initialized)
+static void ps2_pio_deinit(void) {
+    if (!ps2_pio_initialized)
         return;
 
     /* The owning core must detach its handler before Core 0 frees resources. */
-    pio_sm_set_enabled(pio0, cmd_reader.sm, false);
-    pio_sm_set_enabled(pio0, dat_writer.sm, false);
+
+    // Stop the machines before their programs/resources are released.
+    const uint32_t sm_mask =
+        (1u << cmd_reader.sm) | (1u << dat_writer.sm);
+
+    pio_set_sm_mask_enabled(pio0, sm_mask, false);
+
     pio_sm_clear_fifos(pio0, cmd_reader.sm);
     pio_sm_clear_fifos(pio0, dat_writer.sm);
     pio_remove_program(pio0, &cmd_reader_program, cmd_reader.offset);
-    pio_sm_unclaim(pio0, cmd_reader.sm);
     pio_remove_program(pio0, &dat_writer_program, dat_writer.offset);
+    pio_sm_unclaim(pio0, cmd_reader.sm);
     pio_sm_unclaim(pio0, dat_writer.sm);
     log(LOG_TRACE, "Unclaimed %u, %u!\n", cmd_reader.sm, dat_writer.sm);
     gpio_set_oeover(PIN_PSX_ACK, GPIO_OVERRIDE_LOW);
@@ -210,15 +216,15 @@ static void pio_deinit(void) {
     cmd_reader = (pio_t){0};
     dat_writer = (pio_t){0};
     ps2_host_confirmed = false;
-    card_active = false;
-    pio_initialized = false;
+    ps2_card_active = false;
+    ps2_pio_initialized = false;
 }
 
 
-static void pio_memory_card_startup(void) {
+static void ps2_pio_memory_card_startup(void) {
 
     log(LOG_TRACE, "Starting up PS2 memory card emulation\n");
-    pio_irq_startup();
+    ps2_pio_irq_startup();
 
     gpio_set_slew_rate(PIN_PSX_DAT, GPIO_SLEW_RATE_FAST);
     gpio_set_drive_strength(PIN_PSX_DAT, GPIO_DRIVE_STRENGTH_12MA);
@@ -227,14 +233,14 @@ static void pio_memory_card_startup(void) {
 
 static void __time_critical_func(pio_card_deselected)(uint gpio, uint32_t event_mask) {
     if (gpio == PIN_PSX_SEL && (event_mask & GPIO_IRQ_EDGE_RISE)) {
-        card_active = false;
+        ps2_card_active = false;
         ps2_card_backend_pio.reset();
     }
 }
 
 // Call once on core 1, after mc_main_loop() has returned.
 // Assumes IO_IRQ_BANK0 is owned exclusively by this subsystem.
-static void pio_irq_shutdown(void) {
+static void ps2_pio_irq_shutdown(void) {
 
     log(LOG_TRACE, "%s\n", __func__);
 
@@ -252,11 +258,10 @@ static void pio_irq_shutdown(void) {
     pio_set_sm_mask_enabled(pio0, sm_mask, false);
 
     pio_set_irq_callback(NULL);
-    pio_irq_registered = false;
 
     gpio_set_oeover(PIN_PSX_ACK, GPIO_OVERRIDE_LOW);
     gpio_set_oeover(PIN_PSX_DAT, GPIO_OVERRIDE_LOW);
-    card_active = false;
+    ps2_card_active = false;
 }
 
 
@@ -306,12 +311,8 @@ static void pio_set_irq_enabled_with_callback(uint gpio, uint32_t events, bool e
 }
 
 
-static void __time_critical_func(pio_irq_startup)(void) {
-    //if (pio_irq_registered)
-    //    return;
-
+static void __time_critical_func(ps2_pio_irq_startup)(void) {
     pio_set_irq_enabled_with_callback(PIN_PSX_SEL, GPIO_IRQ_EDGE_RISE, true, pio_card_deselected);
 
-    pio_irq_registered = true;
     log(LOG_TRACE, "PS2 memory card SEL rising edge interrupt handler registered\n");
 }

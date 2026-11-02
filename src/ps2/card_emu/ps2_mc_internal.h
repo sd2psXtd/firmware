@@ -44,7 +44,7 @@ typedef struct {
     bool (*probe)(void);
 } ps2_memory_card_backend_t;
 
-enum { RECEIVE_RESET, RECEIVE_EXIT, RECEIVE_OK };
+enum { PS2_RECEIVE_RESET, PS2_RECEIVE_EXIT, PS2_RECEIVE_OK };
 
 extern uint8_t term;
 extern uint32_t read_sector, write_sector, erase_sector;
@@ -52,20 +52,15 @@ extern uint8_t writetmp[528];
 extern int is_write, is_dma_read;
 extern uint32_t readptr, writeptr;
 extern uint8_t *eccptr;
-extern volatile bool card_active;
-extern volatile int reset;
-extern volatile int mc_exit_request;
+extern volatile bool ps2_card_active;
+extern volatile int ps2_reset;
+extern volatile int ps2_mc_exit_request;
 extern ps2_memory_card_backend_t ps2_card_backend_pio;
 
 extern const uint8_t EccTable[];
 
-extern uint8_t receive(uint8_t *cmd);
-extern uint8_t receiveFirst(uint8_t *cmd);
-extern void __time_critical_func(mc_respond)(uint8_t ch);
-extern void __time_critical_func(read_mc)(uint32_t addr, void *buf, size_t sz, void (*cb)(void));
-extern void __time_critical_func(write_mc)(uint32_t addr, void *buf, size_t sz);
 
 #define receiveOrNextCmd(cmd)          \
-    if (ps2_card_backend_pio.receive(cmd) == RECEIVE_RESET) {\
+    if (ps2_card_backend_pio.receive(cmd) == PS2_RECEIVE_RESET) {\
     DPRINTF("Reset at %s:%u", __func__, __LINE__); \
     return;}

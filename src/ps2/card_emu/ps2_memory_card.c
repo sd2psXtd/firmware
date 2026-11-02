@@ -25,15 +25,15 @@
 #define log(level, fmt, x...) LOG_PRINT(LOG_LEVEL_PS2_MC, level, fmt, ##x)
 #endif
 
-volatile int reset;
+volatile int ps2_reset;
 
 
 uint8_t term = 0xFF;
 
 static int memcard_running;
-volatile bool card_active;
+volatile bool ps2_card_active;
 
-volatile int mc_exit_request;
+volatile int ps2_mc_exit_request;
 static volatile int mc_exit_response, mc_enter_request, mc_enter_response;
 
 static int memcard_variant;
@@ -80,8 +80,8 @@ static void __time_critical_func(mc_main_loop)(void) {
     while (1) {
         uint8_t cmd = 0;
 
-        while (!reset && !reset && !reset && !reset && !reset) {
-            if (mc_exit_request) {
+        while (!ps2_reset && !ps2_reset && !ps2_reset && !ps2_reset && !ps2_reset) {
+            if (ps2_mc_exit_request) {
                 return;
             }
         }
@@ -98,7 +98,7 @@ static void __time_critical_func(mc_main_loop)(void) {
             mmceman_timeout_detected = false;
         }
 
-        reset = 0;
+        ps2_reset = 0;
         if (mmceman_callback != NULL) {
             mmceman_callback();
             continue;
@@ -106,10 +106,10 @@ static void __time_critical_func(mc_main_loop)(void) {
 
         uint8_t received = ps2_card_backend_pio.receiveFirst(&cmd);
 
-        if (received == RECEIVE_EXIT) {
+        if (received == PS2_RECEIVE_EXIT) {
             break;
         }
-        if (received == RECEIVE_RESET)
+        if (received == PS2_RECEIVE_RESET)
             continue;
 
 
@@ -132,7 +132,7 @@ static void __time_critical_func(mc_main_loop)(void) {
             ps2_card_backend_pio.respond(0xFF);
 
             /* sub cmd */
-            if (ps2_card_backend_pio.receive(&cmd) == RECEIVE_RESET)
+            if (ps2_card_backend_pio.receive(&cmd) == PS2_RECEIVE_RESET)
                 continue;
 
             log(LOG_TRACE, "%s: 0x81 %.02x\n", __func__, cmd);
@@ -256,8 +256,8 @@ void ps2_memory_card_main(void) {
     mc_main();
     ps2_card_backend_pio.shutdown();
     ps2_card_backend_pio.deinit();
-    mc_exit_response = 1;
     log(LOG_TRACE, "Secondary core exit!\n");
+    mc_exit_response = 1;
 }
 
 
@@ -266,9 +266,7 @@ void ps2_memory_card_exit(void) {
     if (!memcard_running)
         return;
 
-    int variant = settings_get_ps2_variant();
-
-    mc_exit_request = 1;
+    ps2_mc_exit_request = 1;
     while (!mc_exit_response) {
         if (time_us_64() > exit_timeout) {
             log(LOG_ERROR, "MEMCARD EXIT TIMEOUT! This is an unrecoverable error! Rebooting...\n");
@@ -278,13 +276,10 @@ void ps2_memory_card_exit(void) {
             }
         }
     };
-    mc_exit_request = mc_exit_response = 0;
+    ps2_mc_exit_request = mc_exit_response = 0;
     memcard_running = 0;
 
-    if ((variant == PS2_VARIANT_COH) || (variant == PS2_VARIANT_SC2) )
-        mmceman_mcman_retry_counter = 0;
-    else
-        mmceman_mcman_retry_counter = 5;
+    ps2_mmceman_rearm_retry_counter();
     log(LOG_TRACE, "MEMCARD EXIT END!\n");
 }
 

@@ -39,13 +39,13 @@ uint64_t last_response;
 
 static void __time_critical_func(delayed_response)(char ch, uint32_t delay, const char* func) {
 #ifdef DEBUG_USB_UART
-    if (!card_active) {log(LOG_ERROR, "%s Card already deselected - byte %02x after %u \n", func, ch, (uint32_t)(time_us_64() - last_response));}
+    if (!ps2_card_active) {log(LOG_ERROR, "%s Card already deselected - byte %02x after %u \n", func, ch, (uint32_t)(time_us_64() - last_response));}
 #endif
 
     while ((ps2_mc_data_interface_delay_required()) && (time_us_64() - last_response < delay)) {
         sleep_us(10);
 #ifdef DEBUG_USB_UART
-        if (!card_active) {log(LOG_ERROR, "%s Card deselected at byte %02x after %u \n", func, ch, (uint32_t)(time_us_64() - last_response)); break;}
+        if (!ps2_card_active) {log(LOG_ERROR, "%s Card deselected at byte %02x after %u \n", func, ch, (uint32_t)(time_us_64() - last_response)); break;}
 #endif
     }
     ps2_card_backend_pio.respond(ch);
@@ -271,7 +271,7 @@ inline __attribute__((always_inline)) void __time_critical_func(ps2_mc_cmd_readD
     receiveOrNextCmd(&_);
 
 #ifdef DEBUG_USB_UART
-    if (!card_active) {log(LOG_ERROR, "%s Card already deselected - pre\n", __func__);}
+    if (!ps2_card_active) {log(LOG_ERROR, "%s Card already deselected - pre\n", __func__);}
 #endif
 
     for (int i = 0; i < sz; ++i) {
@@ -335,7 +335,7 @@ inline __attribute__((always_inline)) void __time_critical_func(ps2_mc_cmd_readD
         } else
             delayed_response(b, PS2_MAX_ACK_DELAY_MID, __func__);
 
-        if (!card_active) log(LOG_ERROR, "%s Card already deselected %i\n", __func__, i);
+        if (!ps2_card_active) log(LOG_ERROR, "%s Card already deselected %i\n", __func__, i);
 
         ck ^= b;
         receiveOrNextCmd(&_);
@@ -361,7 +361,7 @@ inline __attribute__((always_inline)) void __time_critical_func(ps2_mc_cmd_readD
         }
     }
 #ifdef DEBUG_USB_UART
-    if (!card_active) log(LOG_ERROR, "%s Card already deselected end\n", __func__);
+    if (!ps2_card_active) log(LOG_ERROR, "%s Card already deselected end\n", __func__);
 #endif
 
     delayed_response(ck, PS2_MAX_ACK_DELAY_MID, __func__);

@@ -37,7 +37,7 @@ int mmceman_transfer_stage = 0;
 volatile bool mmceman_tx_queued;
 volatile uint8_t mmceman_tx_byte;
 
-volatile uint8_t mmceman_mcman_retry_counter;
+volatile uint8_t mmceman_mcman_retry_counter = 0;
 volatile bool mmceman_op_in_progress = false;
 volatile bool mmceman_timeout_detected = false;
 volatile bool mmceman_fs_abort_read = false;
@@ -144,16 +144,7 @@ void ps2_mmceman_task(void) {
         gui_request_refresh();
         log(LOG_TRACE, "%s After Refresh\n", __func__);
 #endif
-        /* Set retry counter to stop the sd2psx from
-         * responding to the next 5 requests from mcman.
-         * This causes mmcman to clear it's cache and invalidate
-         * handles, preventing a cache flush bug from causing corruption.
-         * Arcade variants (COH, SC2) identify the card once at boot and do
-         * not retry, so they get no refusals. */
-        if ((settings_get_ps2_variant() == PS2_VARIANT_COH) || (settings_get_ps2_variant() == PS2_VARIANT_SC2))
-            mmceman_mcman_retry_counter = 0;
-        else
-            mmceman_mcman_retry_counter = 5;
+        ps2_mmceman_rearm_retry_counter();
 
         // open new card
         ps2_cardman_open();
@@ -237,4 +228,17 @@ void ps2_mmceman_set_channel(uint16_t chn, bool delay) {
     mmceman_chn = chn;
     mmceman_mode = MMCEMAN_MODE_NUM;
     mmceman_cmd = MMCEMAN_SET_CHANNEL;
+}
+
+void ps2_mmceman_rearm_retry_counter(void) {
+        /* Set retry counter to stop the sd2psx from
+         * responding to the next 5 requests from mcman.
+         * This causes mmcman to clear it's cache and invalidate
+         * handles, preventing a cache flush bug from causing corruption.
+         * Arcade variants (COH, SC2) identify the card once at boot and do
+         * not retry, so they get no refusals. */
+        if ((settings_get_ps2_variant() == PS2_VARIANT_COH) || (settings_get_ps2_variant() == PS2_VARIANT_SC2))
+            mmceman_mcman_retry_counter = 0;
+        else
+            mmceman_mcman_retry_counter = 5;
 }

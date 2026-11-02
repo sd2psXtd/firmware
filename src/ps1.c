@@ -100,5 +100,4 @@ void ps1_deinit(void) {
         ps1_dirty_task();
     ps1_cardman_close();
     multicore_reset_core1();
-    ps1_memory_card_unload();
 }

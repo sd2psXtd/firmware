@@ -42,7 +42,7 @@ static bool __time_critical_func(ps2_mmceman_receive_path)(volatile uint8_t *buf
 
     while (idx < (buffer_size - 1)) {
         ps2_card_backend_pio.respond(0x0);
-        if (ps2_card_backend_pio.receive(&cmd) == RECEIVE_RESET) {
+        if (ps2_card_backend_pio.receive(&cmd) == PS2_RECEIVE_RESET) {
             DPRINTF("Reset at %s:%u", __func__, __LINE__);
             return false;
         }
@@ -56,7 +56,7 @@ static bool __time_critical_func(ps2_mmceman_receive_path)(volatile uint8_t *buf
 
     do {
         ps2_card_backend_pio.respond(0x0);
-        if (ps2_card_backend_pio.receive(&cmd) == RECEIVE_RESET) {
+        if (ps2_card_backend_pio.receive(&cmd) == PS2_RECEIVE_RESET) {
             DPRINTF("Reset at %s:%u", __func__, __LINE__);
             return false;
         }

@@ -21,6 +21,7 @@
 #endif
 
 #include "ps2.h"
+#include "ps2/mmceman/ps2_mmceman.h"
 #include "ps1.h"
 
 #include "game_db/game_db.h"
@@ -141,6 +142,8 @@ int main() {
             } while(ps1_task());
             ps1_deinit();
         }
+        // ReArm PS2 retry counter
+        ps2_mmceman_rearm_retry_counter();
 #if DEBUG_USB_UART == 0
         stdio_usb_deinit();
 #endif

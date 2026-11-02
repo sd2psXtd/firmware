@@ -57,7 +57,7 @@ static int ps2_variant = PS2_VARIANT_RETAIL;
 
 void ps2_init(void) {
     log(LOG_INFO, "starting in PS2 mode\n");
-    mmceman_mcman_retry_counter = 0;
+
     keystore_init();
 
     multicore_launch_core1(ps2_memory_card_main);
@@ -108,7 +108,6 @@ bool ps2_task(void) {
 
     ps2_mmceman_fs_run();
     log(LOG_TRACE, "%s mmcefs\n", __func__);
-
 
     if (ps2_cardman_is_accessible())
         ps2_history_tracker_task();
