@@ -41,8 +41,8 @@ static bool __time_critical_func(ps2_mmceman_receive_path)(volatile uint8_t *buf
     }
 
     while (idx < (buffer_size - 1)) {
-        mc_respond(0x0);
-        if (receive(&cmd) == RECEIVE_RESET) {
+        ps2_card_backend->respond(0x0);
+        if (ps2_card_backend->receive(&cmd) == PS2_RECEIVE_RESET) {
             DPRINTF("Reset at %s:%u", __func__, __LINE__);
             return false;
         }
@@ -55,8 +55,8 @@ static bool __time_critical_func(ps2_mmceman_receive_path)(volatile uint8_t *buf
     buffer[buffer_size - 1] = 0x0;
 
     do {
-        mc_respond(0x0);
-        if (receive(&cmd) == RECEIVE_RESET) {
+        ps2_card_backend->respond(0x0);
+        if (ps2_card_backend->receive(&cmd) == PS2_RECEIVE_RESET) {
             DPRINTF("Reset at %s:%u", __func__, __LINE__);
             return false;
         }
@@ -68,11 +68,11 @@ static bool __time_critical_func(ps2_mmceman_receive_path)(volatile uint8_t *buf
 inline __attribute__((always_inline)) void __time_critical_func(ps2_mmceman_cmd_ping)(void)
 {
     uint8_t cmd;
-    mc_respond(0x0); receiveOrNextCmd(&cmd); //reserved byte
-    mc_respond(MMCE_PROTOCOL_VER);  receiveOrNextCmd(&cmd); //protocol version
-    mc_respond(MMCE_PRODUCT_ID);    receiveOrNextCmd(&cmd); //product ID
-    mc_respond(MMCE_REVISION);      receiveOrNextCmd(&cmd); //product revision number
-    mc_respond(term);
+    ps2_card_backend->respond(0x0); receiveOrNextCmd(&cmd); //reserved byte
+    ps2_card_backend->respond(MMCE_PROTOCOL_VER);  receiveOrNextCmd(&cmd); //protocol version
+    ps2_card_backend->respond(MMCE_PRODUCT_ID);    receiveOrNextCmd(&cmd); //product ID
+    ps2_card_backend->respond(MMCE_REVISION);      receiveOrNextCmd(&cmd); //product revision number
+    ps2_card_backend->respond(term);
 
     log(LOG_INFO, "received MMCEMAN_PING\n");
 }
@@ -86,15 +86,15 @@ inline __attribute__((always_inline)) void __time_critical_func(ps2_mmceman_cmd_
     /* TODO: Finish fleshing out spec and implementation details.
      * Currently it sets bit 0 of the first byte if the sd2psx
      * is busy switching memcards */
-    mc_respond(0x0);    receiveOrNextCmd(&cmd); //reserved byte
+    ps2_card_backend->respond(0x0);    receiveOrNextCmd(&cmd); //reserved byte
 
     if (!ps2_cardman_is_idle()) {
         status |= 1;
     }
 
-    mc_respond(error);    receiveOrNextCmd(&cmd);
-    mc_respond(status);   receiveOrNextCmd(&cmd);
-    mc_respond(term);
+    ps2_card_backend->respond(error);    receiveOrNextCmd(&cmd);
+    ps2_card_backend->respond(status);   receiveOrNextCmd(&cmd);
+    ps2_card_backend->respond(term);
 
     log(LOG_INFO, "received MMCEMAN_GET_STATUS\n");
 }
@@ -103,10 +103,10 @@ inline __attribute__((always_inline)) void __time_critical_func(ps2_mmceman_cmd_
 {
     uint8_t cmd;
     int card = ps2_cardman_get_idx();
-    mc_respond(0x0);         receiveOrNextCmd(&cmd); //reserved byte
-    mc_respond(card >> 8);   receiveOrNextCmd(&cmd); //card upper 8 bits
-    mc_respond(card & 0xff); receiveOrNextCmd(&cmd); //card lower 8 bits
-    mc_respond(term);
+    ps2_card_backend->respond(0x0);         receiveOrNextCmd(&cmd); //reserved byte
+    ps2_card_backend->respond(card >> 8);   receiveOrNextCmd(&cmd); //card upper 8 bits
+    ps2_card_backend->respond(card & 0xff); receiveOrNextCmd(&cmd); //card lower 8 bits
+    ps2_card_backend->respond(term);
 
     log(LOG_INFO, "received MMCEMAN_GET_CARD\n");
 }
@@ -116,16 +116,16 @@ inline __attribute__((always_inline)) void __time_critical_func(ps2_mmceman_cmd_
     uint8_t cmd;
     uint8_t type;
 
-    mc_respond(0x0); receiveOrNextCmd(&cmd); //reserved byte
-    mc_respond(0x0); receiveOrNextCmd(&cmd); //type (unused?)
+    ps2_card_backend->respond(0x0); receiveOrNextCmd(&cmd); //reserved byte
+    ps2_card_backend->respond(0x0); receiveOrNextCmd(&cmd); //type (unused?)
     type = cmd;
-    mc_respond(0x0); receiveOrNextCmd(&cmd); //mode
+    ps2_card_backend->respond(0x0); receiveOrNextCmd(&cmd); //mode
     mmceman_mode = cmd;
-    mc_respond(0x0); receiveOrNextCmd(&cmd); //card upper 8 bits
+    ps2_card_backend->respond(0x0); receiveOrNextCmd(&cmd); //card upper 8 bits
     mmceman_cnum = cmd << 8;
-    mc_respond(0x0); receiveOrNextCmd(&cmd); //card lower 8 bits
+    ps2_card_backend->respond(0x0); receiveOrNextCmd(&cmd); //card lower 8 bits
     mmceman_cnum |= cmd;
-    mc_respond(term);
+    ps2_card_backend->respond(term);
 
     //TEMP: for switching to bootcard
     if (type == 1) {
@@ -141,10 +141,10 @@ inline __attribute__((always_inline)) void __time_critical_func(ps2_mmceman_cmd_
 {
     uint8_t cmd;
     int chan = ps2_cardman_get_channel();
-    mc_respond(0x0);         receiveOrNextCmd(&cmd); //reserved byte
-    mc_respond(chan >> 8);   receiveOrNextCmd(&cmd); //channel upper 8 bits
-    mc_respond(chan & 0xff); receiveOrNextCmd(&cmd); //channel lower 8 bits
-    mc_respond(term);
+    ps2_card_backend->respond(0x0);         receiveOrNextCmd(&cmd); //reserved byte
+    ps2_card_backend->respond(chan >> 8);   receiveOrNextCmd(&cmd); //channel upper 8 bits
+    ps2_card_backend->respond(chan & 0xff); receiveOrNextCmd(&cmd); //channel lower 8 bits
+    ps2_card_backend->respond(term);
 
     log(LOG_INFO, "received MMCEMAN_GET_CHANNEL - %i\n", chan);
 }
@@ -152,14 +152,14 @@ inline __attribute__((always_inline)) void __time_critical_func(ps2_mmceman_cmd_
 inline __attribute__((always_inline)) void __time_critical_func(ps2_mmceman_cmd_set_channel)(void)
 {
     uint8_t cmd;
-    mc_respond(0x0); receiveOrNextCmd(&cmd); //reserved byte
-    mc_respond(0x0); receiveOrNextCmd(&cmd); //mode
+    ps2_card_backend->respond(0x0); receiveOrNextCmd(&cmd); //reserved byte
+    ps2_card_backend->respond(0x0); receiveOrNextCmd(&cmd); //mode
     mmceman_mode = cmd;
-    mc_respond(0x0); receiveOrNextCmd(&cmd); //channel upper 8 bits
+    ps2_card_backend->respond(0x0); receiveOrNextCmd(&cmd); //channel upper 8 bits
     mmceman_chn = cmd << 8;
-    mc_respond(0x0); receiveOrNextCmd(&cmd); //channel lower 8 bits
+    ps2_card_backend->respond(0x0); receiveOrNextCmd(&cmd); //channel lower 8 bits
     mmceman_chn |= cmd;
-    mc_respond(term);
+    ps2_card_backend->respond(term);
 
     log(LOG_INFO, "received MMCEMAN_SET_CHANNEL mode: %i, num: %i\n", mmceman_mode, mmceman_chn);
 
@@ -174,18 +174,18 @@ inline __attribute__((always_inline)) void __time_critical_func(ps2_mmceman_cmd_
         return;
     } else {
         uint8_t gameid_len = strlen(gameId) + 1; //+1 null terminator
-        mc_respond(0x0);        receiveOrNextCmd(&cmd);    //reserved byte
-        mc_respond(gameid_len); receiveOrNextCmd(&cmd);    //gameid length
+        ps2_card_backend->respond(0x0);        receiveOrNextCmd(&cmd);    //reserved byte
+        ps2_card_backend->respond(gameid_len); receiveOrNextCmd(&cmd);    //gameid length
 
         for (int i = 0; i < gameid_len; i++) {
-            mc_respond(gameId[i]); receiveOrNextCmd(&cmd); //gameid
+            ps2_card_backend->respond(gameId[i]); receiveOrNextCmd(&cmd); //gameid
         }
 
         for (int i = 0; i < (250 - gameid_len); i++) {
-            mc_respond(0x0); receiveOrNextCmd(&cmd); //padding
+            ps2_card_backend->respond(0x0); receiveOrNextCmd(&cmd); //padding
         }
 
-        mc_respond(term);
+        ps2_card_backend->respond(term);
     }
 
     log(LOG_INFO, "received MMCEMAN_GET_GAMEID\n");
@@ -196,16 +196,16 @@ inline __attribute__((always_inline)) void __time_critical_func(ps2_mmceman_cmd_
     uint8_t cmd;
     uint8_t gameid_len;
     uint8_t received_id[256] = { 0 };
-    mc_respond(0x0); receiveOrNextCmd(&cmd); //reserved byte
-    mc_respond(0x0); receiveOrNextCmd(&cmd); //gameid length
+    ps2_card_backend->respond(0x0); receiveOrNextCmd(&cmd); //reserved byte
+    ps2_card_backend->respond(0x0); receiveOrNextCmd(&cmd); //gameid length
     gameid_len = cmd;
 
     for (int i = 0; i < gameid_len; i++) {
-        mc_respond(0x0);    receiveOrNextCmd(&cmd); //gameid
+        ps2_card_backend->respond(0x0);    receiveOrNextCmd(&cmd); //gameid
         received_id[i] = cmd;
     }
 
-    mc_respond(term);
+    ps2_card_backend->respond(term);
 
     ps2_mmceman_set_gameid(received_id);
 
@@ -215,8 +215,8 @@ inline __attribute__((always_inline)) void __time_critical_func(ps2_mmceman_cmd_
 inline __attribute__((always_inline)) void __time_critical_func(ps2_mmceman_cmd_unmount_bootcard)(void)
 {
     uint8_t cmd;
-    mc_respond(0x0); receiveOrNextCmd(&cmd); //reserved byte
-    mc_respond(term);
+    ps2_card_backend->respond(0x0); receiveOrNextCmd(&cmd); //reserved byte
+    ps2_card_backend->respond(term);
 
     log(LOG_INFO, "received MMCEMAN_UNMOUNT_BOOTCARD\n");
 
@@ -229,15 +229,15 @@ inline __attribute__((always_inline)) void __time_critical_func(ps2_mmceman_cmd_
 {
     uint8_t cmd;
 
-    mc_respond(0x0); receiveOrNextCmd(&cmd); //reserved byte
-    mc_respond(0x0); receiveOrNextCmd(&cmd); //padding
+    ps2_card_backend->respond(0x0); receiveOrNextCmd(&cmd); //reserved byte
+    ps2_card_backend->respond(0x0); receiveOrNextCmd(&cmd); //padding
 
     ps2_mmceman_fs_wait_ready();
 
     //close all open files, reset states
     ps2_mmceman_fs_signal_operation(MMCEMAN_FS_RESET);
 
-    mc_respond(term);
+    ps2_card_backend->respond(term);
 
     log(LOG_INFO, "received MMCEMAN_RESET\n");
 }
@@ -248,18 +248,18 @@ inline __attribute__((always_inline)) void __time_critical_func(ps2_mmceman_cmd_
     uint8_t cmd;
     uint8_t type;
 
-    mc_respond(0x0); receiveOrNextCmd(&cmd); //reserved byte
-    mc_respond(0x0); receiveOrNextCmd(&cmd); //type (unused?)
+    ps2_card_backend->respond(0x0); receiveOrNextCmd(&cmd); //reserved byte
+    ps2_card_backend->respond(0x0); receiveOrNextCmd(&cmd); //type (unused?)
     type = cmd;
-    mc_respond(0x0); receiveOrNextCmd(&cmd); //card upper 8 bits
+    ps2_card_backend->respond(0x0); receiveOrNextCmd(&cmd); //card upper 8 bits
     mmceman_cnum = cmd << 8;
-    mc_respond(0x0); receiveOrNextCmd(&cmd); //card lower 8 bits
+    ps2_card_backend->respond(0x0); receiveOrNextCmd(&cmd); //card lower 8 bits
     mmceman_cnum |= cmd;
-    mc_respond(0x0); receiveOrNextCmd(&cmd); //channel upper 8 bits
+    ps2_card_backend->respond(0x0); receiveOrNextCmd(&cmd); //channel upper 8 bits
     mmceman_chn = cmd << 8;
-    mc_respond(0x0); receiveOrNextCmd(&cmd); //channel lower 8 bits
+    ps2_card_backend->respond(0x0); receiveOrNextCmd(&cmd); //channel lower 8 bits
     mmceman_chn |= cmd;
-    mc_respond(term);
+    ps2_card_backend->respond(term);
 
 
     log(LOG_INFO, "received MMCEMAN_SET_CARD_CHANNEL type: %i, card: %i, chan: %i\n", type, mmceman_cnum, mmceman_chn);
@@ -286,8 +286,8 @@ inline __attribute__((always_inline)) void __time_critical_func(ps2_mmceman_cmd_
             ps2_mmceman_fs_wait_ready();            //Wait for file handling to be ready
             op_data = ps2_mmceman_fs_get_op_data();    //Get pointer to mmce fs op_data
 
-            mc_respond(0x0); receiveOrNextCmd(&cmd);            //Reserved byte
-            mc_respond(0x0); receiveOrNextCmd(&packed_flags);   //File flags
+            ps2_card_backend->respond(0x0); receiveOrNextCmd(&cmd);            //Reserved byte
+            ps2_card_backend->respond(0x0); receiveOrNextCmd(&packed_flags);   //File flags
 
             op_data->flags  = (packed_flags & 3);          //O_RDONLY, O_WRONLY, O_RDWR
             op_data->flags |= (packed_flags & 8) << 5;     //O_APPEND
@@ -297,7 +297,7 @@ inline __attribute__((always_inline)) void __time_critical_func(ps2_mmceman_cmd_
             ps2_mmceman_set_cb(&ps2_mmceman_cmd_fs_open);
 
             mmceman_transfer_stage = 1; //Update stage
-            mc_respond(0xff);   //End transfer
+            ps2_card_backend->respond(0xff);   //End transfer
         break;
 
         //Packet #2: Filename
@@ -309,7 +309,7 @@ inline __attribute__((always_inline)) void __time_critical_func(ps2_mmceman_cmd_
                 op_data->fd = -1;
                 mmceman_transfer_stage = 0;
                 ps2_mmceman_set_cb(NULL);
-                mc_respond(0x1);
+                ps2_card_backend->respond(0x1);
                 mmceman_op_in_progress = false;
                 MP_CMD_END();
                 break;
@@ -330,9 +330,9 @@ inline __attribute__((always_inline)) void __time_critical_func(ps2_mmceman_cmd_
             receiveOrNextCmd(&cmd);     //Padding
             ps2_mmceman_fs_wait_ready();//Wait ready up to 1s
 
-            mc_respond(op_data->fd);  receiveOrNextCmd(&cmd);
+            ps2_card_backend->respond(op_data->fd);  receiveOrNextCmd(&cmd);
 
-            mc_respond(term);
+            ps2_card_backend->respond(term);
 
             mmceman_op_in_progress = false;
             MP_CMD_END();
@@ -350,8 +350,8 @@ inline __attribute__((always_inline)) void __time_critical_func(ps2_mmceman_cmd_
     ps2_mmceman_fs_wait_ready();
     op_data = ps2_mmceman_fs_get_op_data();
 
-    mc_respond(0x0); receiveOrNextCmd(&cmd);                  //Reservered
-    mc_respond(0x0); receiveOrNextCmd(&cmd);                  //File descriptor
+    ps2_card_backend->respond(0x0); receiveOrNextCmd(&cmd);                  //Reservered
+    ps2_card_backend->respond(0x0); receiveOrNextCmd(&cmd);                  //File descriptor
     op_data->fd = (int)cmd;
 
     log(LOG_INFO, "%s: fd: %i\n", __func__, op_data->fd);
@@ -360,11 +360,11 @@ inline __attribute__((always_inline)) void __time_critical_func(ps2_mmceman_cmd_
     ps2_mmceman_fs_signal_operation(MMCEMAN_FS_CLOSE);
     ps2_mmceman_fs_wait_ready();
 
-    mc_respond(op_data->rv);   //Return value
+    ps2_card_backend->respond(op_data->rv);   //Return value
 
     log(LOG_INFO, "%s: rv: %i\n", __func__, op_data->rv);
 
-    mc_respond(term);
+    ps2_card_backend->respond(term);
 
     mmceman_op_in_progress = false;
     MP_CMD_END();
@@ -400,13 +400,13 @@ inline __attribute__((always_inline)) void __time_critical_func(ps2_mmceman_cmd_
 
             len8 = (uint8_t*)&op_data->length;
 
-            mc_respond(0x0); receiveOrNextCmd(&cmd);                   //Reserved byte
-            mc_respond(0x0); receiveOrNextCmd(&cmd);                   //Transfer mode (not implemented)
-            mc_respond(0x0); receiveOrNextCmd(&cmd);                   //File descriptor
-            mc_respond(0x0); receiveOrNextCmd(&len8[0x3]);             //Len MSB
-            mc_respond(0x0); receiveOrNextCmd(&len8[0x2]);             //Len MSB - 1
-            mc_respond(0x0); receiveOrNextCmd(&len8[0x1]);             //Len MSB - 2
-            mc_respond(0x0); receiveOrNextCmd(&len8[0x0]);             //Len MSB - 3
+            ps2_card_backend->respond(0x0); receiveOrNextCmd(&cmd);                   //Reserved byte
+            ps2_card_backend->respond(0x0); receiveOrNextCmd(&cmd);                   //Transfer mode (not implemented)
+            ps2_card_backend->respond(0x0); receiveOrNextCmd(&cmd);                   //File descriptor
+            ps2_card_backend->respond(0x0); receiveOrNextCmd(&len8[0x3]);             //Len MSB
+            ps2_card_backend->respond(0x0); receiveOrNextCmd(&len8[0x2]);             //Len MSB - 1
+            ps2_card_backend->respond(0x0); receiveOrNextCmd(&len8[0x1]);             //Len MSB - 2
+            ps2_card_backend->respond(0x0); receiveOrNextCmd(&len8[0x0]);             //Len MSB - 3
             op_data->fd = (int)cmd;
 
             log(LOG_INFO, "%s: fd: %i, len %u\n", __func__, op_data->fd, op_data->length);
@@ -417,7 +417,7 @@ inline __attribute__((always_inline)) void __time_critical_func(ps2_mmceman_cmd_
 
             if (op_data->rv == -1) {
                 log(LOG_ERROR, "%s: bad fd: %i, abort\n", __func__, op_data->fd);
-                mc_respond(0x1);    //Return 1
+                ps2_card_backend->respond(0x1);    //Return 1
                 return;             //Abort
             }
 
@@ -441,7 +441,7 @@ inline __attribute__((always_inline)) void __time_critical_func(ps2_mmceman_cmd_
                     if (op_data->rv == 0) {
                         log(LOG_ERROR, "Failed to read any data for chunk\n");
                         op_data->chunk_state[op_data->tail_idx] = CHUNK_STATE_NOT_READY;
-                        mc_respond(0x1);    //Return 1
+                        ps2_card_backend->respond(0x1);    //Return 1
                         return;             //Abort
 
                     //Got some bytes
@@ -463,7 +463,7 @@ inline __attribute__((always_inline)) void __time_critical_func(ps2_mmceman_cmd_
             mmceman_transfer_stage = 1;
 
             //End current transfer
-            mc_respond(0x0);
+            ps2_card_backend->respond(0x0);
 
             break;
 
@@ -486,7 +486,7 @@ inline __attribute__((always_inline)) void __time_critical_func(ps2_mmceman_cmd_
 
                 //Send up until the last byte
                 for (uint32_t i = 1; i < bytes_left_in_packet; i++) {
-                    mc_respond(op_data->buffer[op_data->tail_idx][i]);
+                    ps2_card_backend->respond(op_data->buffer[op_data->tail_idx][i]);
                 }
 
                 last_byte = op_data->buffer[op_data->tail_idx][bytes_left_in_packet];
@@ -539,7 +539,7 @@ inline __attribute__((always_inline)) void __time_critical_func(ps2_mmceman_cmd_
 
             //Send last byte of packet and end current transfer
             if (bytes_left_in_packet != 0)
-                mc_respond(last_byte);
+                ps2_card_backend->respond(last_byte);
         break;
 
         //Packet #3: Bytes read
@@ -551,16 +551,16 @@ inline __attribute__((always_inline)) void __time_critical_func(ps2_mmceman_cmd_
 
             bytes8 = (uint8_t*)&op_data->bytes_read;
 
-            mc_respond(bytes8[0x3]); receiveOrNextCmd(&cmd); //Bytes read
-            mc_respond(bytes8[0x2]); receiveOrNextCmd(&cmd);
-            mc_respond(bytes8[0x1]); receiveOrNextCmd(&cmd);
-            mc_respond(bytes8[0x0]); receiveOrNextCmd(&cmd);
+            ps2_card_backend->respond(bytes8[0x3]); receiveOrNextCmd(&cmd); //Bytes read
+            ps2_card_backend->respond(bytes8[0x2]); receiveOrNextCmd(&cmd);
+            ps2_card_backend->respond(bytes8[0x1]); receiveOrNextCmd(&cmd);
+            ps2_card_backend->respond(bytes8[0x0]); receiveOrNextCmd(&cmd);
 
             log(LOG_INFO, "%s: read: %u\n", __func__, op_data->bytes_read);
 
             op_data->transfer_failed = 0; //clear fail state
 
-            mc_respond(term);
+            ps2_card_backend->respond(term);
 
             mmceman_op_in_progress = false;
             MP_CMD_END();
@@ -596,13 +596,13 @@ inline __attribute__((always_inline)) void __time_critical_func(ps2_mmceman_cmd_
 
             len8 = (uint8_t*)&op_data->length;
 
-            mc_respond(0x0); receiveOrNextCmd(&cmd);                   //Reserved byte
-            mc_respond(0x0); receiveOrNextCmd(&cmd);                   //Transfer mode (Unused)
-            mc_respond(0x0); receiveOrNextCmd(&cmd);                   //File descriptor
-            mc_respond(0x0); receiveOrNextCmd(&len8[0x3]);             //Len MSB
-            mc_respond(0x0); receiveOrNextCmd(&len8[0x2]);             //Len MSB - 1
-            mc_respond(0x0); receiveOrNextCmd(&len8[0x1]);             //Len MSB - 2
-            mc_respond(0x0); receiveOrNextCmd(&len8[0x0]);             //Len MSB - 3
+            ps2_card_backend->respond(0x0); receiveOrNextCmd(&cmd);                   //Reserved byte
+            ps2_card_backend->respond(0x0); receiveOrNextCmd(&cmd);                   //Transfer mode (Unused)
+            ps2_card_backend->respond(0x0); receiveOrNextCmd(&cmd);                   //File descriptor
+            ps2_card_backend->respond(0x0); receiveOrNextCmd(&len8[0x3]);             //Len MSB
+            ps2_card_backend->respond(0x0); receiveOrNextCmd(&len8[0x2]);             //Len MSB - 1
+            ps2_card_backend->respond(0x0); receiveOrNextCmd(&len8[0x1]);             //Len MSB - 2
+            ps2_card_backend->respond(0x0); receiveOrNextCmd(&len8[0x0]);             //Len MSB - 3
 
             op_data->fd = (int)cmd;
 
@@ -615,7 +615,7 @@ inline __attribute__((always_inline)) void __time_critical_func(ps2_mmceman_cmd_
 
             if (op_data->rv == -1) {
                 log(LOG_ERROR, "%s: bad fd: %i, abort\n", __func__, op_data->fd);
-                mc_respond(0x1);    //Return 1
+                ps2_card_backend->respond(0x1);    //Return 1
                 mmceman_op_in_progress = false;
                 return;             //Abort
             }
@@ -623,7 +623,7 @@ inline __attribute__((always_inline)) void __time_critical_func(ps2_mmceman_cmd_
             ps2_mmceman_set_cb(&ps2_mmceman_cmd_fs_write);
             mmceman_transfer_stage = 1;
 
-            mc_respond(0x0);
+            ps2_card_backend->respond(0x0);
         break;
 
         //Packet #2 - n: Poll ready
@@ -639,7 +639,7 @@ inline __attribute__((always_inline)) void __time_critical_func(ps2_mmceman_cmd_
             }
 
             log(LOG_TRACE, "ready\n");
-            mc_respond(1);
+            ps2_card_backend->respond(1);
         break;
 
         //Packet #n + 1: Read bytes
@@ -660,7 +660,7 @@ inline __attribute__((always_inline)) void __time_critical_func(ps2_mmceman_cmd_
 
                 //receive rest of bytes
                 for (uint32_t i = 1; i <= bytes_left_in_packet; i++) {
-                    mc_respond(0x0);
+                    ps2_card_backend->respond(0x0);
                     receiveOrNextCmd((uint8_t*)&op_data->buffer[op_data->tail_idx][i]);
                 }
 
@@ -700,14 +700,14 @@ inline __attribute__((always_inline)) void __time_critical_func(ps2_mmceman_cmd_
 
             receiveOrNextCmd(&cmd); //Padding
 
-            mc_respond(bytes8[0x3]); receiveOrNextCmd(&cmd);
-            mc_respond(bytes8[0x2]); receiveOrNextCmd(&cmd);
-            mc_respond(bytes8[0x1]); receiveOrNextCmd(&cmd);
-            mc_respond(bytes8[0x0]); receiveOrNextCmd(&cmd);
+            ps2_card_backend->respond(bytes8[0x3]); receiveOrNextCmd(&cmd);
+            ps2_card_backend->respond(bytes8[0x2]); receiveOrNextCmd(&cmd);
+            ps2_card_backend->respond(bytes8[0x1]); receiveOrNextCmd(&cmd);
+            ps2_card_backend->respond(bytes8[0x0]); receiveOrNextCmd(&cmd);
 
             log(LOG_INFO, "%s: written: %u\n", __func__, op_data->bytes_written);
 
-            mc_respond(term);
+            ps2_card_backend->respond(term);
 
             mmceman_op_in_progress = false;
         break;
@@ -730,16 +730,16 @@ inline __attribute__((always_inline)) void __time_critical_func(ps2_mmceman_cmd_
     op_data->offset = 0;
     op_data->whence = 0;
 
-    mc_respond(0x0); receiveOrNextCmd(&cmd);        //Reserved
-    mc_respond(0x0); receiveOrNextCmd(&cmd);        // File Descriptor
+    ps2_card_backend->respond(0x0); receiveOrNextCmd(&cmd);        //Reserved
+    ps2_card_backend->respond(0x0); receiveOrNextCmd(&cmd);        // File Descriptor
 
     op_data->fd = (int)cmd;
 
-    mc_respond(0x0); receiveOrNextCmd(&offset8[0x3]);
-    mc_respond(0x0); receiveOrNextCmd(&offset8[0x2]);
-    mc_respond(0x0); receiveOrNextCmd(&offset8[0x1]);
-    mc_respond(0x0); receiveOrNextCmd(&offset8[0x0]);
-    mc_respond(0x0); receiveOrNextCmd((uint8_t*)&op_data->whence);
+    ps2_card_backend->respond(0x0); receiveOrNextCmd(&offset8[0x3]);
+    ps2_card_backend->respond(0x0); receiveOrNextCmd(&offset8[0x2]);
+    ps2_card_backend->respond(0x0); receiveOrNextCmd(&offset8[0x1]);
+    ps2_card_backend->respond(0x0); receiveOrNextCmd(&offset8[0x0]);
+    ps2_card_backend->respond(0x0); receiveOrNextCmd((uint8_t*)&op_data->whence);
 
     log(LOG_INFO, "%s: fd: %i, offset: %lli, whence: %u\n", __func__, op_data->fd, (long long int)op_data->offset, op_data->whence);
 
@@ -749,11 +749,11 @@ inline __attribute__((always_inline)) void __time_critical_func(ps2_mmceman_cmd_
     //Invalid fd, send -1
     if (op_data->rv == -1) {
         log(LOG_ERROR, "Invalid fd\n");
-        mc_respond(0xff);
-        mc_respond(0xff);
-        mc_respond(0xff);
-        mc_respond(0xff);
-        mc_respond(term);
+        ps2_card_backend->respond(0xff);
+        ps2_card_backend->respond(0xff);
+        ps2_card_backend->respond(0xff);
+        ps2_card_backend->respond(0xff);
+        ps2_card_backend->respond(term);
         mmceman_op_in_progress = false;
         return;
     }
@@ -764,14 +764,14 @@ inline __attribute__((always_inline)) void __time_critical_func(ps2_mmceman_cmd_
 
     position8 = (uint8_t*)&op_data->position;
 
-    mc_respond(position8[0x3]); receiveOrNextCmd(&cmd);
-    mc_respond(position8[0x2]); receiveOrNextCmd(&cmd);
-    mc_respond(position8[0x1]); receiveOrNextCmd(&cmd);
-    mc_respond(position8[0x0]); receiveOrNextCmd(&cmd);
+    ps2_card_backend->respond(position8[0x3]); receiveOrNextCmd(&cmd);
+    ps2_card_backend->respond(position8[0x2]); receiveOrNextCmd(&cmd);
+    ps2_card_backend->respond(position8[0x1]); receiveOrNextCmd(&cmd);
+    ps2_card_backend->respond(position8[0x0]); receiveOrNextCmd(&cmd);
 
     log(LOG_INFO, "%s: position %llu\n", __func__, (long long unsigned int)op_data->position);
 
-    mc_respond(term);
+    ps2_card_backend->respond(term);
 
     mmceman_op_in_progress = false;
     MP_CMD_END();
@@ -791,12 +791,12 @@ inline __attribute__((always_inline)) void __time_critical_func(ps2_mmceman_cmd_
             ps2_mmceman_fs_wait_ready();
             op_data = ps2_mmceman_fs_get_op_data();
 
-            mc_respond(0x0); receiveOrNextCmd(&cmd); //Reserved
+            ps2_card_backend->respond(0x0); receiveOrNextCmd(&cmd); //Reserved
 
             ps2_mmceman_set_cb(&ps2_mmceman_cmd_fs_remove);
             mmceman_transfer_stage = 1;
 
-            mc_respond(0x0); //Padding
+            ps2_card_backend->respond(0x0); //Padding
         break;
 
         //Packet #2: Filename
@@ -823,11 +823,11 @@ inline __attribute__((always_inline)) void __time_critical_func(ps2_mmceman_cmd_
             ps2_mmceman_fs_wait_ready();
 
             receiveOrNextCmd(&cmd); //Padding
-            mc_respond(op_data->rv); receiveOrNextCmd(&cmd); //Return value
+            ps2_card_backend->respond(op_data->rv); receiveOrNextCmd(&cmd); //Return value
 
             log(LOG_INFO, "%s: rv: %i\n", __func__, op_data->rv);
 
-            mc_respond(term);
+            ps2_card_backend->respond(term);
 
             mmceman_op_in_progress = false;
             MP_CMD_END();
@@ -848,12 +848,12 @@ inline __attribute__((always_inline)) void __time_critical_func(ps2_mmceman_cmd_
             ps2_mmceman_fs_wait_ready();
             op_data = ps2_mmceman_fs_get_op_data();
 
-            mc_respond(0x0); receiveOrNextCmd(&cmd); //Reserved
+            ps2_card_backend->respond(0x0); receiveOrNextCmd(&cmd); //Reserved
 
             ps2_mmceman_set_cb(&ps2_mmceman_cmd_fs_mkdir);
             mmceman_transfer_stage = 1;
 
-            mc_respond(0x0); //Padding
+            ps2_card_backend->respond(0x0); //Padding
         break;
 
         //Packet #2: Filename
@@ -879,11 +879,11 @@ inline __attribute__((always_inline)) void __time_critical_func(ps2_mmceman_cmd_
             ps2_mmceman_fs_wait_ready();
 
             receiveOrNextCmd(&cmd); //padding
-            mc_respond(op_data->rv); receiveOrNextCmd(&cmd); //Return value
+            ps2_card_backend->respond(op_data->rv); receiveOrNextCmd(&cmd); //Return value
 
             log(LOG_INFO, "%s: rv: %i\n", __func__, op_data->rv);
 
-            mc_respond(term);
+            ps2_card_backend->respond(term);
 
             mmceman_op_in_progress = false;
             MP_CMD_END();
@@ -904,12 +904,12 @@ inline __attribute__((always_inline)) void __time_critical_func(ps2_mmceman_cmd_
             ps2_mmceman_fs_wait_ready();
             op_data = ps2_mmceman_fs_get_op_data();
 
-            mc_respond(0x0); receiveOrNextCmd(&cmd); //Reserved
+            ps2_card_backend->respond(0x0); receiveOrNextCmd(&cmd); //Reserved
 
             ps2_mmceman_set_cb(&ps2_mmceman_cmd_fs_rmdir);
             mmceman_transfer_stage = 1;
 
-            mc_respond(0x0); //Padding
+            ps2_card_backend->respond(0x0); //Padding
         break;
 
         //Packet #2: Filename
@@ -935,11 +935,11 @@ inline __attribute__((always_inline)) void __time_critical_func(ps2_mmceman_cmd_
             ps2_mmceman_fs_wait_ready();
 
             receiveOrNextCmd(&cmd); //Padding
-            mc_respond(op_data->rv); receiveOrNextCmd(&cmd); //Return value
+            ps2_card_backend->respond(op_data->rv); receiveOrNextCmd(&cmd); //Return value
 
             log(LOG_INFO, "%s: rv: %i\n", __func__, op_data->rv);
 
-            mc_respond(term);
+            ps2_card_backend->respond(term);
 
             mmceman_op_in_progress = false;
             MP_CMD_END();
@@ -961,12 +961,12 @@ inline __attribute__((always_inline)) void __time_critical_func(ps2_mmceman_cmd_
             ps2_mmceman_fs_wait_ready();
             op_data = ps2_mmceman_fs_get_op_data();
 
-            mc_respond(0x0); receiveOrNextCmd(&cmd); //Reserved
+            ps2_card_backend->respond(0x0); receiveOrNextCmd(&cmd); //Reserved
 
             ps2_mmceman_set_cb(&ps2_mmceman_cmd_fs_dopen);
             mmceman_transfer_stage = 1;
 
-            mc_respond(0x0); //Padding
+            ps2_card_backend->respond(0x0); //Padding
         break;
 
         //Packet #2: Filename
@@ -993,11 +993,11 @@ inline __attribute__((always_inline)) void __time_critical_func(ps2_mmceman_cmd_
             receiveOrNextCmd(&cmd); //Padding
 
             ps2_mmceman_fs_wait_ready();
-            mc_respond(op_data->fd);  receiveOrNextCmd(&cmd); //File descriptor
+            ps2_card_backend->respond(op_data->fd);  receiveOrNextCmd(&cmd); //File descriptor
 
             log(LOG_INFO, "%s: rv: %i, fd: %i\n", __func__, op_data->rv, op_data->fd);
 
-            mc_respond(term);
+            ps2_card_backend->respond(term);
 
             mmceman_op_in_progress = false;
             MP_CMD_END();
@@ -1015,8 +1015,8 @@ inline __attribute__((always_inline)) void __time_critical_func(ps2_mmceman_cmd_
     ps2_mmceman_fs_wait_ready();
     op_data = ps2_mmceman_fs_get_op_data();
 
-    mc_respond(0x0); receiveOrNextCmd(&cmd);    //Reservered
-    mc_respond(0x0); receiveOrNextCmd(&cmd);    //File descriptor
+    ps2_card_backend->respond(0x0); receiveOrNextCmd(&cmd);    //Reservered
+    ps2_card_backend->respond(0x0); receiveOrNextCmd(&cmd);    //File descriptor
 
     op_data->fd = cmd;
 
@@ -1026,11 +1026,11 @@ inline __attribute__((always_inline)) void __time_critical_func(ps2_mmceman_cmd_
     ps2_mmceman_fs_signal_operation(MMCEMAN_FS_DCLOSE);
     ps2_mmceman_fs_wait_ready();
 
-    mc_respond(op_data->rv); //Return value
+    ps2_card_backend->respond(op_data->rv); //Return value
 
     log(LOG_INFO, "%s: rv: %i\n", __func__, op_data->rv);
 
-    mc_respond(term);
+    ps2_card_backend->respond(term);
 
     mmceman_op_in_progress = false;
     MP_CMD_END();
@@ -1050,8 +1050,8 @@ inline __attribute__((always_inline)) void __time_critical_func(ps2_mmceman_cmd_
             ps2_mmceman_fs_wait_ready();
             op_data = ps2_mmceman_fs_get_op_data();
 
-            mc_respond(0x0); receiveOrNextCmd(&cmd);    //Reservered
-            mc_respond(0x0); receiveOrNextCmd(&cmd);    //File descriptor
+            ps2_card_backend->respond(0x0); receiveOrNextCmd(&cmd);    //Reservered
+            ps2_card_backend->respond(0x0); receiveOrNextCmd(&cmd);    //File descriptor
 
             op_data->fd = cmd;
 
@@ -1062,7 +1062,7 @@ inline __attribute__((always_inline)) void __time_critical_func(ps2_mmceman_cmd_
 
             if (op_data->rv == -1) {
                 log(LOG_ERROR, "%s: Bad fd: %i, abort\n", __func__, op_data->fd);
-                mc_respond(0x1);
+                ps2_card_backend->respond(0x1);
                 mmceman_op_in_progress = false;
                 return;
             }
@@ -1073,7 +1073,7 @@ inline __attribute__((always_inline)) void __time_critical_func(ps2_mmceman_cmd_
 
             if (op_data->rv == -1) {
                 log(LOG_ERROR, "%s: Failed to get stat\n", __func__);
-                mc_respond(0x1);
+                ps2_card_backend->respond(0x1);
                 mmceman_op_in_progress = false;
                 return;
             }
@@ -1081,46 +1081,46 @@ inline __attribute__((always_inline)) void __time_critical_func(ps2_mmceman_cmd_
             ps2_mmceman_set_cb(&ps2_mmceman_cmd_fs_dread);
             mmceman_transfer_stage = 1;
 
-            mc_respond(0x0);
+            ps2_card_backend->respond(0x0);
         break;
 
         //Packet #n + 1: io_stat_t and filename len
         case 1:
             receiveOrNextCmd(&cmd); //Padding
 
-            mc_respond(op_data->fileio_stat.mode >> 24);
-            mc_respond(op_data->fileio_stat.mode >> 16);
-            mc_respond(op_data->fileio_stat.mode >> 8);
-            mc_respond(op_data->fileio_stat.mode);
+            ps2_card_backend->respond(op_data->fileio_stat.mode >> 24);
+            ps2_card_backend->respond(op_data->fileio_stat.mode >> 16);
+            ps2_card_backend->respond(op_data->fileio_stat.mode >> 8);
+            ps2_card_backend->respond(op_data->fileio_stat.mode);
 
-            mc_respond(op_data->fileio_stat.attr >> 24);
-            mc_respond(op_data->fileio_stat.attr >> 16);
-            mc_respond(op_data->fileio_stat.attr >> 8);
-            mc_respond(op_data->fileio_stat.attr);
+            ps2_card_backend->respond(op_data->fileio_stat.attr >> 24);
+            ps2_card_backend->respond(op_data->fileio_stat.attr >> 16);
+            ps2_card_backend->respond(op_data->fileio_stat.attr >> 8);
+            ps2_card_backend->respond(op_data->fileio_stat.attr);
 
-            mc_respond(op_data->fileio_stat.size >> 24);
-            mc_respond(op_data->fileio_stat.size >> 16);
-            mc_respond(op_data->fileio_stat.size >> 8);
-            mc_respond(op_data->fileio_stat.size);
+            ps2_card_backend->respond(op_data->fileio_stat.size >> 24);
+            ps2_card_backend->respond(op_data->fileio_stat.size >> 16);
+            ps2_card_backend->respond(op_data->fileio_stat.size >> 8);
+            ps2_card_backend->respond(op_data->fileio_stat.size);
 
             for(int i = 0; i < 8; i++) {
-                mc_respond(op_data->fileio_stat.ctime[i]);
+                ps2_card_backend->respond(op_data->fileio_stat.ctime[i]);
             }
             for(int i = 0; i < 8; i++) {
-                mc_respond(op_data->fileio_stat.atime[i]);
+                ps2_card_backend->respond(op_data->fileio_stat.atime[i]);
             }
             for(int i = 0; i < 8; i++) {
-                mc_respond(op_data->fileio_stat.mtime[i]);
+                ps2_card_backend->respond(op_data->fileio_stat.mtime[i]);
             }
 
-            mc_respond(op_data->fileio_stat.hisize >> 24);
-            mc_respond(op_data->fileio_stat.hisize >> 16);
-            mc_respond(op_data->fileio_stat.hisize >> 8);
-            mc_respond(op_data->fileio_stat.hisize);
+            ps2_card_backend->respond(op_data->fileio_stat.hisize >> 24);
+            ps2_card_backend->respond(op_data->fileio_stat.hisize >> 16);
+            ps2_card_backend->respond(op_data->fileio_stat.hisize >> 8);
+            ps2_card_backend->respond(op_data->fileio_stat.hisize);
 
             mmceman_transfer_stage = 2;
 
-            mc_respond(op_data->length); //Filename length
+            ps2_card_backend->respond(op_data->length); //Filename length
         break;
 
         //Packet #n + 2: Filename
@@ -1128,21 +1128,21 @@ inline __attribute__((always_inline)) void __time_critical_func(ps2_mmceman_cmd_
             mmceman_transfer_stage = 3;
 
             do {
-                mc_respond(op_data->buffer[0][idx++]); receiveOrNextCmd(&cmd);
+                ps2_card_backend->respond(op_data->buffer[0][idx++]); receiveOrNextCmd(&cmd);
             } while (((size_t)idx < MMCEMAN_PATH_BUFFER_SIZE) && (op_data->buffer[0][idx] != 0x0));
 
-            mc_respond(0x0); //Null term
+            ps2_card_backend->respond(0x0); //Null term
         break;
 
         //Packet #n + 3: Term
         case 3:
             receiveOrNextCmd(&cmd);     //Padding
-            mc_respond(op_data->it_fd[op_data->fd]); //iterator fd
+            ps2_card_backend->respond(op_data->it_fd[op_data->fd]); //iterator fd
 
             ps2_mmceman_set_cb(NULL);
             mmceman_transfer_stage = 0;
 
-            mc_respond(term);
+            ps2_card_backend->respond(term);
 
             mmceman_op_in_progress = false;
             MP_CMD_END();
@@ -1163,12 +1163,12 @@ inline __attribute__((always_inline)) void __time_critical_func(ps2_mmceman_cmd_
             ps2_mmceman_fs_wait_ready();
             op_data = ps2_mmceman_fs_get_op_data();
 
-            mc_respond(0x0); receiveOrNextCmd(&cmd); //Reservered
+            ps2_card_backend->respond(0x0); receiveOrNextCmd(&cmd); //Reservered
 
             ps2_mmceman_set_cb(&ps2_mmceman_cmd_fs_getstat);
             mmceman_transfer_stage = 1;
 
-            mc_respond(0x0);
+            ps2_card_backend->respond(0x0);
         break;
 
         //Packet #2: Name
@@ -1197,47 +1197,47 @@ inline __attribute__((always_inline)) void __time_critical_func(ps2_mmceman_cmd_
             ps2_mmceman_fs_signal_operation(MMCEMAN_FS_GETSTAT);
             ps2_mmceman_fs_wait_ready();
 
-            mc_respond(op_data->fileio_stat.mode >> 24);
-            mc_respond(op_data->fileio_stat.mode >> 16);
-            mc_respond(op_data->fileio_stat.mode >> 8);
-            mc_respond(op_data->fileio_stat.mode);
+            ps2_card_backend->respond(op_data->fileio_stat.mode >> 24);
+            ps2_card_backend->respond(op_data->fileio_stat.mode >> 16);
+            ps2_card_backend->respond(op_data->fileio_stat.mode >> 8);
+            ps2_card_backend->respond(op_data->fileio_stat.mode);
 
-            mc_respond(op_data->fileio_stat.attr >> 24);
-            mc_respond(op_data->fileio_stat.attr >> 16);
-            mc_respond(op_data->fileio_stat.attr >> 8);
-            mc_respond(op_data->fileio_stat.attr);
+            ps2_card_backend->respond(op_data->fileio_stat.attr >> 24);
+            ps2_card_backend->respond(op_data->fileio_stat.attr >> 16);
+            ps2_card_backend->respond(op_data->fileio_stat.attr >> 8);
+            ps2_card_backend->respond(op_data->fileio_stat.attr);
 
-            mc_respond(op_data->fileio_stat.size >> 24);
-            mc_respond(op_data->fileio_stat.size >> 16);
-            mc_respond(op_data->fileio_stat.size >> 8);
-            mc_respond(op_data->fileio_stat.size);
+            ps2_card_backend->respond(op_data->fileio_stat.size >> 24);
+            ps2_card_backend->respond(op_data->fileio_stat.size >> 16);
+            ps2_card_backend->respond(op_data->fileio_stat.size >> 8);
+            ps2_card_backend->respond(op_data->fileio_stat.size);
 
             for(int i = 0; i < 8; i++) {
-                mc_respond(op_data->fileio_stat.ctime[i]);
+                ps2_card_backend->respond(op_data->fileio_stat.ctime[i]);
             }
             for(int i = 0; i < 8; i++) {
-                mc_respond(op_data->fileio_stat.atime[i]);
+                ps2_card_backend->respond(op_data->fileio_stat.atime[i]);
             }
             for(int i = 0; i < 8; i++) {
-                mc_respond(op_data->fileio_stat.mtime[i]);
+                ps2_card_backend->respond(op_data->fileio_stat.mtime[i]);
             }
 
-            mc_respond(op_data->fileio_stat.hisize >> 24);
-            mc_respond(op_data->fileio_stat.hisize >> 16);
-            mc_respond(op_data->fileio_stat.hisize >> 8);
-            mc_respond(op_data->fileio_stat.hisize);
+            ps2_card_backend->respond(op_data->fileio_stat.hisize >> 24);
+            ps2_card_backend->respond(op_data->fileio_stat.hisize >> 16);
+            ps2_card_backend->respond(op_data->fileio_stat.hisize >> 8);
+            ps2_card_backend->respond(op_data->fileio_stat.hisize);
 
             mmceman_transfer_stage = 0;
             ps2_mmceman_set_cb(NULL);
 
-            mc_respond(op_data->rv);
+            ps2_card_backend->respond(op_data->rv);
 
             if (op_data->fd >= 0) {
                 ps2_mmceman_fs_signal_operation(MMCEMAN_FS_CLOSE);
                 ps2_mmceman_fs_wait_ready();
             }
 
-            mc_respond(term);
+            ps2_card_backend->respond(term);
 
             mmceman_op_in_progress = false;
             MP_CMD_END();
@@ -1264,20 +1264,20 @@ inline __attribute__((always_inline)) void __time_critical_func(ps2_mmceman_cmd_
     op_data->whence64 = 0;
     op_data->position64 = 0;
 
-    mc_respond(0x0); receiveOrNextCmd(&cmd); //padding
-    mc_respond(0x0); receiveOrNextCmd(&cmd); // File Descriptor
+    ps2_card_backend->respond(0x0); receiveOrNextCmd(&cmd); //padding
+    ps2_card_backend->respond(0x0); receiveOrNextCmd(&cmd); // File Descriptor
     op_data->fd = (int)cmd;
 
-    mc_respond(0x0); receiveOrNextCmd(&offset8[0x7]);
-    mc_respond(0x0); receiveOrNextCmd(&offset8[0x6]);
-    mc_respond(0x0); receiveOrNextCmd(&offset8[0x5]);
-    mc_respond(0x0); receiveOrNextCmd(&offset8[0x4]);
-    mc_respond(0x0); receiveOrNextCmd(&offset8[0x3]);
-    mc_respond(0x0); receiveOrNextCmd(&offset8[0x2]);
-    mc_respond(0x0); receiveOrNextCmd(&offset8[0x1]);
-    mc_respond(0x0); receiveOrNextCmd(&offset8[0x0]);
+    ps2_card_backend->respond(0x0); receiveOrNextCmd(&offset8[0x7]);
+    ps2_card_backend->respond(0x0); receiveOrNextCmd(&offset8[0x6]);
+    ps2_card_backend->respond(0x0); receiveOrNextCmd(&offset8[0x5]);
+    ps2_card_backend->respond(0x0); receiveOrNextCmd(&offset8[0x4]);
+    ps2_card_backend->respond(0x0); receiveOrNextCmd(&offset8[0x3]);
+    ps2_card_backend->respond(0x0); receiveOrNextCmd(&offset8[0x2]);
+    ps2_card_backend->respond(0x0); receiveOrNextCmd(&offset8[0x1]);
+    ps2_card_backend->respond(0x0); receiveOrNextCmd(&offset8[0x0]);
 
-    mc_respond(0x0); receiveOrNextCmd((uint8_t*)&op_data->whence64);
+    ps2_card_backend->respond(0x0); receiveOrNextCmd((uint8_t*)&op_data->whence64);
 
     log(LOG_INFO, "%s: fd: %i, whence: %u, offset: %llu\n", __func__, op_data->fd, op_data->whence, (long long unsigned int)op_data->offset);
 
@@ -1286,15 +1286,15 @@ inline __attribute__((always_inline)) void __time_critical_func(ps2_mmceman_cmd_
 
     if (op_data->rv == -1) {
         log(LOG_ERROR, "%s: bad fd: %i, abort\n", __func__, op_data->fd);
-        mc_respond(0xff);
-        mc_respond(0xff);
-        mc_respond(0xff);
-        mc_respond(0xff);
-        mc_respond(0xff);
-        mc_respond(0xff);
-        mc_respond(0xff);
-        mc_respond(0xff);
-        mc_respond(term);
+        ps2_card_backend->respond(0xff);
+        ps2_card_backend->respond(0xff);
+        ps2_card_backend->respond(0xff);
+        ps2_card_backend->respond(0xff);
+        ps2_card_backend->respond(0xff);
+        ps2_card_backend->respond(0xff);
+        ps2_card_backend->respond(0xff);
+        ps2_card_backend->respond(0xff);
+        ps2_card_backend->respond(term);
         mmceman_op_in_progress = false;
         return;
     }
@@ -1303,18 +1303,18 @@ inline __attribute__((always_inline)) void __time_critical_func(ps2_mmceman_cmd_
     ps2_mmceman_fs_signal_operation(MMCEMAN_FS_LSEEK64);
     ps2_mmceman_fs_wait_ready();
 
-    mc_respond(position8[0x7]); receiveOrNextCmd(&cmd);
-    mc_respond(position8[0x6]); receiveOrNextCmd(&cmd);
-    mc_respond(position8[0x5]); receiveOrNextCmd(&cmd);
-    mc_respond(position8[0x4]); receiveOrNextCmd(&cmd);
-    mc_respond(position8[0x3]); receiveOrNextCmd(&cmd);
-    mc_respond(position8[0x2]); receiveOrNextCmd(&cmd);
-    mc_respond(position8[0x1]); receiveOrNextCmd(&cmd);
-    mc_respond(position8[0x0]); receiveOrNextCmd(&cmd);
+    ps2_card_backend->respond(position8[0x7]); receiveOrNextCmd(&cmd);
+    ps2_card_backend->respond(position8[0x6]); receiveOrNextCmd(&cmd);
+    ps2_card_backend->respond(position8[0x5]); receiveOrNextCmd(&cmd);
+    ps2_card_backend->respond(position8[0x4]); receiveOrNextCmd(&cmd);
+    ps2_card_backend->respond(position8[0x3]); receiveOrNextCmd(&cmd);
+    ps2_card_backend->respond(position8[0x2]); receiveOrNextCmd(&cmd);
+    ps2_card_backend->respond(position8[0x1]); receiveOrNextCmd(&cmd);
+    ps2_card_backend->respond(position8[0x0]); receiveOrNextCmd(&cmd);
 
     log(LOG_INFO, "%s: position: %llu\n", __func__, (long long unsigned int)op_data->position);
 
-    mc_respond(term);
+    ps2_card_backend->respond(term);
 
     mmceman_op_in_progress = false;
     MP_CMD_END();
@@ -1334,13 +1334,13 @@ inline __attribute__((always_inline)) void __time_critical_func(ps2_mmceman_cmd_
             ps2_mmceman_fs_wait_ready();            //Wait for file handling to be ready
             op_data = ps2_mmceman_fs_get_op_data();    //Get pointer to mmce fs op_data
 
-            mc_respond(0x0); receiveOrNextCmd(&cmd);            //Reserved byte
+            ps2_card_backend->respond(0x0); receiveOrNextCmd(&cmd);            //Reserved byte
 
             //Jump to this function after /CS triggered reset
             ps2_mmceman_set_cb(&ps2_mmceman_cmd_fs_rename);
 
             mmceman_transfer_stage = 1; //Update stage
-            mc_respond(0xff);   //End transfer
+            ps2_card_backend->respond(0xff);   //End transfer
         break;
 
         //Packet #2: Filename
@@ -1377,9 +1377,9 @@ inline __attribute__((always_inline)) void __time_critical_func(ps2_mmceman_cmd_
             mmceman_transfer_stage = 0;
             ps2_mmceman_set_cb(NULL);
 
-            mc_respond(op_data->rv);
+            ps2_card_backend->respond(op_data->rv);
             log(LOG_INFO, "%s: rv: %i\n", __func__, op_data->rv);
-            mc_respond(term);
+            ps2_card_backend->respond(term);
 
             mmceman_op_in_progress = false;
             MP_CMD_END();
@@ -1421,11 +1421,11 @@ inline __attribute__((always_inline)) void __time_critical_func(ps2_mmceman_cmd_
             sector8 = (uint8_t*)&sector;
             count8  = (uint8_t*)&count;
 
-            mc_respond(0x0); receiveOrNextCmd(&cmd); //Reserved byte
-            mc_respond(0x0); receiveOrNextCmd(&cmd); //File descriptor
-            mc_respond(0x0); receiveOrNextCmd(&sector8[0x2]);
-            mc_respond(0x0); receiveOrNextCmd(&sector8[0x1]);
-            mc_respond(0x0); receiveOrNextCmd(&sector8[0x0]);
+            ps2_card_backend->respond(0x0); receiveOrNextCmd(&cmd); //Reserved byte
+            ps2_card_backend->respond(0x0); receiveOrNextCmd(&cmd); //File descriptor
+            ps2_card_backend->respond(0x0); receiveOrNextCmd(&sector8[0x2]);
+            ps2_card_backend->respond(0x0); receiveOrNextCmd(&sector8[0x1]);
+            ps2_card_backend->respond(0x0); receiveOrNextCmd(&sector8[0x0]);
             op_data->fd = (int)cmd;
 
             offset = ((uint64_t)sector) * 2048;
@@ -1457,9 +1457,9 @@ inline __attribute__((always_inline)) void __time_critical_func(ps2_mmceman_cmd_
                 }
             }
 
-            mc_respond(0x0); receiveOrNextCmd(&count8[0x2]);
-            mc_respond(0x0); receiveOrNextCmd(&count8[0x1]);
-            mc_respond(0x0); receiveOrNextCmd(&count8[0x0]);
+            ps2_card_backend->respond(0x0); receiveOrNextCmd(&count8[0x2]);
+            ps2_card_backend->respond(0x0); receiveOrNextCmd(&count8[0x1]);
+            ps2_card_backend->respond(0x0); receiveOrNextCmd(&count8[0x0]);
 
             op_data->length = count * 2048;
 
@@ -1482,7 +1482,7 @@ inline __attribute__((always_inline)) void __time_critical_func(ps2_mmceman_cmd_
                     if (op_data->chunk_state[op_data->tail_idx] == CHUNK_STATE_INVALID) {
                         log(LOG_ERROR, "Failed to read chunk, got CHUNK_STATE_INVALID, aborting\n");
                         op_data->chunk_state[op_data->tail_idx] = CHUNK_STATE_NOT_READY;
-                        mc_respond(0x1);    //Return 1
+                        ps2_card_backend->respond(0x1);    //Return 1
                         mmceman_op_in_progress = false;
                         return;             //Abort
                     }
@@ -1503,7 +1503,7 @@ inline __attribute__((always_inline)) void __time_critical_func(ps2_mmceman_cmd_
 
             mmceman_transfer_stage = 1;
 
-            mc_respond(0x0);
+            ps2_card_backend->respond(0x0);
         break;
 
         case 1:
@@ -1528,7 +1528,7 @@ inline __attribute__((always_inline)) void __time_critical_func(ps2_mmceman_cmd_
             if (op_data->use_read_ahead == 1) {
                 //Send up until the last byte
                 for (uint32_t i = 1; i < bytes_left_in_packet; i++) {
-                    mc_respond(op_data->read_ahead.buffer[i]);
+                    ps2_card_backend->respond(op_data->read_ahead.buffer[i]);
                 }
 
                 last_byte = op_data->read_ahead.buffer[bytes_left_in_packet];
@@ -1537,7 +1537,7 @@ inline __attribute__((always_inline)) void __time_critical_func(ps2_mmceman_cmd_
             } else {
                 //Send up until the last byte
                 for (uint32_t i = 1; i < bytes_left_in_packet; i++) {
-                    mc_respond(op_data->buffer[op_data->tail_idx][i]);
+                    ps2_card_backend->respond(op_data->buffer[op_data->tail_idx][i]);
                 }
 
                 last_byte = op_data->buffer[op_data->tail_idx][bytes_left_in_packet];
@@ -1594,7 +1594,7 @@ inline __attribute__((always_inline)) void __time_critical_func(ps2_mmceman_cmd_
                 mmceman_transfer_stage = 2;
 
             //Send last byte of packet and end current transfer
-            mc_respond(last_byte);
+            ps2_card_backend->respond(last_byte);
         break;
 
         case 2:
@@ -1608,16 +1608,16 @@ inline __attribute__((always_inline)) void __time_critical_func(ps2_mmceman_cmd_
             count8 = (uint8_t*)&op_data->bytes_read;
 
             //Sectors read
-            mc_respond(count8[0x2]); receiveOrNextCmd(&cmd);
-            mc_respond(count8[0x1]); receiveOrNextCmd(&cmd);
-            mc_respond(count8[0x0]); receiveOrNextCmd(&cmd);
+            ps2_card_backend->respond(count8[0x2]); receiveOrNextCmd(&cmd);
+            ps2_card_backend->respond(count8[0x1]); receiveOrNextCmd(&cmd);
+            ps2_card_backend->respond(count8[0x0]); receiveOrNextCmd(&cmd);
 
             ps2_mmceman_fs_signal_operation(MMCEMAN_FS_READ_AHEAD);
 
             ps2_mmceman_set_cb(NULL);
 
             mmceman_transfer_stage = 0;
-            mc_respond(term);
+            ps2_card_backend->respond(term);
 
             mmceman_op_in_progress = false;
             MP_CMD_END();

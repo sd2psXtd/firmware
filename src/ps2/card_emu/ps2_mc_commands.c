@@ -39,32 +39,32 @@ uint64_t last_response;
 
 static void __time_critical_func(delayed_response)(char ch, uint32_t delay, const char* func) {
 #ifdef DEBUG_USB_UART
-    if (!card_active) {log(LOG_ERROR, "%s Card already deselected - byte %02x after %u \n", func, ch, (uint32_t)(time_us_64() - last_response));}
+    if (!ps2_card_active) {log(LOG_ERROR, "%s Card already deselected - byte %02x after %u \n", func, ch, (uint32_t)(time_us_64() - last_response));}
 #endif
 
     while ((ps2_mc_data_interface_delay_required()) && (time_us_64() - last_response < delay)) {
         sleep_us(10);
 #ifdef DEBUG_USB_UART
-        if (!card_active) {log(LOG_ERROR, "%s Card deselected at byte %02x after %u \n", func, ch, (uint32_t)(time_us_64() - last_response)); break;}
+        if (!ps2_card_active) {log(LOG_ERROR, "%s Card deselected at byte %02x after %u \n", func, ch, (uint32_t)(time_us_64() - last_response)); break;}
 #endif
     }
-    mc_respond(ch);
+    ps2_card_backend->respond(ch);
     last_response = time_us_64();
 }
 
 
 inline __attribute__((always_inline)) void __time_critical_func(ps2_mc_cmd_0x11)(void) {
     uint8_t _ = 0U;
-    mc_respond(0x2B);
+    ps2_card_backend->respond(0x2B);
     receiveOrNextCmd(&_);
-    mc_respond(term);
+    ps2_card_backend->respond(term);
 }
 
 inline __attribute__((always_inline)) void __time_critical_func(ps2_mc_cmd_0x12)(void) {
     uint8_t _ = 0U;
-    mc_respond(0x2B);
+    ps2_card_backend->respond(0x2B);
     receiveOrNextCmd(&_);
-    mc_respond(term);
+    ps2_card_backend->respond(term);
 }
 
 inline __attribute__((always_inline)) void __time_critical_func(ps2_mc_cmd_setEraseAddress)(void) {
@@ -164,7 +164,7 @@ inline __attribute__((always_inline)) void __time_critical_func(ps2_mc_cmd_setRe
 inline __attribute__((always_inline)) void __time_critical_func(ps2_mc_cmd_getSpecs)(void) {
     uint8_t _ = 0;
     /* GET_SPECS ? */
-    mc_respond(0x2B);
+    ps2_card_backend->respond(0x2B);
     receiveOrNextCmd(&_);
     uint32_t sector_count = (uint32_t)(ps2_cardman_get_card_size() / 512);
 
@@ -174,45 +174,45 @@ inline __attribute__((always_inline)) void __time_critical_func(ps2_mc_cmd_getSp
     specs[6] = (uint8_t)((sector_count >> 16) & 0xFF);
     specs[7] = (uint8_t)((sector_count >> 24) & 0xFF);
 
-    mc_respond(specs[0]);
+    ps2_card_backend->respond(specs[0]);
     receiveOrNextCmd(&_);
-    mc_respond(specs[1]);
+    ps2_card_backend->respond(specs[1]);
     receiveOrNextCmd(&_);
-    mc_respond(specs[2]);
+    ps2_card_backend->respond(specs[2]);
     receiveOrNextCmd(&_);
-    mc_respond(specs[3]);
+    ps2_card_backend->respond(specs[3]);
     receiveOrNextCmd(&_);
-    mc_respond(specs[4]);
+    ps2_card_backend->respond(specs[4]);
     receiveOrNextCmd(&_);
-    mc_respond(specs[5]);
+    ps2_card_backend->respond(specs[5]);
     receiveOrNextCmd(&_);
-    mc_respond(specs[6]);
+    ps2_card_backend->respond(specs[6]);
     receiveOrNextCmd(&_);
-    mc_respond(specs[7]);
+    ps2_card_backend->respond(specs[7]);
     receiveOrNextCmd(&_);
-    mc_respond(XOR8(specs));
+    ps2_card_backend->respond(XOR8(specs));
     receiveOrNextCmd(&_);
-    mc_respond(term);
+    ps2_card_backend->respond(term);
 }
 
 inline __attribute__((always_inline)) void __time_critical_func(ps2_mc_cmd_setTerminator)(void) {
     uint8_t _ = 0U;
     /* SET_TERMINATOR */
-    mc_respond(0xFF);
+    ps2_card_backend->respond(0xFF);
     receiveOrNextCmd(&term);
-    mc_respond(0x2B);
+    ps2_card_backend->respond(0x2B);
     receiveOrNextCmd(&_);
-    mc_respond(term);
+    ps2_card_backend->respond(term);
 }
 
 inline __attribute__((always_inline)) void __time_critical_func(ps2_mc_cmd_getTerminator)(void) {
     uint8_t _ = 0U;
     /* GET_TERMINATOR */
-    mc_respond(0x2B);
+    ps2_card_backend->respond(0x2B);
     receiveOrNextCmd(&_);
-    mc_respond(term);
+    ps2_card_backend->respond(term);
     receiveOrNextCmd(&_);
-    mc_respond(term);
+    ps2_card_backend->respond(term);
 }
 
 inline __attribute__((always_inline)) void __time_critical_func(ps2_mc_cmd_writeData)(void) {
@@ -223,9 +223,9 @@ inline __attribute__((always_inline)) void __time_critical_func(ps2_mc_cmd_write
 
     log(LOG_TRACE, "> WD\n");
 
-    mc_respond(0xFF);
+    ps2_card_backend->respond(0xFF);
     receiveOrNextCmd(&sz);
-    mc_respond(0xFF);
+    ps2_card_backend->respond(0xFF);
     last_response = time_us_64();
 
     uint8_t ck = 0;
@@ -271,7 +271,7 @@ inline __attribute__((always_inline)) void __time_critical_func(ps2_mc_cmd_readD
     receiveOrNextCmd(&_);
 
 #ifdef DEBUG_USB_UART
-    if (!card_active) {log(LOG_ERROR, "%s Card already deselected - pre\n", __func__);}
+    if (!ps2_card_active) {log(LOG_ERROR, "%s Card already deselected - pre\n", __func__);}
 #endif
 
     for (int i = 0; i < sz; ++i) {
@@ -335,7 +335,7 @@ inline __attribute__((always_inline)) void __time_critical_func(ps2_mc_cmd_readD
         } else
             delayed_response(b, PS2_MAX_ACK_DELAY_MID, __func__);
 
-        if (!card_active) log(LOG_ERROR, "%s Card already deselected %i\n", __func__, i);
+        if (!ps2_card_active) log(LOG_ERROR, "%s Card already deselected %i\n", __func__, i);
 
         ck ^= b;
         receiveOrNextCmd(&_);
@@ -361,7 +361,7 @@ inline __attribute__((always_inline)) void __time_critical_func(ps2_mc_cmd_readD
         }
     }
 #ifdef DEBUG_USB_UART
-    if (!card_active) log(LOG_ERROR, "%s Card already deselected end\n", __func__);
+    if (!ps2_card_active) log(LOG_ERROR, "%s Card already deselected end\n", __func__);
 #endif
 
     delayed_response(ck, PS2_MAX_ACK_DELAY_MID, __func__);
@@ -400,9 +400,9 @@ inline __attribute__((always_inline)) void __time_critical_func(ps2_mc_cmd_erase
 
 inline __attribute__((always_inline)) void __time_critical_func(ps2_mc_cmd_0xBF)(void) {
     uint8_t _ = 0U;
-    mc_respond(0xFF);
+    ps2_card_backend->respond(0xFF);
     receiveOrNextCmd(&_);
-    mc_respond(0x2B);
+    ps2_card_backend->respond(0x2B);
     receiveOrNextCmd(&_);
-    mc_respond(term);
+    ps2_card_backend->respond(term);
 }
