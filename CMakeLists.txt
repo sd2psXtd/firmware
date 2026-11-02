@@ -108,6 +108,7 @@ target_link_libraries(sd2psx_common
                         hardware_gpio
                         hardware_watchdog
                         pico_multicore
+                        pico_time
                         inih)
 
 target_compile_options(sd2psx_common

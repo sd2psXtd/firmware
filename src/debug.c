@@ -6,6 +6,7 @@
 
 #if WITH_LED
 #include "led.h"
+#include "pico/time.h"
 #endif
 
 #if WITH_GUI
