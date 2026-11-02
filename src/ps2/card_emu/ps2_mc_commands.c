@@ -48,23 +48,23 @@ static void __time_critical_func(delayed_response)(char ch, uint32_t delay, cons
         if (!ps2_card_active) {log(LOG_ERROR, "%s Card deselected at byte %02x after %u \n", func, ch, (uint32_t)(time_us_64() - last_response)); break;}
 #endif
     }
-    ps2_card_backend_pio.respond(ch);
+    ps2_card_backend->respond(ch);
     last_response = time_us_64();
 }
 
 
 inline __attribute__((always_inline)) void __time_critical_func(ps2_mc_cmd_0x11)(void) {
     uint8_t _ = 0U;
-    ps2_card_backend_pio.respond(0x2B);
+    ps2_card_backend->respond(0x2B);
     receiveOrNextCmd(&_);
-    ps2_card_backend_pio.respond(term);
+    ps2_card_backend->respond(term);
 }
 
 inline __attribute__((always_inline)) void __time_critical_func(ps2_mc_cmd_0x12)(void) {
     uint8_t _ = 0U;
-    ps2_card_backend_pio.respond(0x2B);
+    ps2_card_backend->respond(0x2B);
     receiveOrNextCmd(&_);
-    ps2_card_backend_pio.respond(term);
+    ps2_card_backend->respond(term);
 }
 
 inline __attribute__((always_inline)) void __time_critical_func(ps2_mc_cmd_setEraseAddress)(void) {
@@ -164,7 +164,7 @@ inline __attribute__((always_inline)) void __time_critical_func(ps2_mc_cmd_setRe
 inline __attribute__((always_inline)) void __time_critical_func(ps2_mc_cmd_getSpecs)(void) {
     uint8_t _ = 0;
     /* GET_SPECS ? */
-    ps2_card_backend_pio.respond(0x2B);
+    ps2_card_backend->respond(0x2B);
     receiveOrNextCmd(&_);
     uint32_t sector_count = (uint32_t)(ps2_cardman_get_card_size() / 512);
 
@@ -174,45 +174,45 @@ inline __attribute__((always_inline)) void __time_critical_func(ps2_mc_cmd_getSp
     specs[6] = (uint8_t)((sector_count >> 16) & 0xFF);
     specs[7] = (uint8_t)((sector_count >> 24) & 0xFF);
 
-    ps2_card_backend_pio.respond(specs[0]);
+    ps2_card_backend->respond(specs[0]);
     receiveOrNextCmd(&_);
-    ps2_card_backend_pio.respond(specs[1]);
+    ps2_card_backend->respond(specs[1]);
     receiveOrNextCmd(&_);
-    ps2_card_backend_pio.respond(specs[2]);
+    ps2_card_backend->respond(specs[2]);
     receiveOrNextCmd(&_);
-    ps2_card_backend_pio.respond(specs[3]);
+    ps2_card_backend->respond(specs[3]);
     receiveOrNextCmd(&_);
-    ps2_card_backend_pio.respond(specs[4]);
+    ps2_card_backend->respond(specs[4]);
     receiveOrNextCmd(&_);
-    ps2_card_backend_pio.respond(specs[5]);
+    ps2_card_backend->respond(specs[5]);
     receiveOrNextCmd(&_);
-    ps2_card_backend_pio.respond(specs[6]);
+    ps2_card_backend->respond(specs[6]);
     receiveOrNextCmd(&_);
-    ps2_card_backend_pio.respond(specs[7]);
+    ps2_card_backend->respond(specs[7]);
     receiveOrNextCmd(&_);
-    ps2_card_backend_pio.respond(XOR8(specs));
+    ps2_card_backend->respond(XOR8(specs));
     receiveOrNextCmd(&_);
-    ps2_card_backend_pio.respond(term);
+    ps2_card_backend->respond(term);
 }
 
 inline __attribute__((always_inline)) void __time_critical_func(ps2_mc_cmd_setTerminator)(void) {
     uint8_t _ = 0U;
     /* SET_TERMINATOR */
-    ps2_card_backend_pio.respond(0xFF);
+    ps2_card_backend->respond(0xFF);
     receiveOrNextCmd(&term);
-    ps2_card_backend_pio.respond(0x2B);
+    ps2_card_backend->respond(0x2B);
     receiveOrNextCmd(&_);
-    ps2_card_backend_pio.respond(term);
+    ps2_card_backend->respond(term);
 }
 
 inline __attribute__((always_inline)) void __time_critical_func(ps2_mc_cmd_getTerminator)(void) {
     uint8_t _ = 0U;
     /* GET_TERMINATOR */
-    ps2_card_backend_pio.respond(0x2B);
+    ps2_card_backend->respond(0x2B);
     receiveOrNextCmd(&_);
-    ps2_card_backend_pio.respond(term);
+    ps2_card_backend->respond(term);
     receiveOrNextCmd(&_);
-    ps2_card_backend_pio.respond(term);
+    ps2_card_backend->respond(term);
 }
 
 inline __attribute__((always_inline)) void __time_critical_func(ps2_mc_cmd_writeData)(void) {
@@ -223,9 +223,9 @@ inline __attribute__((always_inline)) void __time_critical_func(ps2_mc_cmd_write
 
     log(LOG_TRACE, "> WD\n");
 
-    ps2_card_backend_pio.respond(0xFF);
+    ps2_card_backend->respond(0xFF);
     receiveOrNextCmd(&sz);
-    ps2_card_backend_pio.respond(0xFF);
+    ps2_card_backend->respond(0xFF);
     last_response = time_us_64();
 
     uint8_t ck = 0;
@@ -400,9 +400,9 @@ inline __attribute__((always_inline)) void __time_critical_func(ps2_mc_cmd_erase
 
 inline __attribute__((always_inline)) void __time_critical_func(ps2_mc_cmd_0xBF)(void) {
     uint8_t _ = 0U;
-    ps2_card_backend_pio.respond(0xFF);
+    ps2_card_backend->respond(0xFF);
     receiveOrNextCmd(&_);
-    ps2_card_backend_pio.respond(0x2B);
+    ps2_card_backend->respond(0x2B);
     receiveOrNextCmd(&_);
-    ps2_card_backend_pio.respond(term);
+    ps2_card_backend->respond(term);
 }

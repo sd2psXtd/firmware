@@ -38,6 +38,8 @@ static volatile int mc_exit_response, mc_enter_request, mc_enter_response;
 
 static int memcard_variant;
 
+ps2_memory_card_backend_t* ps2_card_backend = &ps2_card_backend_pio;
+
 const uint8_t EccTable[] = {
     0x00, 0x87, 0x96, 0x11, 0xa5, 0x22, 0x33, 0xb4, 0xb4, 0x33, 0x22, 0xa5, 0x11, 0x96, 0x87, 0x00, 0xc3, 0x44, 0x55, 0xd2, 0x66, 0xe1, 0xf0, 0x77, 0x77, 0xf0,
     0xe1, 0x66, 0xd2, 0x55, 0x44, 0xc3, 0xd2, 0x55, 0x44, 0xc3, 0x77, 0xf0, 0xe1, 0x66, 0x66, 0xe1, 0xf0, 0x77, 0xc3, 0x44, 0x55, 0xd2, 0x11, 0x96, 0x87, 0x00,
@@ -104,7 +106,7 @@ static void __time_critical_func(mc_main_loop)(void) {
             continue;
         }
 
-        uint8_t received = ps2_card_backend_pio.receiveFirst(&cmd);
+        uint8_t received = ps2_card_backend->receiveFirst(&cmd);
 
         if (received == PS2_RECEIVE_EXIT) {
             break;
@@ -114,7 +116,7 @@ static void __time_critical_func(mc_main_loop)(void) {
 
 
         if (cmd == PS2_SIO2_CMD_IDENTIFIER) {
-            if (ps2_card_backend_pio.probe()) {
+            if (ps2_card_backend->probe()) {
                 continue;
             }
 
@@ -129,10 +131,10 @@ static void __time_critical_func(mc_main_loop)(void) {
             }
 
             /* resp to 0x81 */
-            ps2_card_backend_pio.respond(0xFF);
+            ps2_card_backend->respond(0xFF);
 
             /* sub cmd */
-            if (ps2_card_backend_pio.receive(&cmd) == PS2_RECEIVE_RESET)
+            if (ps2_card_backend->receive(&cmd) == PS2_RECEIVE_RESET)
                 continue;
 
             log(LOG_TRACE, "%s: 0x81 %.02x\n", __func__, cmd);
@@ -174,7 +176,7 @@ static void __time_critical_func(mc_main_loop)(void) {
             }
         } else if (cmd == PS2_MMCEMAN_CMD_IDENTIFIER) {
             /* resp to 0x8B */
-            ps2_card_backend_pio.respond(0xAA);
+            ps2_card_backend->respond(0xAA);
 
             /* sub cmd */
             receiveOrNextCmd(&cmd);
@@ -232,7 +234,7 @@ static void __no_inline_not_in_flash_func(mc_main)(void) {
         mmceman_callback = NULL;
 
         log(LOG_TRACE, "Resetting PIO for PS2 memory card emulation\n");
-        ps2_card_backend_pio.reset();
+        ps2_card_backend->reset();
         mc_main_loop();
 
         log(LOG_TRACE, "%s exit\n", __func__);
@@ -251,11 +253,11 @@ void ps2_memory_card_main(void) {
     multicore_lockout_victim_init();
     memcard_variant = settings_get_ps2_variant();
     log(LOG_TRACE, "Secondary core!\n");
-    ps2_card_backend_pio.init();
-    ps2_card_backend_pio.startup();
+    ps2_card_backend->init();
+    ps2_card_backend->startup();
     mc_main();
-    ps2_card_backend_pio.shutdown();
-    ps2_card_backend_pio.deinit();
+    ps2_card_backend->shutdown();
+    ps2_card_backend->deinit();
     log(LOG_TRACE, "Secondary core exit!\n");
     mc_exit_response = 1;
 }

@@ -1,9 +1,8 @@
-#include "hardware/gpio.h"
-#include "hardware/structs/iobank0.h"
 #include "hardware/timer.h"
 #include "pico.h"
 #include "pico/multicore.h"
 #include "ps1_mc_data_interface.h"
+#include "ps1_mc_internal.h"
 #include "ps1_mmce.h"
 #include "string.h"
 #include <settings.h>
@@ -11,11 +10,9 @@
 #include <stdint.h>
 
 #include "config.h"
-#include "ps1_mc_spi.pio.h"
 #include "debug.h"
 #include "ps1/ps1_memory_card.h"
 #include "ps1_card_backend_pio.h"
-#include "game_db/game_db.h"
 
 static uint64_t us_startup;
 
@@ -35,20 +32,22 @@ volatile bool ps1_card_active = false;
 volatile int ps1_mc_exit_request, ps1_mc_reset;
 static volatile int mc_exit_response, mc_enter_request, mc_enter_response;
 
+static ps1_memory_card_backend_t* ps1_card_backend = &ps1_card_backend_pio;
+
 
 #define receiveOrNextCmd(cmd)          \
-    if ((ps1_card_backend_pio.recv_mc(cmd) == PS1_RECEIVE_RESET) || !ps1_card_active) \
+    if ((ps1_card_backend->recv_mc(cmd) == PS1_RECEIVE_RESET) || !ps1_card_active) \
     { \
     return;}
 
 #define receiveOrNextCntrl(cmd)          \
-    if ((ps1_card_backend_pio.recv_cntrl(cmd) == PS1_RECEIVE_RESET) || !ps1_card_active) \
+    if ((ps1_card_backend->recv_cntrl(cmd) == PS1_RECEIVE_RESET) || !ps1_card_active) \
     { \
     return;}
 
 
 #define respondOrNextCmd(cmd)          \
-    if (ps1_card_active) ps1_card_backend_pio.respond(cmd);\
+    if (ps1_card_active) ps1_card_backend->respond(cmd);\
     else {DPRINTF("!RR: %s:%u\n", __func__, __LINE__); return;}
 
 /*
@@ -352,7 +351,7 @@ static void __time_critical_func(mc_main_loop)(void) {
             }
         }
         ps1_mc_reset = 0;
-        uint8_t received = ps1_card_backend_pio.recv_mc(&ch);
+        uint8_t received = ps1_card_backend->recv_mc(&ch);
 
         if (received != PS1_RECEIVE_OK) {
             if (received == PS1_RECEIVE_EXIT) {
@@ -365,9 +364,9 @@ static void __time_critical_func(mc_main_loop)(void) {
         }
 
         if (0x81 == ch) { /* Command is for MC - process! */
-            ps1_card_backend_pio.respond(flag);
+            ps1_card_backend->respond(flag);
 
-            if (ps1_card_backend_pio.recv_mc(&ch) == PS1_RECEIVE_RESET)
+            if (ps1_card_backend->recv_mc(&ch) == PS1_RECEIVE_RESET)
                 continue;
 
             switch (ch) {
@@ -387,13 +386,13 @@ static void __time_critical_func(mc_main_loop)(void) {
         } else if ((0x01 == ch) && (settings_get_ps1_controllercombo())) {
             mc_read_controller();
         } else if ((0x21 == ch) && !ps2_multitap) {
-            ps1_card_backend_pio.respond(0x00);
+            ps1_card_backend->respond(0x00);
 
-            if (PS1_RECEIVE_RESET == ps1_card_backend_pio.recv_mc(&ch))
+            if (PS1_RECEIVE_RESET == ps1_card_backend->recv_mc(&ch))
                 continue;
 
             if (0x53 == ch) {
-                ps1_card_backend_pio.respond(0x0F);
+                ps1_card_backend->respond(0x0F);
             } else if (ch == 0x21) {      // PS2 multitap is also sending 0x21 as configuration command
                 ps2_multitap = true;
             }
@@ -410,9 +409,8 @@ static void __no_inline_not_in_flash_func(mc_main)(void) {
         {}
         mc_enter_response = 1;
 
-        ps1_card_backend_pio.reset();
+        ps1_card_backend->reset();
         mc_main_loop();
-
 
         log(LOG_TRACE, "%s exit\n", __func__);
         if (settings_get_mode(true) != MODE_PS1) {
@@ -429,13 +427,13 @@ static void __no_inline_not_in_flash_func(mc_main)(void) {
 void ps1_memory_card_main(void) {
     multicore_lockout_victim_init();
 
-    ps1_card_backend_pio.init();
-    ps1_card_backend_pio.startup();
+    ps1_card_backend->init();
+    ps1_card_backend->startup();
 
     us_startup = time_us_64();
     mc_main();
-    ps1_card_backend_pio.shutdown();
-    ps1_card_backend_pio.deinit();
+    ps1_card_backend->shutdown();
+    ps1_card_backend->deinit();
     log(LOG_TRACE, "Secondary core exit!\n");
     mc_exit_response = 1;
 }

@@ -55,12 +55,12 @@ extern uint8_t *eccptr;
 extern volatile bool ps2_card_active;
 extern volatile int ps2_reset;
 extern volatile int ps2_mc_exit_request;
-extern ps2_memory_card_backend_t ps2_card_backend_pio;
+extern ps2_memory_card_backend_t* ps2_card_backend;
 
 extern const uint8_t EccTable[];
 
 
 #define receiveOrNextCmd(cmd)          \
-    if (ps2_card_backend_pio.receive(cmd) == PS2_RECEIVE_RESET) {\
+    if (ps2_card_backend->receive(cmd) == PS2_RECEIVE_RESET) {\
     DPRINTF("Reset at %s:%u", __func__, __LINE__); \
     return;}
