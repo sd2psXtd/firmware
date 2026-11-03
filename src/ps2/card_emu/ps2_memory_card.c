@@ -219,8 +219,11 @@ static void __time_critical_func(mc_main_loop)(void) {
             continue;
         } else {
             // not for us
+            ps2_card_backend->abort();
             continue;
         }
+
+        ps2_card_backend->finish();
     }
 }
 
@@ -281,6 +284,7 @@ void ps2_memory_card_exit(void) {
             }
         }
     };
+    ps2_card_backend->abort();
     ps2_mc_exit_request = mc_exit_response = 0;
     memcard_running = 0;
 

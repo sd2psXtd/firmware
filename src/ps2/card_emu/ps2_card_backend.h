@@ -26,6 +26,9 @@ typedef struct {
     uint8_t (*receiveFirst)(uint8_t *cmd);
     void    (*respond)(uint8_t ch);
 
+    void    (*abort)(void);
+    void    (*finish)(void);
+
     void (*startup)(void);
 
     bool (*probe)(void);

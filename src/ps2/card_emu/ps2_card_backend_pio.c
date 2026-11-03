@@ -32,6 +32,8 @@ static void ps2_pio_deinit(void);
 static uint8_t ps2_pio_receiveFirst(uint8_t *cmd);
 static uint8_t ps2_pio_receive(uint8_t *cmd);
 static void ps2_pio_respond(uint8_t ch);
+static void ps2_pio_abort(void);
+static void ps2_pio_finish(void);
 static bool ps2_pio_probe(void);
 static void ps2_pio_irq_startup(void);
 static void ps2_pio_irq_shutdown(void);
@@ -56,6 +58,8 @@ ps2_memory_card_backend_t ps2_card_backend_pio_console = {
     .receive = ps2_pio_receive,
     .receiveFirst = ps2_pio_receiveFirst,
     .respond = ps2_pio_respond,
+    .abort = ps2_pio_abort,
+    .finish = ps2_pio_finish,
 
     .probe = ps2_pio_probe,
 };
@@ -70,6 +74,8 @@ ps2_memory_card_backend_t ps2_card_backend_pio_arcade = {
     .receive = ps2_pio_receiveFirst,
     .receiveFirst = ps2_pio_receiveFirst,
     .respond = ps2_pio_respond,
+    .abort = ps2_pio_abort,
+    .finish = ps2_pio_finish,
 
     .probe = ps2_pio_probe,
 };
@@ -179,6 +185,15 @@ static uint8_t __time_critical_func(ps2_pio_receiveFirst)(uint8_t *cmd) {
 
 static void __time_critical_func(ps2_pio_respond)(uint8_t ch) {
     pio_sm_put_blocking(pio0, dat_writer.sm, ch);
+}
+
+static void __time_critical_func(ps2_pio_abort)(void) {
+    pio_sm_clear_fifos(pio0, cmd_reader.sm);
+    pio_sm_clear_fifos(pio0, dat_writer.sm);
+}
+
+static void __time_critical_func(ps2_pio_finish)(void) {
+    return;
 }
 
 
