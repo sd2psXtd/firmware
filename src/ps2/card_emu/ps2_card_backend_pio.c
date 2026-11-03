@@ -46,7 +46,7 @@ static bool ps2_pio_initialized;
 static bool ps2_host_confirmed;
 static gpio_irq_callback_t callbacks[NUM_CORES];
 
-ps2_memory_card_backend_t ps2_card_backend_pio = {
+ps2_memory_card_backend_t ps2_card_backend_pio_console = {
     .init = ps2_pio_init,
     .deinit = ps2_pio_deinit,
     .reset = ps2_pio_reset,
@@ -54,6 +54,20 @@ ps2_memory_card_backend_t ps2_card_backend_pio = {
     .shutdown = ps2_pio_irq_shutdown,
 
     .receive = ps2_pio_receive,
+    .receiveFirst = ps2_pio_receiveFirst,
+    .respond = ps2_pio_respond,
+
+    .probe = ps2_pio_probe,
+};
+
+ps2_memory_card_backend_t ps2_card_backend_pio_arcade = {
+    .init = ps2_pio_init,
+    .deinit = ps2_pio_deinit,
+    .reset = ps2_pio_reset,
+    .startup = ps2_pio_memory_card_startup,
+    .shutdown = ps2_pio_irq_shutdown,
+
+    .receive = ps2_pio_receiveFirst,
     .receiveFirst = ps2_pio_receiveFirst,
     .respond = ps2_pio_respond,
 
@@ -234,7 +248,7 @@ static void ps2_pio_memory_card_startup(void) {
 static void __time_critical_func(pio_card_deselected)(uint gpio, uint32_t event_mask) {
     if (gpio == PIN_PSX_SEL && (event_mask & GPIO_IRQ_EDGE_RISE)) {
         ps2_card_active = false;
-        ps2_card_backend_pio.reset();
+        ps2_pio_reset();
     }
 }
 

@@ -9,6 +9,8 @@
 #include "hardware/timer.h"
 #include "keystore.h"
 #include "ps2_mc_internal.h"
+#include "ps2_card_backend.h"
+
 
 #if LOG_LEVEL_MC_AUTH == 0
 #define log(x...)

@@ -12,6 +12,8 @@
 #include "ps2_cardman.h"
 #include "ps2_mc_internal.h"
 #include "ps2_mc_data_interface.h"
+#include "ps2_card_backend.h"
+
 #include "debug.h"
 #include "settings.h"
 
