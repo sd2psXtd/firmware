@@ -27,7 +27,6 @@
 #define log(level, fmt, x...) LOG_PRINT(LOG_LEVEL_PS2_MC, level, fmt, ##x)
 #endif
 
-volatile int ps2_reset;
 
 
 uint8_t term = 0xFF;
@@ -84,7 +83,7 @@ static void __time_critical_func(mc_main_loop)(void) {
     while (1) {
         uint8_t cmd = 0;
 
-        while (!ps2_reset && !ps2_reset && !ps2_reset && !ps2_reset && !ps2_reset) {
+        while (!ps2_card_backend->transactionAborted()) {
             if (ps2_mc_exit_request) {
                 return;
             }
@@ -102,7 +101,7 @@ static void __time_critical_func(mc_main_loop)(void) {
             mmceman_timeout_detected = false;
         }
 
-        ps2_reset = 0;
+        ps2_card_backend->signalTransactionReady();
         if (mmceman_callback != NULL) {
             mmceman_callback();
             continue;

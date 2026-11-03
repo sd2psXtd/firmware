@@ -32,6 +32,8 @@ static void ps2_pio_deinit(void);
 static uint8_t ps2_pio_receiveFirst(uint8_t *cmd);
 static uint8_t ps2_pio_receive(uint8_t *cmd);
 static void ps2_pio_respond(uint8_t ch);
+static bool ps2_pio_transactionAborted(void);
+static void ps2_pio_signalTransactionReady(void);
 static void ps2_pio_abort(void);
 static void ps2_pio_finish(void);
 static bool ps2_pio_probe(void);
@@ -47,6 +49,8 @@ static pio_t cmd_reader, dat_writer;
 static bool ps2_pio_initialized;
 static bool ps2_host_confirmed;
 static gpio_irq_callback_t callbacks[NUM_CORES];
+static volatile int ps2_reset;
+
 
 ps2_memory_card_backend_t ps2_card_backend_pio_console = {
     .init = ps2_pio_init,
@@ -60,6 +64,8 @@ ps2_memory_card_backend_t ps2_card_backend_pio_console = {
     .respond = ps2_pio_respond,
     .abort = ps2_pio_abort,
     .finish = ps2_pio_finish,
+    .transactionAborted = ps2_pio_transactionAborted,
+    .signalTransactionReady = ps2_pio_signalTransactionReady,
 
     .probe = ps2_pio_probe,
 };
@@ -76,6 +82,8 @@ ps2_memory_card_backend_t ps2_card_backend_pio_arcade = {
     .respond = ps2_pio_respond,
     .abort = ps2_pio_abort,
     .finish = ps2_pio_finish,
+    .transactionAborted = ps2_pio_transactionAborted,
+    .signalTransactionReady = ps2_pio_signalTransactionReady,
 
     .probe = ps2_pio_probe,
 };
@@ -196,6 +204,13 @@ static void __time_critical_func(ps2_pio_finish)(void) {
     return;
 }
 
+static bool __time_critical_func(ps2_pio_transactionAborted)(void) {
+    return ps2_reset || ps2_reset || ps2_reset ||ps2_reset || ps2_reset;
+}
+
+static void __time_critical_func(ps2_pio_signalTransactionReady)(void) {
+    ps2_reset = 0;
+}
 
 static bool __time_critical_func(ps2_pio_probe)(void) {
     if (ps2_host_confirmed)
