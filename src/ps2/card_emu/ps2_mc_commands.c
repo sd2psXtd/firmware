@@ -10,6 +10,7 @@
 #include "pico/platform.h"
 #include "pico/time.h"
 #include "ps2_cardman.h"
+#include "ps2_mc_auth.h"
 #include "ps2_mc_internal.h"
 #include "ps2_mc_data_interface.h"
 #include "ps2_card_backend.h"
@@ -57,9 +58,10 @@ static void __time_critical_func(delayed_response)(char ch, uint32_t delay, cons
 
 inline __attribute__((always_inline)) void __time_critical_func(ps2_mc_cmd_0x11)(void) {
     uint8_t _ = 0U;
+    uint8_t response_term = (!ps2_mc_auth_isValid()) ? 0x66 : term;
     ps2_card_backend->respond(0x2B);
     receiveOrNextCmd(&_);
-    ps2_card_backend->respond(term);
+    ps2_card_backend->respond(response_term);
 }
 
 inline __attribute__((always_inline)) void __time_critical_func(ps2_mc_cmd_0x12)(void) {
