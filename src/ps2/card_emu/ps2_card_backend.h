@@ -26,6 +26,8 @@ typedef struct {
     uint8_t (*receiveFirst)(uint8_t *cmd);
     void    (*respond)(uint8_t ch);
 
+    bool    (*transactionAborted)(void);
+    void    (*signalTransactionReady)(void);
     void    (*abort)(void);
     void    (*finish)(void);
 
@@ -39,7 +41,6 @@ enum { PS2_RECEIVE_RESET, PS2_RECEIVE_EXIT, PS2_RECEIVE_OK };
 
 
 extern volatile bool ps2_card_active;
-extern volatile int ps2_reset;
 extern volatile int ps2_mc_exit_request;
 
 #define receiveOrNextCmd(cmd)          \
