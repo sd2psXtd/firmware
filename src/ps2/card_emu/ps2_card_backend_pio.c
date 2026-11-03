@@ -32,6 +32,8 @@ static void ps2_pio_deinit(void);
 static uint8_t ps2_pio_receiveFirst(uint8_t *cmd);
 static uint8_t ps2_pio_receive(uint8_t *cmd);
 static void ps2_pio_respond(uint8_t ch);
+static void ps2_pio_abort(void);
+static void ps2_pio_finish(void);
 static bool ps2_pio_probe(void);
 static void ps2_pio_irq_startup(void);
 static void ps2_pio_irq_shutdown(void);
@@ -46,7 +48,7 @@ static bool ps2_pio_initialized;
 static bool ps2_host_confirmed;
 static gpio_irq_callback_t callbacks[NUM_CORES];
 
-ps2_memory_card_backend_t ps2_card_backend_pio = {
+ps2_memory_card_backend_t ps2_card_backend_pio_console = {
     .init = ps2_pio_init,
     .deinit = ps2_pio_deinit,
     .reset = ps2_pio_reset,
@@ -56,6 +58,24 @@ ps2_memory_card_backend_t ps2_card_backend_pio = {
     .receive = ps2_pio_receive,
     .receiveFirst = ps2_pio_receiveFirst,
     .respond = ps2_pio_respond,
+    .abort = ps2_pio_abort,
+    .finish = ps2_pio_finish,
+
+    .probe = ps2_pio_probe,
+};
+
+ps2_memory_card_backend_t ps2_card_backend_pio_arcade = {
+    .init = ps2_pio_init,
+    .deinit = ps2_pio_deinit,
+    .reset = ps2_pio_reset,
+    .startup = ps2_pio_memory_card_startup,
+    .shutdown = ps2_pio_irq_shutdown,
+
+    .receive = ps2_pio_receiveFirst,
+    .receiveFirst = ps2_pio_receiveFirst,
+    .respond = ps2_pio_respond,
+    .abort = ps2_pio_abort,
+    .finish = ps2_pio_finish,
 
     .probe = ps2_pio_probe,
 };
@@ -167,6 +187,15 @@ static void __time_critical_func(ps2_pio_respond)(uint8_t ch) {
     pio_sm_put_blocking(pio0, dat_writer.sm, ch);
 }
 
+static void __time_critical_func(ps2_pio_abort)(void) {
+    pio_sm_clear_fifos(pio0, cmd_reader.sm);
+    pio_sm_clear_fifos(pio0, dat_writer.sm);
+}
+
+static void __time_critical_func(ps2_pio_finish)(void) {
+    return;
+}
+
 
 static bool __time_critical_func(ps2_pio_probe)(void) {
     if (ps2_host_confirmed)
@@ -234,7 +263,7 @@ static void ps2_pio_memory_card_startup(void) {
 static void __time_critical_func(pio_card_deselected)(uint gpio, uint32_t event_mask) {
     if (gpio == PIN_PSX_SEL && (event_mask & GPIO_IRQ_EDGE_RISE)) {
         ps2_card_active = false;
-        ps2_card_backend_pio.reset();
+        ps2_pio_reset();
     }
 }
 

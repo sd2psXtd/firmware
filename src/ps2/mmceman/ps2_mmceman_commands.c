@@ -10,6 +10,7 @@
 #include "ps2_cardman.h"
 #include "card_emu/ps2_memory_card.h"
 #include "card_emu/ps2_mc_internal.h"
+#include "card_emu/ps2_card_backend.h"
 
 #include "ps2_mmceman.h"
 #include "ps2_mmceman_commands.h"

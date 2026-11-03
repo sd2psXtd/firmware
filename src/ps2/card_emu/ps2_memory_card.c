@@ -11,7 +11,9 @@
 #include "mmceman/ps2_mmceman.h"
 #include "mmceman/ps2_mmceman_commands.h"
 #include "mmceman/ps2_mmceman_fs.h"
-#include "ps2_card_backend_pio.h"
+#include "ps2_card_backend.h"
+
+#include "ps2_card_backend.h"
 
 #include <hardware/watchdog.h>
 #include <settings.h>
@@ -38,7 +40,7 @@ static volatile int mc_exit_response, mc_enter_request, mc_enter_response;
 
 static int memcard_variant;
 
-ps2_memory_card_backend_t* ps2_card_backend = &ps2_card_backend_pio;
+ps2_memory_card_backend_t* ps2_card_backend = NULL;
 
 const uint8_t EccTable[] = {
     0x00, 0x87, 0x96, 0x11, 0xa5, 0x22, 0x33, 0xb4, 0xb4, 0x33, 0x22, 0xa5, 0x11, 0x96, 0x87, 0x00, 0xc3, 0x44, 0x55, 0xd2, 0x66, 0xe1, 0xf0, 0x77, 0x77, 0xf0,
@@ -217,8 +219,11 @@ static void __time_critical_func(mc_main_loop)(void) {
             continue;
         } else {
             // not for us
+            ps2_card_backend->abort();
             continue;
         }
+
+        ps2_card_backend->finish();
     }
 }
 
@@ -252,6 +257,7 @@ static void __no_inline_not_in_flash_func(mc_main)(void) {
 void ps2_memory_card_main(void) {
     multicore_lockout_victim_init();
     memcard_variant = settings_get_ps2_variant();
+    ps2_card_backend = ps2_card_backend_get();
     log(LOG_TRACE, "Secondary core!\n");
     ps2_card_backend->init();
     ps2_card_backend->startup();
@@ -278,6 +284,7 @@ void ps2_memory_card_exit(void) {
             }
         }
     };
+    ps2_card_backend->abort();
     ps2_mc_exit_request = mc_exit_response = 0;
     memcard_running = 0;
 
