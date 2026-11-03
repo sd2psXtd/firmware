@@ -80,6 +80,11 @@ void __time_critical_func(xor_bit)(const void *a, const void *b, void *Result, s
 }
 
 void __time_critical_func(generateIvSeedNonce)() {
+    /* A newly presented PS2 card must not inherit auth state. */
+    auth_state = AUTH_STATE_IDLE;
+    auth_valid = false;
+    request_keystore_reset = false;
+
     switch (settings_get_ps2_variant()) {
         case PS2_VARIANT_COH:
             keysource = coh_keysource;
