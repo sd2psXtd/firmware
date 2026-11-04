@@ -12,8 +12,7 @@
 #include "mmceman/ps2_mmceman_commands.h"
 #include "mmceman/ps2_mmceman_fs.h"
 #include "ps2_card_backend.h"
-
-#include "ps2_card_backend.h"
+#include "ps2_mc_data_interface.h"
 
 #include <hardware/watchdog.h>
 #include <settings.h>
@@ -267,13 +266,13 @@ void ps2_memory_card_main(void) {
     mc_exit_response = 1;
 }
 
-
 void ps2_memory_card_exit(void) {
-    uint64_t exit_timeout = time_us_64() + (1000 * 1000);
+    uint64_t exit_timeout;
     if (!memcard_running)
         return;
 
     ps2_mc_exit_request = 1;
+    exit_timeout = time_us_64() + (1000 * 1000);
     while (!mc_exit_response) {
         if (time_us_64() > exit_timeout) {
             log(LOG_ERROR, "MEMCARD EXIT TIMEOUT! This is an unrecoverable error! Rebooting...\n");
@@ -282,6 +281,10 @@ void ps2_memory_card_exit(void) {
                 tight_loop_contents();
             }
         }
+        ps2_cardman_task();
+
+        if (ps2_cardman_is_idle())
+            ps2_mc_data_interface_task();
     };
     ps2_card_backend->abort();
     ps2_mc_exit_request = mc_exit_response = 0;

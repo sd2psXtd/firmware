@@ -54,6 +54,7 @@ typedef struct {
 #define SETTINGS_PS2_FLAGS_GAME_ID          (0b0000010)
 #define SETTINGS_SYS_FLAGS_PS2_MODE         (0b0000001)
 #define SETTINGS_SYS_FLAGS_FLIPPED_DISPLAY  (0b0000010)
+#define SETTINGS_SYS_FLAGS_MCA_ENABLED      (0b0000100)
 
 _Static_assert(sizeof(settings_t) == 24, "unexpected padding in the settings structure");
 
@@ -128,6 +129,9 @@ static int parse_card_configuration(void *user, const char *section, const char 
     } else if (MATCH("General", "FlippedScreen")
         && DIFFERS(value, ((_s->sys_flags & SETTINGS_SYS_FLAGS_FLIPPED_DISPLAY) > 0))) {
         _s->sys_flags ^= SETTINGS_SYS_FLAGS_FLIPPED_DISPLAY;
+    } else if (MATCH("General", "MCA")
+        && DIFFERS(value, ((_s->sys_flags & SETTINGS_SYS_FLAGS_MCA_ENABLED) > 0))) {
+        _s->sys_flags ^= SETTINGS_SYS_FLAGS_MCA_ENABLED;
     }
     #undef MATCH
     return 1;
@@ -159,7 +163,7 @@ static void settings_deserialize(void) {
             settings.ps1_maxcardidx  = newSettings.ps1_maxcardidx;
             settings.ps2_maxcardidx  = newSettings.ps2_maxcardidx;
 
-            wear_leveling_write(0, &settings, sizeof(settings));
+            settings_update_part(&settings, sizeof(settings));
         }
     }
 }
@@ -190,6 +194,8 @@ static void settings_serialize(void) {
         written = snprintf(line_buffer, 256, "Mode=%s\n", ((settings.sys_flags & SETTINGS_SYS_FLAGS_PS2_MODE) > 0) ? "PS2" : "PS1");
         sd_write(fd, line_buffer, written);
         written = snprintf(line_buffer, 256, "FlippedScreen=%s\n", ((settings.sys_flags & SETTINGS_SYS_FLAGS_FLIPPED_DISPLAY) > 0) ? "ON" : "OFF");
+        sd_write(fd, line_buffer, written);
+        written = snprintf(line_buffer, 256, "MCA=%s\n", settings_get_mca_enabled() ? "ON" : "OFF");
         sd_write(fd, line_buffer, written);
         written = snprintf(line_buffer, 256, "[PS1]\n");
         sd_write(fd, line_buffer, written);
@@ -428,6 +434,17 @@ int settings_get_mode(bool current) {
         return MODE_PS1;
     else
         return MODE_PS2;
+}
+
+bool settings_get_mca_enabled(void) {
+    return (settings.sys_flags & SETTINGS_SYS_FLAGS_MCA_ENABLED) != 0;
+}
+
+void settings_set_mca_enabled(bool enabled) {
+    if (enabled != settings_get_mca_enabled()) {
+        settings.sys_flags ^= SETTINGS_SYS_FLAGS_MCA_ENABLED;
+        SETTINGS_UPDATE_FIELD(sys_flags);
+    }
 }
 
 void settings_set_mode(int mode) {

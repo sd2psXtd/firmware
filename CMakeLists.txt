@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 3.12)
+cmake_minimum_required(VERSION 3.25)
 # Pico SDK
 set(PICO_SDK_PATH ${CMAKE_CURRENT_SOURCE_DIR}/ext/pico-sdk)
 include(pico_sdk_import.cmake)
@@ -109,6 +109,7 @@ target_link_libraries(sd2psx_common
                         hardware_watchdog
                         pico_multicore
                         pico_time
+                        pico_stdio_usb_headers
                         inih)
 
 target_compile_options(sd2psx_common
