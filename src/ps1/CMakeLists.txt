@@ -2,6 +2,7 @@ add_library(ps1_card STATIC
             ${CMAKE_CURRENT_SOURCE_DIR}/ps1_cardman.c
             ${CMAKE_CURRENT_SOURCE_DIR}/ps1_dirty.c
             ${CMAKE_CURRENT_SOURCE_DIR}/ps1_memory_card.c
+            ${CMAKE_CURRENT_SOURCE_DIR}/ps1_card_backend.c
             ${CMAKE_CURRENT_SOURCE_DIR}/ps1_empty_card.c
             ${CMAKE_CURRENT_SOURCE_DIR}/ps1_mc_data_interface.c
             ${CMAKE_CURRENT_SOURCE_DIR}/ps1_mmce.c

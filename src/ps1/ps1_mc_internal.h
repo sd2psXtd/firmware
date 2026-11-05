@@ -23,7 +23,9 @@ typedef struct {
 
     uint8_t (*recv_cntrl)(uint8_t *cmd);
     uint8_t (*recv_mc)(uint8_t *cmd);
+    uint8_t (*receive_first)(uint8_t *cmd);
     void    (*respond)(uint8_t ch);
+    void (*finish)(void);
 
     void (*startup)(void);
 } ps1_memory_card_backend_t;
