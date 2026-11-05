@@ -463,6 +463,10 @@ void settings_set_mode(int mode) {
     }
 }
 
+void settings_restore_persistent_mode(void) {
+    tempmode = settings.sys_flags & SETTINGS_SYS_FLAGS_PS2_MODE;
+}
+
 bool settings_get_ps1_autoboot(void) {
     return (settings.ps1_flags & SETTINGS_PS1_FLAGS_AUTOBOOT);
 }

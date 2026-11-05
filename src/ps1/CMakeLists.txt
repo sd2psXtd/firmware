@@ -6,6 +6,7 @@ add_library(ps1_card STATIC
             ${CMAKE_CURRENT_SOURCE_DIR}/ps1_mc_data_interface.c
             ${CMAKE_CURRENT_SOURCE_DIR}/ps1_mmce.c
             ${CMAKE_CURRENT_SOURCE_DIR}/ps1_card_backend_pio.c
+            ${CMAKE_CURRENT_SOURCE_DIR}/ps1_card_backend_mca.c
 )
 
 target_include_directories(ps1_card PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})

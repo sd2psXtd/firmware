@@ -16,6 +16,10 @@
 #include "pico/time.h"
 #include "sd.h"
 #include "settings.h"
+#include "usb/mca_device.h"
+#include "usb/mca_protocol.h"
+#include "bsp/board.h"
+#include "tusb.h"
 #if WITH_PSRAM
 #include "psram/psram.h"
 #endif
@@ -75,6 +79,26 @@ static void debug_task(void) {
 
 
 
+static void usb_start(bool mca_profile) {
+    tusb_init();
+    if (!mca_profile) {
+        stdio_usb_init();
+#if DEBUG_USB_UART
+        static bool startup_waited;
+        if (!startup_waited) {
+            uint64_t end = time_us_64() + (uint64_t)DEBUG_STARTUP_DELAY_MS * 1000;
+            while (!stdio_usb_connected() && time_us_64() < end) {
+                tud_task_ext(0, false);
+                sleep_ms(1);
+            }
+            if (DEBUG_STARTUP_DELAY_MS > 0 && stdio_usb_connected())
+                sleep_ms(PICO_STDIO_USB_POST_CONNECT_WAIT_DELAY_MS);
+            startup_waited = true;
+        }
+#endif
+    }
+}
+
 int main() {
     int mhz = 240;
     input_init();
@@ -87,7 +111,7 @@ int main() {
     clock_configure(clk_peri, 0, CLOCKS_CLK_PERI_CTRL_AUXSRC_VALUE_CLK_SYS, mhz * 1000000, mhz * 1000000);
 
 #if DEBUG_USB_UART
-    stdio_usb_init();
+    /* CDC is started after selecting the USB profile below. */
 #else
     stdio_uart_init_full(UART_PERIPH, UART_BAUD, UART_TX, UART_RX);
 #endif
@@ -105,6 +129,8 @@ int main() {
     QPRINTF("Splash base: 0x%X\n", FLASH_OFF_SPLASH);
 
     settings_init();
+    mca_protocol_init();
+    board_init();
 #if WITH_PSRAM
     psram_init();
 #endif
@@ -117,16 +143,29 @@ int main() {
     sd_init();
 
     while (1) {
+        bool mca_profile = settings_get_mca_enabled();
+        bool mode_running;
+        bool switching = false;
+        mca_device_init(mca_profile, mca_protocol_callbacks());
         if (settings_get_mode(true) == MODE_PS2) {
             QPRINTF("Starting PS2 mode...\n");
             ps2_init();
             settings_load_sd();
-#if DEBUG_USB_UART == 0
-            stdio_usb_init();
-#endif
+            usb_start(mca_profile);
+            mca_protocol_set_ready(true);
             do {
+                tud_task_ext(0, false);
+                mca_protocol_task();
                 debug_task();
-            } while(ps2_task());
+                mode_running = ps2_task();
+                if (!mode_running || mca_profile != settings_get_mca_enabled()) {
+                    switching = true;
+                    mca_protocol_set_ready(false);
+                }
+            } while (!switching || !mca_protocol_idle());
+            mca_protocol_set_ready(false);
+            if (mca_profile)
+                mca_protocol_drain_reply(500);
             ps2_deinit();
 
         } else {
@@ -134,18 +173,34 @@ int main() {
             ps1_init();
             settings_load_sd();
 
-#if DEBUG_USB_UART == 0
-            stdio_usb_init();
-#endif
+            usb_start(mca_profile);
+            mca_protocol_set_ready(true);
             do {
+                tud_task_ext(0, false);
+                mca_protocol_task();
                 debug_task();
-            } while(ps1_task());
+                mode_running = ps1_task();
+                if (!mode_running || mca_profile != settings_get_mca_enabled()) {
+                    switching = true;
+                    mca_protocol_set_ready(false);
+                }
+            } while (!switching || !mca_protocol_idle());
+            mca_protocol_set_ready(false);
+            if (mca_profile)
+                mca_protocol_drain_reply(500);
             ps1_deinit();
         }
         // ReArm PS2 retry counter
         ps2_mmceman_rearm_retry_counter();
-#if DEBUG_USB_UART == 0
-        stdio_usb_deinit();
-#endif
+        /* TinyUSB is owned by this application, so stdio has no USB
+         * background task to shut down. SDK releases disagree on whether
+         * stdio_usb_deinit() must precede or follow tud_deinit(). */
+        if (!mca_profile) {
+            stdio_set_driver_enabled(&stdio_usb, false);
+            sleep_ms(PICO_STDIO_USB_DEINIT_DELAY_MS);
+        }
+        tud_disconnect();
+        tud_deinit(0);
+        mca_protocol_reset();
     }
 }

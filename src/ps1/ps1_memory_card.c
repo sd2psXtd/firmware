@@ -13,6 +13,7 @@
 #include "debug.h"
 #include "ps1/ps1_memory_card.h"
 #include "ps1_card_backend_pio.h"
+#include "ps1_card_backend_mca.h"
 
 static uint64_t us_startup;
 
@@ -98,6 +99,7 @@ static void __time_critical_func(mc_cmd_read)(bool long_read) {
     uint8_t chk = 0;
     uint16_t page = 0U;
     uint8_t _;
+    bool mca = ps1_card_backend == &ps1_card_backend_mca;
 
     respondOrNextCmd(0x5A);       receiveOrNextCmd(&_);
     respondOrNextCmd(0x5D);       receiveOrNextCmd(&_);
@@ -108,6 +110,8 @@ static void __time_critical_func(mc_cmd_read)(bool long_read) {
     respondOrNextCmd(0x5D);       receiveOrNextCmd(&_);
     respondOrNextCmd(page_msb);   receiveOrNextCmd(&_);
     page = (page_msb << 8) | page_lsb;
+    if (mca && page >= 1024)
+        return;
     ps1_mc_data_interface_setup_read_page(page);
     respondOrNextCmd(page_lsb);   receiveOrNextCmd(&_);
     do {
@@ -119,7 +123,12 @@ static void __time_critical_func(mc_cmd_read)(bool long_read) {
             receiveOrNextCmd(&_)
         }
         page++;
-        ps1_mc_data_interface_setup_read_page(page);
+        if (!mca || (long_read && page < 1024))
+            ps1_mc_data_interface_setup_read_page(page);
+        if (mca && long_read && page >= 1024) {
+            curr_page = NULL;
+            return;
+        }
     } while (long_read);
     respondOrNextCmd(chk);        receiveOrNextCmd(&_);
     respondOrNextCmd(0x47);
@@ -149,6 +158,8 @@ static void __time_critical_func(mc_cmd_write)(void) {
     uint8_t prev;
     uint8_t chk = 0;
     uint8_t _;
+    uint8_t staged[PS1_PAGE_SIZE];
+    bool mca = ps1_card_backend == &ps1_card_backend_mca;
 
     flag = 0;
 
@@ -158,18 +169,37 @@ static void __time_critical_func(mc_cmd_write)(void) {
     respondOrNextCmd(page_msb);   receiveOrNextCmd(&page_lsb);
     chk = page_msb ^ page_lsb;
     prev = page_lsb;
-    for (offset = 0; offset < 128; offset++) {
-        respondOrNextCmd(prev);   receiveOrNextCmd(&in);
-        ps1_mc_data_interface_write_byte(((page_msb * 256) + page_lsb) * 128 + offset, in);
-        chk ^= in;
-        prev = in;
+    if (mca) {
+        for (offset = 0; offset < PS1_PAGE_SIZE; offset++) {
+            respondOrNextCmd(prev);   receiveOrNextCmd(&in);
+            staged[offset] = in;
+            chk ^= in;
+            prev = in;
+        }
+    } else {
+        for (offset = 0; offset < 128; offset++) {
+            respondOrNextCmd(prev);   receiveOrNextCmd(&in);
+            ps1_mc_data_interface_write_byte(((page_msb * 256) + page_lsb) * 128 + offset, in);
+            chk ^= in;
+            prev = in;
+        }
     }
     respondOrNextCmd(prev);           receiveOrNextCmd(&in);
     respondOrNextCmd(0x5C);           receiveOrNextCmd(&_);
     respondOrNextCmd(0x5D);           receiveOrNextCmd(&_);
     if (in == chk) {
-        ps1_mc_data_interface_write_mc((page_msb * 256) + page_lsb);
-        respondOrNextCmd(0x47);
+        uint16_t page = (page_msb * 256) + page_lsb;
+        if (mca && page >= 1024) {
+            respondOrNextCmd(0xFF);
+        } else {
+            if (mca) {
+                ps1_mc_data_interface_wait_for_byte(PS1_PAGE_SIZE - 1);
+                for (offset = 0; offset < PS1_PAGE_SIZE; offset++)
+                    ps1_mc_data_interface_write_byte(page * PS1_PAGE_SIZE + offset, staged[offset]);
+            }
+            ps1_mc_data_interface_write_mc(page);
+            respondOrNextCmd(0x47);
+        }
     } else {
         respondOrNextCmd(0x4E);
     }
@@ -345,9 +375,15 @@ static void __time_critical_func(mc_main_loop)(void) {
     while (1) {
         uint8_t ch = 0x00;
 
-        while (!ps1_mc_reset && !ps1_mc_reset && !ps1_mc_reset && !ps1_mc_reset && !ps1_mc_reset) {
-            if (ps1_mc_exit_request) {
+        if (ps1_card_backend == &ps1_card_backend_mca) {
+            ps1_card_backend_mca_finish();
+            if (!ps1_card_backend_mca_wait())
                 return;
+        } else {
+            while (!ps1_mc_reset && !ps1_mc_reset && !ps1_mc_reset && !ps1_mc_reset && !ps1_mc_reset) {
+                if (ps1_mc_exit_request) {
+                    return;
+                }
             }
         }
         ps1_mc_reset = 0;
@@ -427,6 +463,7 @@ static void __no_inline_not_in_flash_func(mc_main)(void) {
 void ps1_memory_card_main(void) {
     multicore_lockout_victim_init();
 
+    ps1_card_backend = settings_get_mca_enabled() ? &ps1_card_backend_mca : &ps1_card_backend_pio;
     ps1_card_backend->init();
     ps1_card_backend->startup();
 
