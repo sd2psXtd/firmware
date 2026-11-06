@@ -1,10 +1,15 @@
+#include "settings.h"
 #include "ps2_card_backend_mca.h"
 #include "usb/mca_bridge.h"
+#include "usb/mca_protocol.h"
 #include "mmceman/ps2_mmceman.h"
 
 extern mca_bridge_t mca_bridge;
 
 static void no_op(void) {}
+
+static void startup(void) { mca_protocol_set_ready(true); }
+static void shutdown(void) { mca_protocol_set_ready(false); }
 
 static void finish(void) {
     if (mca_bridge_state(&mca_bridge) == MCA_BRIDGE_ACTIVE)
@@ -58,12 +63,19 @@ static void respond(uint8_t byte) {
 
 static bool probe(void) { return false; }
 
+static bool idle(void) {
+    return settings_get_mode(true) == MODE_PS2 &&
+        settings_get_mca_enabled() && mca_protocol_idle();
+}
+
 ps2_memory_card_backend_t ps2_card_backend_mca = {
+    .idle = idle,
+    .switch_delay = mca_protocol_switch_delay,
     .init = no_op,
     .deinit = no_op,
     .reset = no_op,
-    .startup = no_op,
-    .shutdown = no_op,
+    .startup = startup,
+    .shutdown = shutdown,
     .receive = receive,
     .receiveFirst = receive_first,
     .respond = respond,

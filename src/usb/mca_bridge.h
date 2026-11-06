@@ -33,8 +33,6 @@ typedef struct {
 } mca_bridge_t;
 
 void mca_bridge_init(mca_bridge_t *bridge);
-/* Core 0. Copies the full request; false means busy or invalid length. */
-bool mca_bridge_submit(mca_bridge_t *bridge, const uint8_t *input, size_t length);
 /* Zero-copy core0 API. The request buffer is writable only while IDLE. Publish
  * a subrange so a scheduler can retain other RX bytes across transactions. */
 uint8_t *mca_bridge_core0_request_buffer(mca_bridge_t *bridge);
@@ -43,9 +41,6 @@ bool mca_bridge_core0_publish_request(mca_bridge_t *bridge, size_t offset,
 /* Core 0. Requests cancellation without waiting. Storage remains unavailable
  * until core 1 claims and acknowledges the request via core1_finish(). */
 bool mca_bridge_cancel(mca_bridge_t *bridge);
-/* Core 0. Copies a completed response then releases the transaction to IDLE. */
-bool mca_bridge_take_response(mca_bridge_t *bridge, uint8_t *output,
-                              size_t capacity, size_t *length);
 /* Zero-copy core0 response API. Returns the payload pointer; exactly four
  * writable prefix bytes precede it in the same TX array. Pointer and prefix
  * remain valid until release. */
@@ -60,5 +55,4 @@ bool mca_bridge_core1_receive(mca_bridge_t *bridge, uint8_t *byte);
 bool mca_bridge_core1_respond(mca_bridge_t *bridge, uint8_t byte);
 /* Core 1. Publishes response, or releases ownership after cancellation. */
 bool mca_bridge_core1_finish(mca_bridge_t *bridge);
-bool mca_bridge_core1_cancelled(mca_bridge_t *bridge);
 mca_bridge_state_t mca_bridge_state(mca_bridge_t *bridge);

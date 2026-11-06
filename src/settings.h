@@ -45,7 +45,6 @@ enum {
 
 int settings_get_mode(bool current);
 void settings_set_mode(int mode);
-void settings_restore_persistent_mode(void);
 bool settings_get_mca_enabled(void);
 void settings_set_mca_enabled(bool enabled);
 bool settings_get_ps1_autoboot(void);

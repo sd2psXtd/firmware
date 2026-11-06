@@ -27,13 +27,10 @@ static struct {
     mca_bridge_t *bridge;
     page_step_t step;
     bool write;
-    bool read_ready;
     uint8_t term;
     uint16_t offset;
     uint16_t chunk;
     uint64_t deadline;
-    mca_page_result_t cancellation_result;
-    mca_page_result_t terminal_result;
 } page;
 
 static uint8_t edc(const uint8_t *bytes, uint16_t length) {
@@ -142,7 +139,6 @@ static void prepare_final_response(void) {
         output[4] = 0x55;
         output[5] = 0x5a;
         page.bridge->output_length = 2;
-        page.read_ready = false;
     } else {
         memcpy(output + 4, page.bridge->input + MCA_PAGE_STAGE_OFFSET,
                MCA_PAGE_RAW_SIZE);
@@ -151,13 +147,11 @@ static void prepare_final_response(void) {
         output[2] = (uint8_t)MCA_PAGE_RAW_SIZE;
         output[3] = (uint8_t)(MCA_PAGE_RAW_SIZE >> 8);
         page.bridge->output_length = MCA_PAGE_RAW_SIZE;
-        page.read_ready = true;
     }
 }
 
 static mca_page_result_t finish(mca_page_result_t result) {
     page.step = STEP_IDLE;
-    page.cancellation_result = MCA_PAGE_IDLE;
     return result;
 }
 
@@ -169,11 +163,9 @@ bool mca_page_start(mca_bridge_t *bridge, bool write, uint32_t page_number,
 
     page.bridge = bridge;
     page.write = write;
-    page.read_ready = false;
     page.offset = 0;
     page.chunk = 0;
     page.term = SIO_TERM_FALLBACK;
-    page.terminal_result = MCA_PAGE_IDLE;
     if (write) {
         uint8_t *input = mca_bridge_core0_request_buffer(bridge);
         if (!input)
@@ -196,9 +188,7 @@ static mca_page_result_t poll_cancellation(void) {
     else if (bridge_state != MCA_BRIDGE_IDLE)
         return MCA_PAGE_PENDING;
 
-    mca_page_result_t result = page.cancellation_result;
-    page.read_ready = false;
-    return finish(result);
+    return finish(MCA_PAGE_FAILED);
 }
 
 mca_page_result_t mca_page_task(mca_bridge_t *bridge, uint64_t now_us) {
@@ -206,11 +196,8 @@ mca_page_result_t mca_page_task(mca_bridge_t *bridge, uint64_t now_us) {
     uint8_t *response;
     size_t response_length = 0;
 
-    if (page.step == STEP_IDLE) {
-        mca_page_result_t result = page.terminal_result;
-        page.terminal_result = MCA_PAGE_IDLE;
-        return result;
-    }
+    if (page.step == STEP_IDLE)
+        return MCA_PAGE_IDLE;
     if (bridge != page.bridge)
         return MCA_PAGE_FAILED;
     if (page.step == STEP_CANCELLING)
@@ -245,7 +232,6 @@ mca_page_result_t mca_page_task(mca_bridge_t *bridge, uint64_t now_us) {
     if (bridge_state == MCA_BRIDGE_IDLE)
         return finish(MCA_PAGE_FAILED);
     if (now_us >= page.deadline) {
-        page.cancellation_result = MCA_PAGE_FAILED;
         page.step = STEP_CANCELLING;
         (void)mca_bridge_cancel(bridge);
         return poll_cancellation();
@@ -253,32 +239,6 @@ mca_page_result_t mca_page_task(mca_bridge_t *bridge, uint64_t now_us) {
     return MCA_PAGE_PENDING;
 }
 
-void mca_page_reset(mca_bridge_t *bridge) {
-    if (page.step == STEP_IDLE || bridge != page.bridge)
-        return;
-
-    page.read_ready = false;
-    mca_bridge_state_t bridge_state = mca_bridge_state(bridge);
-    if (bridge_state == MCA_BRIDGE_IDLE) {
-        (void)finish(MCA_PAGE_CANCELLED);
-        page.terminal_result = MCA_PAGE_CANCELLED;
-    } else if (bridge_state == MCA_BRIDGE_RESPONSE) {
-        (void)mca_bridge_core0_release_response(bridge);
-        (void)finish(MCA_PAGE_CANCELLED);
-        page.terminal_result = MCA_PAGE_CANCELLED;
-    } else {
-        page.step = STEP_CANCELLING;
-        page.cancellation_result = MCA_PAGE_CANCELLED;
-        (void)mca_bridge_cancel(bridge);
-    }
-}
-
 bool mca_page_is_cancelling(void) {
     return page.step == STEP_CANCELLING;
-}
-
-const uint8_t *mca_page_read_data(const mca_bridge_t *bridge) {
-    return bridge == page.bridge && page.read_ready
-        ? bridge->input + MCA_PAGE_STAGE_OFFSET
-        : NULL;
 }

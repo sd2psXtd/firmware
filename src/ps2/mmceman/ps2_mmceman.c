@@ -22,7 +22,7 @@
 #include "game_db/game_db.h"
 #include "input.h"
 #include "settings.h"
-#include "usb/mca_protocol.h"
+#include "card_emu/ps2_card_backend.h"
 
 #include "pico/platform.h"
 
@@ -125,7 +125,7 @@ void ps2_mmceman_task(void) {
         && (mmceman_switching_timeout < time_us_64())
         && !input_is_any_down()
         && !mmceman_op_in_progress
-        && (!mca_device_profile_is_mca() || mca_protocol_idle())) {
+        && ps2_card_backend_get()->idle()) {
 
         log(LOG_INFO, "%s Switching card now\n", __func__);
         uint32_t switching_time = time_us_32();
@@ -133,18 +133,13 @@ void ps2_mmceman_task(void) {
         ps2_history_tracker_init();
 
         // close old card
-        if (mca_device_profile_is_mca())
-            mca_protocol_set_ready(false);
         ps2_memory_card_exit();
         log(LOG_TRACE, "%s After Exit\n", __func__);
         ps2_mc_data_interface_flush();
         ps2_cardman_close();
         log(LOG_TRACE, "%s After Close\n", __func__);
 
-        if (mca_device_profile_is_mca())
-            mca_protocol_switch_delay(500);
-        else
-            sleep_ms(500);
+        ps2_card_backend_get()->switch_delay(500);
 #if WITH_GUI
         gui_do_ps2_card_switch();
         log(LOG_TRACE, "%s After GUI\n", __func__);
@@ -156,8 +151,6 @@ void ps2_mmceman_task(void) {
         // open new card
         ps2_cardman_open();
         ps2_memory_card_enter();
-        if (mca_device_profile_is_mca())
-            mca_protocol_set_ready(true);
 
         log(LOG_INFO, "%s Card switch took %u ms\n", __func__, (time_us_32() - switching_time)/1000U);
     }

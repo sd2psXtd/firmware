@@ -17,9 +17,6 @@
 #include "sd.h"
 #include "settings.h"
 #include "usb/mca_device.h"
-#include "usb/mca_protocol.h"
-#include "bsp/board.h"
-#include "tusb.h"
 #if WITH_PSRAM
 #include "psram/psram.h"
 #endif
@@ -79,26 +76,6 @@ static void debug_task(void) {
 
 
 
-static void usb_start(bool mca_profile) {
-    tusb_init();
-    if (!mca_profile) {
-        stdio_usb_init();
-#if DEBUG_USB_UART
-        static bool startup_waited;
-        if (!startup_waited) {
-            uint64_t end = time_us_64() + (uint64_t)DEBUG_STARTUP_DELAY_MS * 1000;
-            while (!stdio_usb_connected() && time_us_64() < end) {
-                tud_task_ext(0, false);
-                sleep_ms(1);
-            }
-            if (DEBUG_STARTUP_DELAY_MS > 0 && stdio_usb_connected())
-                sleep_ms(PICO_STDIO_USB_POST_CONNECT_WAIT_DELAY_MS);
-            startup_waited = true;
-        }
-#endif
-    }
-}
-
 int main() {
     int mhz = 240;
     input_init();
@@ -129,8 +106,7 @@ int main() {
     QPRINTF("Splash base: 0x%X\n", FLASH_OFF_SPLASH);
 
     settings_init();
-    mca_protocol_init();
-    board_init();
+    usb_session_init();
 #if WITH_PSRAM
     psram_init();
 #endif
@@ -143,64 +119,40 @@ int main() {
     sd_init();
 
     while (1) {
-        bool mca_profile = settings_get_mca_enabled();
-        bool mode_running;
-        bool switching = false;
-        mca_device_init(mca_profile, mca_protocol_callbacks());
+        /* Load the SD settings before choosing the mode, USB identity, and
+         * memory-card backend for this session. Keep the per-session reload
+         * so settings changed on SD are observed after every mode switch. */
+        settings_load_sd();
+        usb_session_prepare();
+        void (*mode_init)(void);
+        bool (*mode_task)(void);
+        void (*mode_deinit)(void);
         if (settings_get_mode(true) == MODE_PS2) {
             QPRINTF("Starting PS2 mode...\n");
-            ps2_init();
-            settings_load_sd();
-            usb_start(mca_profile);
-            mca_protocol_set_ready(true);
-            do {
-                tud_task_ext(0, false);
-                mca_protocol_task();
-                debug_task();
-                mode_running = ps2_task();
-                if (!mode_running || mca_profile != settings_get_mca_enabled()) {
-                    switching = true;
-                    mca_protocol_set_ready(false);
-                }
-            } while (!switching || !mca_protocol_idle());
-            mca_protocol_set_ready(false);
-            if (mca_profile)
-                mca_protocol_drain_reply(500);
-            ps2_deinit();
-
+            mode_init = ps2_init;
+            mode_task = ps2_task;
+            mode_deinit = ps2_deinit;
         } else {
             QPRINTF("Starting PS1 mode...\n");
-            ps1_init();
-            settings_load_sd();
-
-            usb_start(mca_profile);
-            mca_protocol_set_ready(true);
-            do {
-                tud_task_ext(0, false);
-                mca_protocol_task();
-                debug_task();
-                mode_running = ps1_task();
-                if (!mode_running || mca_profile != settings_get_mca_enabled()) {
-                    switching = true;
-                    mca_protocol_set_ready(false);
-                }
-            } while (!switching || !mca_protocol_idle());
-            mca_protocol_set_ready(false);
-            if (mca_profile)
-                mca_protocol_drain_reply(500);
-            ps1_deinit();
+            mode_init = ps1_init;
+            mode_task = ps1_task;
+            mode_deinit = ps1_deinit;
         }
+
+        mode_init();
+        usb_session_start();
+        while (true) {
+            usb_session_poll();
+            debug_task();
+            bool mode_running = mode_task();
+            if (!usb_session_continue(mode_running))
+                break;
+        }
+        usb_session_drain();
+        mode_deinit();
+
         // ReArm PS2 retry counter
         ps2_mmceman_rearm_retry_counter();
-        /* TinyUSB is owned by this application, so stdio has no USB
-         * background task to shut down. SDK releases disagree on whether
-         * stdio_usb_deinit() must precede or follow tud_deinit(). */
-        if (!mca_profile) {
-            stdio_set_driver_enabled(&stdio_usb, false);
-            sleep_ms(PICO_STDIO_USB_DEINIT_DELAY_MS);
-        }
-        tud_disconnect();
-        tud_deinit(0);
-        mca_protocol_reset();
+        usb_session_stop();
     }
 }

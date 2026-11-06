@@ -15,7 +15,6 @@ typedef enum {
     MCA_PAGE_READ_DONE,
     MCA_PAGE_WRITE_DONE,
     MCA_PAGE_FAILED,
-    MCA_PAGE_CANCELLED,
 } mca_page_result_t;
 
 /* Core 0/task-side API. `write_data` must point to 528 readable bytes for a
@@ -29,11 +28,4 @@ bool mca_page_start(mca_bridge_t *bridge, bool write, uint32_t page,
  * bridge TX buffer; release it only after the USB transfer completes. */
 mca_page_result_t mca_page_task(mca_bridge_t *bridge, uint64_t now_us);
 
-/* Nonblocking cancellation. If core 1 owns REQUEST/ACTIVE, continue polling
- * until MCA_PAGE_CANCELLED before reusing bridge RX or starting another page. */
-void mca_page_reset(mca_bridge_t *bridge);
 bool mca_page_is_cancelling(void);
-
-/* Read page staging bytes at RX+600, valid after READ_DONE and until the next
- * page starts. A successful operation retains the final bridge RESPONSE. */
-const uint8_t *mca_page_read_data(const mca_bridge_t *bridge);

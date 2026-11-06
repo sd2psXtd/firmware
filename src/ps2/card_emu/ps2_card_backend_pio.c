@@ -1,3 +1,5 @@
+#include "pico/time.h"
+#include "settings.h"
 #include "ps2_card_backend_pio.h"
 
 #include "ps2_mc_commands.h"
@@ -52,7 +54,14 @@ static gpio_irq_callback_t callbacks[NUM_CORES];
 static volatile int ps2_reset;
 
 
+static bool ps2_pio_idle(void) {
+    return settings_get_mode(true) == MODE_PS2 &&
+        !settings_get_mca_enabled();
+}
+
 ps2_memory_card_backend_t ps2_card_backend_pio_console = {
+    .idle = ps2_pio_idle,
+    .switch_delay = sleep_ms,
     .init = ps2_pio_init,
     .deinit = ps2_pio_deinit,
     .reset = ps2_pio_reset,
@@ -71,6 +80,8 @@ ps2_memory_card_backend_t ps2_card_backend_pio_console = {
 };
 
 ps2_memory_card_backend_t ps2_card_backend_pio_arcade = {
+    .idle = ps2_pio_idle,
+    .switch_delay = sleep_ms,
     .init = ps2_pio_init,
     .deinit = ps2_pio_deinit,
     .reset = ps2_pio_reset,

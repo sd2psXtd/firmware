@@ -8,7 +8,7 @@
 #include "debug.h"
 #include "game_db/game_db.h"
 #include "settings.h"
-#include "usb/mca_protocol.h"
+#include "ps1_card_backend.h"
 
 #if WITH_GUI
 #include <gui.h>
@@ -77,10 +77,7 @@ void ps1_mmce_task(void) {
             case MMCE_PS1_RESET:
                 DPRINTF("Received reset command.\n");
                 if (settings_get_mode(false) == MODE_PS2) {
-                    if (mca_device_profile_is_mca())
-                        settings_restore_persistent_mode();
-                    else
-                        settings_set_mode(MODE_PS2);
+                    settings_set_mode(MODE_PS2);
                 } else {
                     ps1_cardman_switch_default();
                 }
@@ -96,10 +93,8 @@ void ps1_mmce_task(void) {
     if ((mmce_switching_timeout < time_us_64())
         && !input_is_any_down()
         && (ps1_cardman_needs_update())
-        && (!mca_device_profile_is_mca() || mca_protocol_idle())) {
+        && ps1_card_backend_get()->idle()) {
 
-        if (mca_device_profile_is_mca())
-            mca_protocol_set_ready(false);
         ps1_memory_card_exit();
         ps1_mc_data_interface_flush();
         ps1_cardman_close();
@@ -107,15 +102,10 @@ void ps1_mmce_task(void) {
         gui_do_ps1_card_switch();
 #endif
 
-        if (mca_device_profile_is_mca())
-            mca_protocol_switch_delay(CARD_SWITCH_DELAY_MS);
-        else
-            sleep_ms(CARD_SWITCH_DELAY_MS); // This delay is required, so ODE can register the card change
+        ps1_card_backend_get()->switch_delay(CARD_SWITCH_DELAY_MS);
 
         ps1_cardman_open();
         ps1_memory_card_enter();
-        if (mca_device_profile_is_mca())
-            mca_protocol_set_ready(true);
 #ifdef WITH_GUI
         gui_request_refresh();
 #endif

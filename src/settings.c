@@ -454,17 +454,13 @@ void settings_set_mode(int mode) {
     } else if (mode != MODE_PS1 && mode != MODE_PS2)
         return;
 
-    if (mode != settings_get_mode(false)) {
+    if (mode != settings_get_mode(true)) {
         /* clear old mode, then set what was passed in */
         settings.sys_flags &= ~SETTINGS_SYS_FLAGS_PS2_MODE;
         settings.sys_flags |= mode;
         SETTINGS_UPDATE_FIELD(sys_flags);
         tempmode = settings.sys_flags & SETTINGS_SYS_FLAGS_PS2_MODE;
     }
-}
-
-void settings_restore_persistent_mode(void) {
-    tempmode = settings.sys_flags & SETTINGS_SYS_FLAGS_PS2_MODE;
 }
 
 bool settings_get_ps1_autoboot(void) {

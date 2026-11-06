@@ -8,16 +8,6 @@ void mca_bridge_init(mca_bridge_t *bridge) {
     bridge->state = MCA_BRIDGE_IDLE;
 }
 
-bool mca_bridge_submit(mca_bridge_t *bridge, const uint8_t *input, size_t length) {
-    if (!input || !length || length > MCA_BRIDGE_BUFFER_MAX ||
-        mca_bridge_state(bridge) != MCA_BRIDGE_IDLE)
-        return false;
-    uint8_t *buffer = mca_bridge_core0_request_buffer(bridge);
-    for (size_t i = 0; i < length; ++i)
-        buffer[i] = input[i];
-    return mca_bridge_core0_publish_request(bridge, 0, length);
-}
-
 uint8_t *mca_bridge_core0_request_buffer(mca_bridge_t *bridge) {
     return mca_bridge_state(bridge) == MCA_BRIDGE_IDLE ? bridge->input : NULL;
 }
@@ -54,20 +44,6 @@ bool mca_bridge_cancel(mca_bridge_t *bridge) {
     return pending;
 }
 
-bool mca_bridge_take_response(mca_bridge_t *bridge, uint8_t *output,
-                              size_t capacity, size_t *length) {
-    size_t n;
-    uint8_t *response = mca_bridge_core0_response_buffer(bridge, &n);
-    if (!response)
-        return false;
-    if (!output || !length || capacity < n)
-        return false;
-    for (size_t i = 0; i < n; ++i)
-        output[i] = response[i];
-    *length = n;
-    return mca_bridge_core0_release_response(bridge);
-}
-
 uint8_t *mca_bridge_core0_response_buffer(mca_bridge_t *bridge,
                                           size_t *length) {
     if (mca_bridge_state(bridge) != MCA_BRIDGE_RESPONSE)
@@ -98,14 +74,6 @@ bool mca_bridge_core1_begin(mca_bridge_t *bridge) {
     }
     critical_section_exit(&bridge->lock);
     return started;
-}
-
-bool mca_bridge_core1_cancelled(mca_bridge_t *bridge) {
-    bool cancelled;
-    critical_section_enter_blocking(&bridge->lock);
-    cancelled = bridge->cancel_requested;
-    critical_section_exit(&bridge->lock);
-    return cancelled;
 }
 
 bool mca_bridge_core1_receive(mca_bridge_t *bridge, uint8_t *byte) {

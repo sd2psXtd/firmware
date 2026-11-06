@@ -37,6 +37,7 @@ volatile int ps2_mc_exit_request;
 static volatile int mc_exit_response, mc_enter_request, mc_enter_response;
 
 static int memcard_variant;
+static bool backend_mode;
 
 ps2_memory_card_backend_t* ps2_card_backend = NULL;
 
@@ -229,7 +230,6 @@ static void __no_inline_not_in_flash_func(mc_main)(void) {
     while (1) {
         while (!mc_enter_request) {}
         log(LOG_TRACE, "Entering memcard core\n");
-        mc_enter_response = 1;
 
         ps2_history_tracker_card_changed();
         memcard_running = 1;
@@ -238,10 +238,16 @@ static void __no_inline_not_in_flash_func(mc_main)(void) {
 
         log(LOG_TRACE, "Resetting PIO for PS2 memory card emulation\n");
         ps2_card_backend->reset();
+        ps2_card_backend->startup();
+        mc_enter_response = 1;
         mc_main_loop();
+        ps2_card_backend->abort();
+        ps2_card_backend->shutdown();
 
         log(LOG_TRACE, "%s exit\n", __func__);
-        if (settings_get_mode(true) != MODE_PS2 || settings_get_ps2_variant() != memcard_variant) {
+        if (settings_get_mode(true) != MODE_PS2
+            || settings_get_ps2_variant() != memcard_variant
+            || settings_get_mca_enabled() != backend_mode) {
             log(LOG_TRACE, "Mode or variant changed, exiting memcard core\n");
             return;
         } else {
@@ -255,12 +261,11 @@ static void __no_inline_not_in_flash_func(mc_main)(void) {
 void ps2_memory_card_main(void) {
     multicore_lockout_victim_init();
     memcard_variant = settings_get_ps2_variant();
+    backend_mode = settings_get_mca_enabled();
     ps2_card_backend = ps2_card_backend_get();
     log(LOG_TRACE, "Secondary core!\n");
     ps2_card_backend->init();
-    ps2_card_backend->startup();
     mc_main();
-    ps2_card_backend->shutdown();
     ps2_card_backend->deinit();
     log(LOG_TRACE, "Secondary core exit!\n");
     mc_exit_response = 1;
@@ -286,7 +291,6 @@ void ps2_memory_card_exit(void) {
         if (ps2_cardman_is_idle())
             ps2_mc_data_interface_task();
     };
-    ps2_card_backend->abort();
     ps2_mc_exit_request = mc_exit_response = 0;
     memcard_running = 0;
 

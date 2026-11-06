@@ -578,8 +578,6 @@ static void evt_switch_variant(lv_event_t *event) {
 static void evt_switch_to_ps2(lv_event_t *event) {
     (void)event;
 
-    if (settings_get_mca_enabled())
-        settings_restore_persistent_mode();
     settings_set_mode(MODE_PS2);
     lv_label_set_text(lbl_mode, "PS2");
     gui_request_refresh();

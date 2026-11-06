@@ -1,3 +1,5 @@
+#include "pico/time.h"
+#include "settings.h"
 #include "ps1_card_backend_pio.h"
 #include "ps1_mc_spi.pio.h"
 
@@ -31,7 +33,14 @@ static void ps1_pio_finish(void);
 static void ps1_pio_irq_shutdown(void);
 static void ps1_pio_memory_card_startup(void);
 
+static bool ps1_pio_idle(void) {
+    return settings_get_mode(true) == MODE_PS1 &&
+        !settings_get_mca_enabled();
+}
+
 ps1_memory_card_backend_t ps1_card_backend_pio = {
+    .idle = ps1_pio_idle,
+    .switch_delay = sleep_ms,
     .init = ps1_pio_init,
     .deinit = ps1_pio_deinit,
     .reset = ps1_pio_reset,

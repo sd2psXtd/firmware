@@ -2,9 +2,16 @@
 
 #include "device/usbd.h"
 #include "device/usbd_pvt.h"
+#include "bsp/board.h"
+#include "config.h"
 #include "hardware/watchdog.h"
 #include "pico/bootrom.h"
+#include "pico/stdio.h"
+#include "pico/stdio_usb.h"
 #include "pico/stdio_usb/reset_interface.h"
+#include "pico/time.h"
+#include "mca_protocol.h"
+#include "settings.h"
 #include "tusb.h"
 
 #include <string.h>
@@ -19,7 +26,7 @@ static bool profile_mca;
 static mca_device_callbacks_t device_callbacks;
 static union { uint32_t alignment; uint8_t bytes[MCA_PACKET_SIZE]; } ep_out_buffer;
 static union { uint32_t alignment; uint8_t bytes[1]; } ep_interrupt_buffer;
-static const uint8_t *in_buffer;
+static bool in_busy;
 static bool interface_open;
 static bool out_open;
 static bool in_open;
@@ -57,7 +64,7 @@ void mca_device_init(bool mca_profile, const mca_device_callbacks_t *callbacks) 
     interface_open = false;
     out_open = false;
     in_open = false;
-    in_buffer = NULL;
+    in_busy = false;
     interrupt_open = false;
     interrupt_busy = false;
     presence = false;
@@ -71,13 +78,65 @@ bool mca_device_profile_is_mca(void) {
     return profile_mca;
 }
 
+void usb_session_init(void) {
+    mca_protocol_init();
+    board_init();
+}
+
+void usb_session_prepare(void) {
+    mca_device_init(settings_get_mca_enabled(), mca_protocol_callbacks());
+}
+
+void usb_session_start(void) {
+    tusb_init();
+    if (!profile_mca) {
+        stdio_usb_init();
+#if DEBUG_USB_UART
+        static bool startup_waited;
+        if (!startup_waited) {
+            uint64_t end = time_us_64() + (uint64_t)DEBUG_STARTUP_DELAY_MS * 1000;
+            while (!stdio_usb_connected() && time_us_64() < end) {
+                tud_task_ext(0, false);
+                sleep_ms(1);
+            }
+            if (DEBUG_STARTUP_DELAY_MS > 0 && stdio_usb_connected())
+                sleep_ms(PICO_STDIO_USB_POST_CONNECT_WAIT_DELAY_MS);
+            startup_waited = true;
+        }
+#endif
+    }
+}
+
+bool usb_session_continue(bool mode_running) {
+    return mode_running || !mca_protocol_idle();
+}
+
+void usb_session_poll(void) {
+    tud_task_ext(0, false);
+}
+
+void usb_session_drain(void) {
+    if (profile_mca)
+        mca_protocol_drain_reply(500);
+}
+
+void usb_session_stop(void) {
+    if (!profile_mca) {
+        stdio_set_driver_enabled(&stdio_usb, false);
+        sleep_ms(PICO_STDIO_USB_DEINIT_DELAY_MS);
+    }
+    tud_disconnect();
+    tud_deinit(0);
+    mca_protocol_reset();
+}
+
 bool mca_device_send(const uint8_t *data, size_t length) {
-    if (!profile_mca || !interface_open || !in_open || in_buffer || !data ||
+    if (!profile_mca || !interface_open || !in_open || in_busy || !data ||
         length == 0 || length > MCA_DEVICE_MAX_TRANSFER || ((uintptr_t)data & 3u) != 0)
         return false;
     if (!usbd_edpt_xfer(0, MCA_EP_IN, (uint8_t *)(uintptr_t)data, (uint32_t)length))
         return false;
-    in_buffer = data;
+    in_busy = true;
     return true;
 }
 
@@ -95,7 +154,7 @@ static void mca_driver_init(void) {
     interface_open = false;
     out_open = false;
     in_open = false;
-    in_buffer = NULL;
+    in_busy = false;
     interrupt_open = false;
     interrupt_busy = false;
     presence_reported_valid = false;
@@ -202,7 +261,7 @@ static bool mca_driver_xfer(uint8_t rhport, uint8_t endpoint_address,
         return true;
     }
     if (endpoint_address == MCA_EP_IN) {
-        in_buffer = NULL;
+        in_busy = false;
         if (device_callbacks.in_complete)
             device_callbacks.in_complete(success, transferred);
         return true;
@@ -217,8 +276,6 @@ static bool mca_driver_xfer(uint8_t rhport, uint8_t endpoint_address,
         } else {
             presence_reported_valid = false;
         }
-        if (device_callbacks.presence_complete)
-            device_callbacks.presence_complete(success, transferred);
         return true;
     }
     return false;
