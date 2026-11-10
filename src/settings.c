@@ -32,6 +32,8 @@ typedef struct {
     uint8_t ps2_variant; // Variant for keys
     uint8_t ps1_maxcardidx;    //1-255
     uint8_t ps2_maxcardidx;    //1-255
+    uint8_t ps1_maxchannels;    //1-255
+    uint8_t ps2_maxchannels;    //1-255
 } settings_t;
 
 typedef struct {
@@ -42,11 +44,13 @@ typedef struct {
     uint8_t ps2_variant; // Variant for keys
     uint8_t ps1_maxcardidx;
     uint8_t ps2_maxcardidx;
+    uint8_t ps1_maxchannels;
+    uint8_t ps2_maxchannels;
 } serialized_settings_t;
 
 #define SETTINGS_UPDATE_FIELD(field) settings_update_part(&settings.field, sizeof(settings.field))
 
-#define SETTINGS_VERSION_MAGIC              (0xAACD0007)
+#define SETTINGS_VERSION_MAGIC              (0xAACD0008)
 #define SETTINGS_PS1_FLAGS_AUTOBOOT         (0b0000001)
 #define SETTINGS_PS1_FLAGS_GAME_ID          (0b0000010)
 #define SETTINGS_PS1_FLAGS_CTRL_COMBO       (0b0000100)
@@ -92,6 +96,18 @@ static int parse_card_configuration(void *user, const char *section, const char 
              _s->ps2_maxcardidx = 255;
          else if (maxcard > 0)
             _s->ps2_maxcardidx = maxcard;
+    } else if (MATCH("PS1", "MaxChannels")) {
+        int maxchannels = atoi(value);
+        if (maxchannels > 255)
+            _s->ps1_maxchannels = 255;
+        else if (maxchannels > 0)
+            _s->ps1_maxchannels = maxchannels;
+    } else if (MATCH("PS2", "MaxChannels")) {
+        int maxchannels = atoi(value);
+        if (maxchannels > 255)
+            _s->ps2_maxchannels = 255;
+        else if (maxchannels > 0)
+            _s->ps2_maxchannels = maxchannels;
     } else if (MATCH("PS2", "Autoboot")
         && DIFFERS(value, ((_s->ps2_flags & SETTINGS_PS2_FLAGS_AUTOBOOT) > 0))) {
         _s->ps2_flags ^= SETTINGS_PS2_FLAGS_AUTOBOOT;
@@ -162,6 +178,8 @@ static void settings_deserialize(void) {
             settings.ps1_flags       = newSettings.ps1_flags;
             settings.ps1_maxcardidx  = newSettings.ps1_maxcardidx;
             settings.ps2_maxcardidx  = newSettings.ps2_maxcardidx;
+            settings.ps1_maxchannels = newSettings.ps1_maxchannels;
+            settings.ps2_maxchannels = newSettings.ps2_maxchannels;
 
             settings_update_part(&settings, sizeof(settings));
         }
@@ -207,6 +225,8 @@ static void settings_serialize(void) {
         sd_write(fd, line_buffer, written);
         written = snprintf(line_buffer, 256, "MaxCardIdx=%u\n", settings.ps1_maxcardidx);
         sd_write(fd, line_buffer, written);
+        written = snprintf(line_buffer, 256, "MaxChannels=%u\n", settings.ps1_maxchannels);
+        sd_write(fd, line_buffer, written);
         written = snprintf(line_buffer, 256, "[PS2]\n");
         sd_write(fd, line_buffer, written);
         written = snprintf(line_buffer, 256, "Autoboot=%s\n", ((settings.ps2_flags & SETTINGS_PS2_FLAGS_AUTOBOOT) > 0) ? "ON" : "OFF");
@@ -234,6 +254,8 @@ static void settings_serialize(void) {
         sd_write(fd, line_buffer, written);
         written = snprintf(line_buffer, 256, "MaxCardIdx=%u\n", settings.ps2_maxcardidx);
         sd_write(fd, line_buffer, written);
+        written = snprintf(line_buffer, 256, "MaxChannels=%u\n", settings.ps2_maxchannels);
+        sd_write(fd, line_buffer, written);
 
         sd_close(fd);
     }
@@ -258,6 +280,8 @@ static void settings_reset(void) {
     settings.ps2_variant = PS2_VARIANT_RETAIL;
     settings.ps1_maxcardidx = 0; //unlimited UINT16_MAX
     settings.ps2_maxcardidx = 0;
+    settings.ps1_maxchannels = 8; // 8 channel
+    settings.ps2_maxchannels = 8; // 8 channel
     if (wear_leveling_write(0, &settings, sizeof(settings)) == WEAR_LEVELING_FAILED)
         fatal(ERR_SETTINGS, "failed to reset settings");
 }
@@ -333,8 +357,16 @@ uint8_t settings_get_ps1_maxcardidx(void) {
     return settings.ps1_maxcardidx;
 }
 
+uint8_t settings_get_ps1_maxchannels(void) {
+    return settings.ps1_maxchannels;
+}
+
 uint8_t settings_get_ps2_maxcardidx(void) {
     return settings.ps2_maxcardidx;
+}
+
+uint8_t settings_get_ps2_maxchannels(void) {
+    return settings.ps2_maxchannels;
 }
 
 void settings_set_ps2_card(int card) {
@@ -379,6 +411,13 @@ void settings_set_ps1_maxcardidx(uint8_t x) {
     }
 }
 
+void settings_set_ps1_maxchannels(uint8_t x) {
+    if (settings.ps1_maxchannels != x) {
+        settings.ps1_maxchannels = x;
+        SETTINGS_UPDATE_FIELD(ps1_maxchannels);
+    }
+}
+
 void settings_set_ps2_maxcardidx(uint8_t x) {
     if (settings.ps2_maxcardidx != x) {
         settings.ps2_maxcardidx = x;
@@ -386,6 +425,12 @@ void settings_set_ps2_maxcardidx(uint8_t x) {
     }
 }
 
+void settings_set_ps2_maxchannels(uint8_t x) {
+    if (settings.ps2_maxchannels != x) {
+        settings.ps2_maxchannels = x;
+        SETTINGS_UPDATE_FIELD(ps2_maxchannels);
+    }
+}
 int settings_get_ps1_card(void) {
     if (settings.ps1_card < IDX_MIN)
         return IDX_MIN;

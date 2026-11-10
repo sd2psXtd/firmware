@@ -209,7 +209,7 @@ uint8_t card_config_get_max_channels(const char* card_folder, const char* card_b
         .channel_name = NULL,
         .channel_name_max_len = 0,
         .card_size = 0,
-        .max_channels = 8
+        .max_channels = settings_get_mode(true) == MODE_PS1 ? settings_get_ps1_maxchannels() : settings_get_ps2_maxchannels()
     };
 
     card_config_get_ini_name(card_folder, card_base, config_path);
