@@ -548,10 +548,7 @@ static bool ps2_check_cardsize(uint32_t filesize) {
 static void ps2_cardman_initializePSRAMCard(void) {
         // quickly generate and write an empty card into PSRAM so that it's immediately available, takes about ~0.6s
     for (size_t pos = 0; pos < card_size; pos += BLOCK_SIZE) {
-        if (card_size == PS2_CARD_SIZE_8M)
-            genblock(pos, flushbuf);
-        else
-            memset(flushbuf, 0xFF, BLOCK_SIZE);
+        genblock(pos, flushbuf);
 
         ps2_dirty_lock();
         psram_write_dma(pos, flushbuf, BLOCK_SIZE, NULL);
