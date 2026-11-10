@@ -25,6 +25,7 @@ It provides the same functionality as the official stable firmware and extends i
 - **General:** Splash Screen
 - **General:** Game Image Screen
 - **General:** USB-CDC command interface
+- **General:** USB PS3 Memory Card Adaptor emulation
 
 ## PS2: Game ID Switching
 
@@ -120,7 +121,7 @@ Please note: This is only possible using a special FreePSXBoot Version provided 
 
 ## General: USB-CDC Command Interface
 
-When the firmware is running, the device exposes a USB-CDC serial interface that accepts simple text commands. This can be used to change cards, channels, modes, PS2 variants, or to reboot the device without using the on-device controls.
+When PS3 Adapter mode is off, the device exposes a USB-CDC serial interface that accepts simple text commands. This can be used to change cards, channels, modes, PS2 variants, or to reboot the device without using the on-device controls.
 
 Commands are lowercase and submitted with Enter:
 
@@ -141,6 +142,12 @@ set variant <retail|proto|conquest|arcade>
 
 `reset bl` resets to the bootloader. `reset dev` restarts the firmware. Card, channel, and game commands affect the currently active mode. Setting a PS2 variant also switches the device to PS2 mode.
 
+## General: USB PS3 Memory Card Adaptor Emulation
+
+PS3 Adapter mode presents the currently selected PS1 or PS2 card over USB as a Sony PS3 Memory Card Adaptor, allowing compatible software to access the emulated card. Select the card and channel using the device controls, and select PS1 or PS2 mode as appropriate.
+
+Enable or disable **PS3 Adapter** in the device menu, or set `MCA=ON` or `MCA=OFF` in the `[General]` section of the settings file. The USB connection changes between the adaptor and USB-CDC profiles; the serial command interface is unavailable while PS3 Adapter mode is enabled.
+
 
 ## General: Settings File
 
@@ -152,17 +159,20 @@ A settings file has the following format:
 [General]
 Mode=PS2
 FlippedScreen=OFF
+MCA=OFF
 [PS1]
 Autoboot=ON
 GameID=ON
 EnableControllerCombo=ON
 MaxCardIdx=0
+MaxChannels=8
 [PS2]
 Autoboot=ON
 GameID=ON
 CardSize=16
 Variant=RETAIL
 MaxCardIdx=0
+MaxChannels=8
 ```
 
 Possible values are:
@@ -175,8 +185,12 @@ Possible values are:
 | CardSize      | `1`, `2`, `4`, `8`, `16`, `32`, `64`, `128` |
 | Variant       | `RETAIL`, `PROTO`, `ARCADE`, `CONQUEST`     |
 | FlippedScreen | `ON`, `OFF`                           |
+| MCA           | `ON`, `OFF`                           |
 | EnableControllerCombo | `ON`, `OFF`                   |
-| MaxCardIdx    | UINT8                                 |
+| MaxCardIdx    | `1`–`255`; `0` means unlimited        |
+| MaxChannels   | `1`–`255`                             |
+
+`MaxCardIdx` limits the numbered cards and `MaxChannels` sets the default number of channels per card. Set these separately in the `[PS1]` and `[PS2]` sections. The default channel limit is 8, and a per-card `MaxChannels` setting overrides it. `MaxCardIdx=0` is the default unlimited setting; the INI parser accepts positive values, so entering `0` does not reset an existing limit.
 
 *Note: Make sure there is an empty line at the end of the ini file.*
 
@@ -205,9 +219,11 @@ PMC+ and PMCZero now support using the onboard buttons. They are assigned in the
 
 There are some configuration values that can be modified on a per card base within a config file named  `CardX.ini` in a card folder, where `X` is the card index.
 
-*Note 1: The `CardSize` setting is only used for PS2 cards and can only be either of `1`, `2`, `4`, `8`, `16`, `32`, `64`.*
+*Note 1: The `CardSize` setting is only used for PS2 cards and can be `1`, `2`, `4`, `8`, `16`, `32`, `64`, or `128` MB.*
 *Note 2: The BOOT folder should contain a file named `BootCard.ini`*
 *Note 3: Make sure there is an empty line at the end of the ini file.*
+
+`MaxChannels` accepts values from `1` to `255` and overrides the default for the current PS1 or PS2 mode.
 
 ```ini
 [ChannelName]
