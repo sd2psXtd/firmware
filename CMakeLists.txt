@@ -53,7 +53,6 @@ add_executable(${TARGET_NAME}
 
     ext/fnv/hash_64a.c
     src/usb/mca_bridge.c
-    src/usb/mca_comms.c
     src/usb/mca_device.c
     src/usb/mca_page.c
     src/usb/mca_protocol.c
