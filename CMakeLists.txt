@@ -1,4 +1,4 @@
-cmake_minimum_required(VERSION 3.12)
+cmake_minimum_required(VERSION 3.25)
 # Pico SDK
 set(PICO_SDK_PATH ${CMAKE_CURRENT_SOURCE_DIR}/ext/pico-sdk)
 include(pico_sdk_import.cmake)
@@ -52,6 +52,11 @@ add_executable(${TARGET_NAME}
     src/wear_leveling/wear_leveling_rp2040_flash.c
 
     ext/fnv/hash_64a.c
+    src/usb/mca_bridge.c
+    src/usb/mca_device.c
+    src/usb/mca_page.c
+    src/usb/mca_protocol.c
+    src/usb/usb_descriptors.c
 )
 
 target_compile_definitions(
@@ -61,6 +66,7 @@ target_compile_definitions(
 
 target_include_directories(${TARGET_NAME} PUBLIC
     ext/fnv
+    src/usb
 )
 
 target_link_libraries(${TARGET_NAME}
@@ -76,6 +82,8 @@ target_link_libraries(${TARGET_NAME}
         ps1_card
         ps2_card
         sd_fat
+        tinyusb_device
+        tinyusb_board
 )
 
 add_dependencies(${TARGET_NAME} gamedb)
@@ -109,6 +117,7 @@ target_link_libraries(sd2psx_common
                         hardware_watchdog
                         pico_multicore
                         pico_time
+                        pico_stdio_usb_headers
                         inih)
 
 target_compile_options(sd2psx_common
@@ -159,7 +168,9 @@ if(DEBUG_USB_UART)
     if (NOT ${DEBUG_STARTUP_DELAY} MATCHES "[0-9]+")
         message(FATAL_ERROR "Misconfigured Debug Startup Delay: ${DEBUG_STARTUP_DELAY}")
     endif()
-    target_compile_definitions(sd2psx_common PUBLIC -DDEBUG_USB_UART -DMMCE_DEBUG -DPICO_STDIO_USB_CONNECT_WAIT_TIMEOUT_MS=${DEBUG_STARTUP_DELAY}*1000)
+    target_compile_definitions(sd2psx_common PUBLIC -DDEBUG_USB_UART -DMMCE_DEBUG
+                               -DDEBUG_STARTUP_DELAY_MS=${DEBUG_STARTUP_DELAY}*1000
+                               -DPICO_STDIO_USB_CONNECT_WAIT_TIMEOUT_MS=0)
     pico_enable_stdio_usb(${TARGET_NAME} 1)
 else()
     target_compile_definitions(sd2psx_common PUBLIC -DPICO_STDIO_USB_CONNECT_WAIT_TIMEOUT_MS=0)

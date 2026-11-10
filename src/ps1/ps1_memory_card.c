@@ -12,7 +12,7 @@
 #include "config.h"
 #include "debug.h"
 #include "ps1/ps1_memory_card.h"
-#include "ps1_card_backend_pio.h"
+#include "ps1_card_backend.h"
 
 static uint64_t us_startup;
 
@@ -32,7 +32,8 @@ volatile bool ps1_card_active = false;
 volatile int ps1_mc_exit_request, ps1_mc_reset;
 static volatile int mc_exit_response, mc_enter_request, mc_enter_response;
 
-static ps1_memory_card_backend_t* ps1_card_backend = &ps1_card_backend_pio;
+static ps1_memory_card_backend_t* ps1_card_backend = NULL;
+static bool backend_mode;
 
 
 #define receiveOrNextCmd(cmd)          \
@@ -98,7 +99,6 @@ static void __time_critical_func(mc_cmd_read)(bool long_read) {
     uint8_t chk = 0;
     uint16_t page = 0U;
     uint8_t _;
-
     respondOrNextCmd(0x5A);       receiveOrNextCmd(&_);
     respondOrNextCmd(0x5D);       receiveOrNextCmd(&_);
     respondOrNextCmd(0x00);       receiveOrNextCmd(&page_msb);
@@ -149,7 +149,6 @@ static void __time_critical_func(mc_cmd_write)(void) {
     uint8_t prev;
     uint8_t chk = 0;
     uint8_t _;
-
     flag = 0;
 
     respondOrNextCmd(0x5A);       receiveOrNextCmd(&_);
@@ -158,9 +157,9 @@ static void __time_critical_func(mc_cmd_write)(void) {
     respondOrNextCmd(page_msb);   receiveOrNextCmd(&page_lsb);
     chk = page_msb ^ page_lsb;
     prev = page_lsb;
-    for (offset = 0; offset < 128; offset++) {
+    for (offset = 0; offset < PS1_PAGE_SIZE; offset++) {
         respondOrNextCmd(prev);   receiveOrNextCmd(&in);
-        ps1_mc_data_interface_write_byte(((page_msb * 256) + page_lsb) * 128 + offset, in);
+        ps1_mc_data_interface_write_byte(((page_msb * 256) + page_lsb) * PS1_PAGE_SIZE + offset, in);
         chk ^= in;
         prev = in;
     }
@@ -168,7 +167,8 @@ static void __time_critical_func(mc_cmd_write)(void) {
     respondOrNextCmd(0x5C);           receiveOrNextCmd(&_);
     respondOrNextCmd(0x5D);           receiveOrNextCmd(&_);
     if (in == chk) {
-        ps1_mc_data_interface_write_mc((page_msb * 256) + page_lsb);
+        uint16_t page = (page_msb * 256) + page_lsb;
+        ps1_mc_data_interface_write_mc(page);
         respondOrNextCmd(0x47);
     } else {
         respondOrNextCmd(0x4E);
@@ -345,13 +345,7 @@ static void __time_critical_func(mc_main_loop)(void) {
     while (1) {
         uint8_t ch = 0x00;
 
-        while (!ps1_mc_reset && !ps1_mc_reset && !ps1_mc_reset && !ps1_mc_reset && !ps1_mc_reset) {
-            if (ps1_mc_exit_request) {
-                return;
-            }
-        }
-        ps1_mc_reset = 0;
-        uint8_t received = ps1_card_backend->recv_mc(&ch);
+        uint8_t received = ps1_card_backend->receive_first(&ch);
 
         if (received != PS1_RECEIVE_OK) {
             if (received == PS1_RECEIVE_EXIT) {
@@ -407,13 +401,15 @@ static void __no_inline_not_in_flash_func(mc_main)(void) {
     while (1) {
         while (!mc_enter_request)
         {}
-        mc_enter_response = 1;
-
         ps1_card_backend->reset();
+        ps1_card_backend->startup();
+        mc_enter_response = 1;
         mc_main_loop();
+        ps1_card_backend->shutdown();
 
         log(LOG_TRACE, "%s exit\n", __func__);
-        if (settings_get_mode(true) != MODE_PS1) {
+        if (settings_get_mode(true) != MODE_PS1 ||
+            settings_get_mca_enabled() != backend_mode) {
             log(LOG_TRACE, "Mode or variant changed, exiting memcard core\n");
             return;
         } else {
@@ -427,12 +423,12 @@ static void __no_inline_not_in_flash_func(mc_main)(void) {
 void ps1_memory_card_main(void) {
     multicore_lockout_victim_init();
 
+    backend_mode = settings_get_mca_enabled();
+    ps1_card_backend = ps1_card_backend_get();
     ps1_card_backend->init();
-    ps1_card_backend->startup();
 
     us_startup = time_us_64();
     mc_main();
-    ps1_card_backend->shutdown();
     ps1_card_backend->deinit();
     log(LOG_TRACE, "Secondary core exit!\n");
     mc_exit_response = 1;

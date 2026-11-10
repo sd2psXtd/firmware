@@ -22,6 +22,7 @@
 #include "game_db/game_db.h"
 #include "input.h"
 #include "settings.h"
+#include "card_emu/ps2_card_backend.h"
 
 #include "pico/platform.h"
 
@@ -123,7 +124,8 @@ void ps2_mmceman_task(void) {
     if (ps2_cardman_needs_update()
         && (mmceman_switching_timeout < time_us_64())
         && !input_is_any_down()
-        && !mmceman_op_in_progress) {
+        && !mmceman_op_in_progress
+        && ps2_card_backend_get()->idle()) {
 
         log(LOG_INFO, "%s Switching card now\n", __func__);
         uint32_t switching_time = time_us_32();
@@ -137,7 +139,7 @@ void ps2_mmceman_task(void) {
         ps2_cardman_close();
         log(LOG_TRACE, "%s After Close\n", __func__);
 
-        sleep_ms(500);
+        ps2_card_backend_get()->switch_delay(500);
 #if WITH_GUI
         gui_do_ps2_card_switch();
         log(LOG_TRACE, "%s After GUI\n", __func__);

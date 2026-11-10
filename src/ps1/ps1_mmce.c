@@ -8,6 +8,7 @@
 #include "debug.h"
 #include "game_db/game_db.h"
 #include "settings.h"
+#include "ps1_card_backend.h"
 
 #if WITH_GUI
 #include <gui.h>
@@ -91,7 +92,8 @@ void ps1_mmce_task(void) {
 
     if ((mmce_switching_timeout < time_us_64())
         && !input_is_any_down()
-        && (ps1_cardman_needs_update())) {
+        && (ps1_cardman_needs_update())
+        && ps1_card_backend_get()->idle()) {
 
         ps1_memory_card_exit();
         ps1_mc_data_interface_flush();
@@ -100,7 +102,7 @@ void ps1_mmce_task(void) {
         gui_do_ps1_card_switch();
 #endif
 
-        sleep_ms(CARD_SWITCH_DELAY_MS); // This delay is required, so ODE can register the card change
+        ps1_card_backend_get()->switch_delay(CARD_SWITCH_DELAY_MS);
 
         ps1_cardman_open();
         ps1_memory_card_enter();

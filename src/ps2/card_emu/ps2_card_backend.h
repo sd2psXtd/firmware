@@ -22,6 +22,10 @@ typedef struct {
 
     void (*shutdown)(void);
 
+    /* Core 0 card-switch maintenance. */
+    bool (*idle)(void);
+    void (*switch_delay)(uint32_t milliseconds);
+
     uint8_t (*receive)(uint8_t *cmd);
     uint8_t (*receiveFirst)(uint8_t *cmd);
     void    (*respond)(uint8_t ch);
@@ -50,3 +54,4 @@ extern volatile int ps2_mc_exit_request;
 
 
 extern ps2_memory_card_backend_t* ps2_card_backend_get(void);
+bool ps2_card_backend_task(void);

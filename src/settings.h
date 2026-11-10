@@ -45,6 +45,8 @@ enum {
 
 int settings_get_mode(bool current);
 void settings_set_mode(int mode);
+bool settings_get_mca_enabled(void);
+void settings_set_mca_enabled(bool enabled);
 bool settings_get_ps1_autoboot(void);
 void settings_set_ps1_autoboot(bool autoboot);
 bool settings_get_ps1_game_id(void);

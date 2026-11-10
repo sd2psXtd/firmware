@@ -17,6 +17,7 @@
 
 void ps1_memory_card_main(void);
 void ps1_memory_card_enter(void);
+/* Leave the card worker resident so it can be entered again after a switch. */
 void ps1_memory_card_exit(void);
 
 uint8_t ps1_memory_card_get_ode_command(void);

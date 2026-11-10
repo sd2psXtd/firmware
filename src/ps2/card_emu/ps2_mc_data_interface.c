@@ -7,7 +7,7 @@
 #include "hardware/timer.h"
 #include "history_tracker/ps2_history_tracker.h"
 #include "pico/critical_section.h"
-#include "pico/multicore.h"
+
 #include "pico/platform.h"
 #include "pico/time.h"
 #include "ps2_mc_data_interface.h"

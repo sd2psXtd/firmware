@@ -1,3 +1,5 @@
+#include "pico/time.h"
+#include "settings.h"
 #include "ps1_card_backend_pio.h"
 #include "ps1_mc_spi.pio.h"
 
@@ -25,11 +27,20 @@ static void ps1_pio_init(void);
 static void ps1_pio_deinit(void);
 static uint8_t ps1_pio_receive_cntrl(uint8_t *cmd);
 static uint8_t ps1_pio_receive_mc(uint8_t *cmd);
+static uint8_t ps1_pio_receive_first(uint8_t *cmd);
 static void ps1_pio_respond(uint8_t ch);
+static void ps1_pio_finish(void);
 static void ps1_pio_irq_shutdown(void);
 static void ps1_pio_memory_card_startup(void);
 
+static bool ps1_pio_idle(void) {
+    return settings_get_mode(true) == MODE_PS1 &&
+        !settings_get_mca_enabled();
+}
+
 ps1_memory_card_backend_t ps1_card_backend_pio = {
+    .idle = ps1_pio_idle,
+    .switch_delay = sleep_ms,
     .init = ps1_pio_init,
     .deinit = ps1_pio_deinit,
     .reset = ps1_pio_reset,
@@ -38,7 +49,9 @@ ps1_memory_card_backend_t ps1_card_backend_pio = {
 
     .recv_cntrl = ps1_pio_receive_cntrl,
     .recv_mc = ps1_pio_receive_mc,
+    .receive_first = ps1_pio_receive_first,
     .respond = ps1_pio_respond,
+    .finish = ps1_pio_finish,
 };
 
 
@@ -149,6 +162,17 @@ static uint8_t ps1_pio_receive_cntrl(uint8_t *cmd) {
     *cmd = (pio_sm_get(pio0, cntrl_reader.sm) >> 24);
     return PS1_RECEIVE_OK;
 }
+
+static uint8_t ps1_pio_receive_first(uint8_t *cmd) {
+    while (!ps1_mc_reset && !ps1_mc_reset && !ps1_mc_reset && !ps1_mc_reset && !ps1_mc_reset) {
+        if (ps1_mc_exit_request)
+            return PS1_RECEIVE_EXIT;
+    }
+    ps1_mc_reset = 0;
+    return ps1_pio_receive_mc(cmd);
+}
+
+static void ps1_pio_finish(void) {}
 
 static void ps1_pio_respond(uint8_t ch) {
     pio_sm_put_blocking(pio0, dat_writer.sm, ~ch & 0xFF);

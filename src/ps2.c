@@ -15,6 +15,7 @@
 #include "mmceman/ps2_mmceman.h"
 #include "mmceman/ps2_mmceman_fs.h"
 #include "card_emu/ps2_memory_card.h"
+#include "card_emu/ps2_card_backend.h"
 #include "ps2_dirty.h"
 #include "history_tracker/ps2_history_tracker.h"
 #include "ps2_cardman.h"
@@ -90,6 +91,7 @@ void ps2_init(void) {
 }
 
 bool ps2_task(void) {
+    bool backend_running = ps2_card_backend_task();
     ps2_mmceman_task();
     ps2_cardman_task();
 #if WITH_GUI
@@ -132,7 +134,7 @@ bool ps2_task(void) {
         && !ps2_history_tracker_needs_refresh())
         return false;
 
-    return true;
+    return backend_running;
 }
 
 void ps2_deinit(void) {
