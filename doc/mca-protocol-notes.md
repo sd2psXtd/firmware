@@ -75,6 +75,16 @@
 
 ## Scheduling and ownership
 
+USB keeps one active profile for the current session, distinct from the
+requested setting. The descriptors and PS1/PS2 backend selectors use that
+active profile until outstanding operations and replies drain and USB is
+reinitialized. SD settings load before selecting the next mode and profile.
+The frame parser is private to the protocol module; cross-core transfer
+ownership remains in the bridge.
+These lifecycle and parser simplifications pass the host suite and build for
+SD2PSX and PMC+, but have not yet been verified on hardware; the device tests
+described below used the earlier firmware.
+
 Core 0 processes USB callbacks without waiting for the card. One outstanding
 request uses one shared RX/TX pair; Core 1 publishes its reply before Core 0
 uses it, and Core 0 retains the TX buffer until USB completion. During mode or profile
@@ -267,18 +277,12 @@ an 8 MiB card. On the candidate hardware, a 128-byte host read received the
 ps3mcatool regression on the candidate also passed.
 
 The review also found inherited PS1 data-interface hazards exposed over MCA:
-invalid-checksum or truncated writes could change the live non-PSRAM cache,
-and out-of-range pages could reach the card cache or PSRAM. The current source
-stages MCA PS1 writes until checksum and address checks pass, waits for an
-outstanding read DMA before copying the staged bytes, and avoids out-of-range
-MCA reads and speculative prefetches. Existing PIO write-loop behavior remains
-in its separate branch; that function reserves an additional 128-byte stack
-buffer. Host tests use the production non-PSRAM data interface and cache to
-cover bad checksums, truncated writes, invalid pages and the last valid page,
-and verify a successful PIO-backend write using a mock transport. A separate
-mock verifies that the DMA wait occurs before staged bytes are copied; it also
-checks that no out-of-range prefetch is requested. These changes have
-not been run on a PS1 or with real PSRAM DMA.
+invalid-checksum or truncated writes can change the live non-PSRAM cache,
+and out-of-range pages can reach the card cache or PSRAM. The PS1 command
+handler now uses the existing byte-by-byte SIO write path for both MCA and
+PIO, and does not impose a page limit. Host tests exercise successful,
+bad-checksum and interrupted writes for both backends. The matching behavior
+has not been tested with real PSRAM DMA or on a PS1 console.
 
 The independent review's initial concern about a stale reply after USB reset
 was not reproduced by source review: reset clears the reply-pending flag and
@@ -357,6 +361,28 @@ read the PS2 card information, the escape re-enumerated the device as CDC,
 and the serial `version` command reported PS2 mode. The serial `set mode mca`
 command restored MCA, after which ps3mcatool again read card information.
 A host regression also verifies that USB reset discards a queued escape.
+
+## USB refactor hardware test, 2026-11-06
+
+The refactored SD2PSX debug build with Pico SDK 2.1.1 (UF2 SHA-256
+`8695094946092d954f0b4fe434ae0c736fd003181ef792c61b290d367afbaf7c`)
+was installed after a verified full-flash backup. CDC reported PS1 mode;
+switching CDC to MCA succeeded, AA40 reported PS1, and PS1 ID and
+page-0 read with EDC passed. A subsequent debug escape was accepted
+by the USB OUT transfer, but the adapter disappeared without CDC
+re-enumeration. Source analysis points to PS1 PIO resources remaining
+allocated when a profile change reset Core 1 before backend cleanup. The
+current PS1 worker has a separate full-shutdown path; host tests cover
+active, parked, and already-exited workers. After reconnecting, the fixed
+SDK 2.1.1 debug firmware (UF2 SHA-256
+`a35e3e7f2c4126c673bcbcf548ce15af21c38167c7b9413caf563a411c0ef3e9`)
+was installed and verified. Hardware then passed a PS1 CDC-to-MCA-to-CDC
+cycle, card ID and read-only page-0 EDC checks, PS2 MCA detection,
+exact-64-byte USB framing, ps3mcatool information and directory listing,
+and a 4,097-byte ps3mcatool write/read/compare/delete round trip. PS2
+MCA-to-CDC also succeeded; the adapter was restored to PS1/MCA and the
+PS1 read check passed again. A full flash backup was verified before
+each installation.
 
 ## Remaining uncertainties
 
