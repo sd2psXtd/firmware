@@ -1,0 +1,28 @@
+name: Publish development image
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  packages: write
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Build and push image
+        env:
+          GHCR_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GHCR_OWNER: ${{ github.repository_owner }}
+          REPOSITORY_URL: ${{ github.server_url }}/${{ github.repository }}
+        run: |
+          set -euo pipefail
+          image="ghcr.io/${GHCR_OWNER,,}/sd2psxtd-dev:latest"
+          echo "$GHCR_TOKEN" | docker login ghcr.io -u "$GHCR_OWNER" --password-stdin
+          docker build -f .github/Dockerfile.ci \
+            --label "org.opencontainers.image.source=$REPOSITORY_URL" \
+            -t "$image" .
+          docker push "$image"
