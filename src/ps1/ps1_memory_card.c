@@ -31,8 +31,6 @@ static bool ps2_multitap = false;
 volatile bool ps1_card_active = false;
 volatile int ps1_mc_exit_request, ps1_mc_reset;
 static volatile int mc_exit_response, mc_enter_request, mc_enter_response;
-static volatile int mc_shutdown_request;
-static volatile bool memcard_worker_started;
 
 static ps1_memory_card_backend_t* ps1_card_backend = NULL;
 static bool backend_mode;
@@ -401,10 +399,8 @@ static void __time_critical_func(mc_main_loop)(void) {
 
 static void __no_inline_not_in_flash_func(mc_main)(void) {
     while (1) {
-        while (!mc_enter_request && !mc_shutdown_request)
+        while (!mc_enter_request)
         {}
-        if (mc_shutdown_request && !mc_enter_request)
-            return;
         ps1_card_backend->reset();
         ps1_card_backend->startup();
         mc_enter_response = 1;
@@ -412,7 +408,7 @@ static void __no_inline_not_in_flash_func(mc_main)(void) {
         ps1_card_backend->shutdown();
 
         log(LOG_TRACE, "%s exit\n", __func__);
-        if (settings_get_mode(true) != MODE_PS1 || mc_shutdown_request ||
+        if (settings_get_mode(true) != MODE_PS1 ||
             settings_get_mca_enabled() != backend_mode) {
             log(LOG_TRACE, "Mode or variant changed, exiting memcard core\n");
             return;
@@ -425,7 +421,6 @@ static void __no_inline_not_in_flash_func(mc_main)(void) {
 
 
 void ps1_memory_card_main(void) {
-    memcard_worker_started = true;
     multicore_lockout_victim_init();
 
     backend_mode = settings_get_mca_enabled();
@@ -436,33 +431,19 @@ void ps1_memory_card_main(void) {
     mc_main();
     ps1_card_backend->deinit();
     log(LOG_TRACE, "Secondary core exit!\n");
-    memcard_worker_started = false;
     mc_exit_response = 1;
 }
 static int memcard_running;
 
-static void ps1_memory_card_stop(bool shutdown) {
-    if (!memcard_running && (!shutdown || !memcard_worker_started))
+void ps1_memory_card_exit(void) {
+    if (!memcard_running)
         return;
 
-    if (shutdown && memcard_worker_started)
-        mc_shutdown_request = 1;
-    if (memcard_running)
-        ps1_mc_exit_request = 1;
+    ps1_mc_exit_request = 1;
     while (!mc_exit_response)
     {}
     ps1_mc_exit_request = mc_exit_response = 0;
-    if (shutdown)
-        mc_shutdown_request = 0;
     memcard_running = 0;
-}
-
-void ps1_memory_card_exit(void) {
-    ps1_memory_card_stop(false);
-}
-
-void ps1_memory_card_shutdown(void) {
-    ps1_memory_card_stop(true);
 }
 
 void ps1_memory_card_enter(void) {
