@@ -5,6 +5,9 @@
 
 #define PS1_CARD_IDX_SPECIAL 0
 
+#define PS1_PAGE_SIZE 128
+#define SD_BLOCK_SIZE 512
+
 typedef enum {
     PS1_CM_STATE_NAMED,
     PS1_CM_STATE_BOOT,
@@ -14,7 +17,8 @@ typedef enum {
 
 void ps1_cardman_init(void);
 int ps1_cardman_read_sector(int sector, void *buf128);
-int ps1_cardman_write_sector(int sector, void *buf512);
+int ps1_cardman_write_sd_blocks(void *buffer, int sd_blocks_count, int first_sd_block);
+int ps1_cardman_write_isolated_sd_block(void *buffer, int sd_block);
 void ps1_cardman_flush(void);
 void ps1_cardman_open(void);
 bool ps1_cardman_needs_update(void);

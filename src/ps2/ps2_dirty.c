@@ -7,16 +7,24 @@
 #include "bigmem.h"
 #define dirty_heap bigmem.ps2.dirty_heap
 #define dirty_map bigmem.ps2.dirty_map
+#define flushbuf dirty_flushbuf
+#define FLUSHBUF_SIZE DIRTY_FLUSHBUF_SIZE
 
 #include <hardware/sync.h>
 #include <pico/platform.h>
 #include <stdio.h>
+#include <string.h>
+#include <stdbool.h>
 
 spin_lock_t *ps2_dirty_spin_lock;
 volatile uint32_t ps2_dirty_lockout;
 int ps2_dirty_activity = 0;
 
 static int num_dirty;
+
+static int flushbuf_sectors_count = 0;
+static int flushbuf_first_sector = -1;
+static int flushbuf_last_sector = -1;
 
 #define SWAP(a, b) do { \
     uint16_t tmp = a; \
@@ -90,10 +98,40 @@ int ps2_dirty_get_marked(void) {
     return ret;
 }
 
+static void write_flushbuf(bool isolated) {
+    int write;
+    if (isolated)
+        write = ps2_cardman_write_isolated_sector(flushbuf, flushbuf_first_sector);
+    else
+        write = ps2_cardman_write_sectors(flushbuf, flushbuf_sectors_count, flushbuf_first_sector);
+
+    if (write == 0) {
+        for (int sector = flushbuf_first_sector; sector <= flushbuf_last_sector; sector++) {
+            ps2_history_tracker_registerPageWrite(sector);
+        }
+    } else {
+        // TODO: do something if we get too many errors?
+        // for now lets push it back into the heap and try again later
+        DPRINTF("!! writing sectors 0x%x to 0x%x failed\n", flushbuf_first_sector, flushbuf_last_sector);
+        ps2_dirty_lock();
+        for (int sector = flushbuf_first_sector; sector <= flushbuf_last_sector; sector++) {
+            ps2_dirty_mark(sector);
+        }
+        ps2_dirty_unlock();
+    }
+    flushbuf_sectors_count = 0;
+    flushbuf_first_sector = -1;
+    flushbuf_last_sector = -1;
+}
+
+static void register_flushbuf_sector(int sector) {
+    ++flushbuf_sectors_count;
+    if (flushbuf_first_sector < 0) flushbuf_first_sector = sector;
+    flushbuf_last_sector = sector;
+}
+
 /* this goes through blocks in psram marked as dirty and flushes them to sd */
 void ps2_dirty_task(void) {
-    static uint8_t flushbuf[512];
-
     int num_after = 0;
     int hit = 0;
     uint64_t start = time_us_64();
@@ -111,31 +149,33 @@ void ps2_dirty_task(void) {
             ps2_dirty_unlock();
             break;
         }
-        psram_read_dma(sector * 512, flushbuf, 512, NULL);
+
+        uint8_t *sector_slot = flushbuf + (flushbuf_sectors_count * PS2_PAGE_SIZE);
+        psram_read_dma(sector * PS2_PAGE_SIZE, sector_slot, PS2_PAGE_SIZE, NULL);
         psram_wait_for_dma();
         ps2_dirty_unlock();
 
         ++hit;
 
-        if (ps2_cardman_write_sector(sector, flushbuf) != 0) {
-            // TODO: do something if we get too many errors?
-            // for now lets push it back into the heap and try again later
-            DPRINTF("!! writing sector 0x%x failed\n", sector);
-
-            ps2_dirty_lock();
-            ps2_dirty_mark(sector);
-            ps2_dirty_unlock();
+        // defer next block if not contiguous
+        if (flushbuf_sectors_count > 0 && sector != flushbuf_last_sector + 1) {
+            write_flushbuf(false);
+            memcpy(flushbuf, sector_slot, PS2_PAGE_SIZE);
+            register_flushbuf_sector(sector);
+        } else {
+            register_flushbuf_sector(sector);
+            if (flushbuf_sectors_count == FLUSHBUF_SIZE / PS2_PAGE_SIZE) write_flushbuf(false);
         }
-        //DPRINTF("Writing %u\n", sector);
-        ps2_history_tracker_registerPageWrite(sector);
     }
-    /* to make sure writes hit the storage medium */
-    ps2_cardman_flush();
 
-    uint64_t end = time_us_64();
+    if (flushbuf_sectors_count > 0) write_flushbuf(hit == 1);
 
-    if (hit)
-        DPRINTF("remain to flush - %d - this one flushed %d and took %d ms\n", num_after, hit, (int)((end - start) / 1000));
+    if (hit) {
+        ps2_cardman_flush();
+
+        uint64_t end = time_us_64();
+        DPRINTF("remain to flush - %d - this one flushed %d and took %u ms\n", num_after, hit, (uint32_t)((end - start) / 1000));
+    }
 
     if (num_after || !ps2_dirty_lockout_expired())
         ps2_dirty_activity = 1;
