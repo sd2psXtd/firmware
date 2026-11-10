@@ -284,6 +284,11 @@ static void ps2_pio_memory_card_startup(void) {
     gpio_set_slew_rate(PIN_PSX_DAT, GPIO_SLEW_RATE_FAST);
     gpio_set_drive_strength(PIN_PSX_DAT, GPIO_DRIVE_STRENGTH_12MA);
 
+    /* Shutdown disables both outputs, but host detection survives a switch. */
+    if (ps2_host_confirmed) {
+        gpio_set_oeover(PIN_PSX_ACK, GPIO_OVERRIDE_NORMAL);
+        gpio_set_oeover(PIN_PSX_DAT, GPIO_OVERRIDE_NORMAL);
+    }
 }
 
 static void __time_critical_func(pio_card_deselected)(uint gpio, uint32_t event_mask) {
