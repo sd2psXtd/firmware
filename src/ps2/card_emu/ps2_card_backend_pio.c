@@ -59,6 +59,10 @@ static bool ps2_pio_idle(void) {
         !settings_get_mca_enabled();
 }
 
+static bool ps2_pio_false(void) {
+    return false;
+}
+
 ps2_memory_card_backend_t ps2_card_backend_pio_console = {
     .idle = ps2_pio_idle,
     .switch_delay = sleep_ms,
@@ -96,7 +100,7 @@ ps2_memory_card_backend_t ps2_card_backend_pio_arcade = {
     .transactionAborted = ps2_pio_transactionAborted,
     .signalTransactionReady = ps2_pio_signalTransactionReady,
 
-    .probe = ps2_pio_probe,
+    .probe = ps2_pio_false,
 };
 
 static void __time_critical_func(ps2_pio_reset)(void) {
