@@ -27,6 +27,7 @@ It provides the same functionality as the official stable firmware and extends i
 - **General:** USB-CDC command interface
 - **General:** USB microSD mass storage
 - **General:** USB PS3 Memory Card Adaptor emulation
+- **General:** GPT and superfloppy SD card layouts
 
 > [!CAUTION]
 > If *sd2psx* is connected to a PS1 or a PS1 multitap in PS2 mode, there is always a risk of damaging your console / multitap. Safeguards have been implemented to minimize this risk, but they are not entirely foolproof. You have been warned!
@@ -68,5 +69,8 @@ PMC+ and PMCZero now support using the onboard buttons. They are assigned in the
 - **8BitMods Team**: for helping out with card formatting and providing lots of other useful information ❤️
 - **@Mena / PhenomMods**: for providing hardware to some team members ❤️
 - **BitFunX**: for providing PSXMemcard and PSXMemcard Gen2 Hardware for dev ❤️
+- **@mathewbeall**: for arcade fixes ❤️
+- **@wark**: for USB mass storage inspiration ❤️
+- **@max-las**: for SD-related fixes ❤️
 - **All Testers**: ripto, Vapor, seewood, john3d, rippenbiest, ... ❤️
 - **@niemasd**: For his [*GameDB-PSX*](https://github.com/niemasd/GameDB-PSX) database - Game naming and ID on PS1 would not be possible without it! ❤️

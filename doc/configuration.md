@@ -2,6 +2,10 @@
 
 [← Back to README](../README.md)
 
+## SD Card Layouts
+
+SD cards can use a GPT partition table or a superfloppy layout, with the filesystem directly on the card and no partition table. Both layouts have been tested on hardware.
+
 ## General: Settings File
 
 *sd2psXtd* generates a settings file (`.sd2psx/settings.ini`) that allows you to edit some settings through your computer. This is useful when using one SD card with multiple *sd2psx* devices or *MMCE* devices without a display to change settings.
