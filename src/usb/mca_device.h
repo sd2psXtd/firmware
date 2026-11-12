@@ -25,6 +25,8 @@ bool mca_device_profile_is_mca(void);
  * when mode/profile changes and waits for outstanding protocol work to finish. */
 void usb_session_init(void);
 void usb_session_prepare(void);
+/* Profile captured before enumeration, independent of later settings requests. */
+int usb_session_get_mode(void);
 void usb_session_start(void);
 void usb_session_poll(void);
 bool usb_session_continue(bool mode_running);

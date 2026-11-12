@@ -43,6 +43,8 @@ Possible values are:
 | MaxCardIdx    | `1`–`255`; `0` means unlimited        |
 | MaxChannels   | `1`–`255`                             |
 
+`MCA=ON` selects the PS3 MCA USB profile; `MCA=OFF` selects Serial. Mass storage is temporary and is selected from the [USB Mode menu](usb.md).
+
 `MaxCardIdx` limits the numbered cards and `MaxChannels` sets the default number of channels per card. Set these separately in the `[PS1]` and `[PS2]` sections. The default channel limit is 8, and a per-card `MaxChannels` setting overrides it. `MaxCardIdx=0` is the default unlimited setting; the INI parser accepts positive values, so entering `0` does not reset an existing limit.
 
 *Note: Make sure there is an empty line at the end of the ini file.*

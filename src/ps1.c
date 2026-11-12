@@ -88,7 +88,8 @@ bool ps1_task() {
     led_task();
 #endif
     ps1_mc_data_interface_task();
-    if ((settings_get_mode(true) == MODE_PS2))
+    if ((MODE_PS2 == settings_get_mode(true))
+        || USB_MODE_MASS == settings_get_usb_mode(true))
         return false;
 
     return backend_running;

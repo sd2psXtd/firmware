@@ -59,6 +59,22 @@ static bool ps2_pio_idle(void) {
         !settings_get_mca_enabled();
 }
 
+/* Arcade hosts are chosen explicitly through the Variant setting and are
+ * never a PS1, so the PS1 protection does not apply: drive ACK and DAT from
+ * the first identifier request, and mark the host confirmed so startup()
+ * re-enables the drivers after every card switch. */
+ /* Thanks to @matthewbeall */
+static bool __time_critical_func(ps2_pio_probe_arcade)(void) {
+    if (!ps2_host_confirmed) {
+        log(LOG_INFO, "Arcade host, enabling ACK and DAT push-pull drivers\n");
+        gpio_set_outover(PIN_PSX_ACK, GPIO_OVERRIDE_NORMAL);
+        gpio_set_oeover(PIN_PSX_ACK, GPIO_OVERRIDE_NORMAL);
+        gpio_set_oeover(PIN_PSX_DAT, GPIO_OVERRIDE_NORMAL);
+        ps2_host_confirmed = true;
+    }
+    return false;
+}
+
 ps2_memory_card_backend_t ps2_card_backend_pio_console = {
     .idle = ps2_pio_idle,
     .switch_delay = sleep_ms,
@@ -96,7 +112,7 @@ ps2_memory_card_backend_t ps2_card_backend_pio_arcade = {
     .transactionAborted = ps2_pio_transactionAborted,
     .signalTransactionReady = ps2_pio_signalTransactionReady,
 
-    .probe = ps2_pio_probe,
+    .probe = ps2_pio_probe_arcade,
 };
 
 static void __time_critical_func(ps2_pio_reset)(void) {

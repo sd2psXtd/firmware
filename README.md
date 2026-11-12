@@ -25,6 +25,7 @@ It provides the same functionality as the official stable firmware and extends i
 - **General:** Splash Screen
 - **General:** Game Image Screen
 - **General:** USB-CDC command interface
+- **General:** USB microSD mass storage
 - **General:** USB PS3 Memory Card Adaptor emulation
 
 > [!CAUTION]
@@ -55,7 +56,7 @@ PMC+ and PMCZero now support using the onboard buttons. They are assigned in the
 
 - [PS1 and PS2 features](doc/features.md) — game ID switching, card sizes, console variants, controller shortcuts, and more.
 - [Configuration](doc/configuration.md) — settings file, per-card options, and Game2Folder mapping.
-- [USB interfaces](doc/usb.md) — PS3 Memory Card Adaptor emulation and USB-CDC commands.
+- [USB interfaces](doc/usb.md) — USB mass storage, PS3 Memory Card Adaptor emulation, and USB-CDC commands.
 - [Display customization](doc/customization.md) — startup splash and card images.
 
 ## Special Thanks to...

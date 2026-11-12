@@ -48,7 +48,7 @@ extern volatile bool ps2_card_active;
 extern volatile int ps2_mc_exit_request;
 
 #define receiveOrNextCmd(cmd)          \
-    if (ps2_card_backend->receive(cmd) == PS2_RECEIVE_RESET) {\
+    if (ps2_card_backend->receive(cmd) != PS2_RECEIVE_OK) {\
     DPRINTF("Reset at %s:%u", __func__, __LINE__); \
     return;}
 

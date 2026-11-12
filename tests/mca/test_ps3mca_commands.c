@@ -1,3 +1,4 @@
+#include "settings.h"
 #include "mca_bridge.h"
 #include "mca_comms.h"
 #include "mca_protocol.h"
@@ -30,6 +31,7 @@ void sleep_us(uint64_t us) { (void)us; }
 void sleep_ms(uint32_t ms) { (void)ms; }
 void tud_task_ext(uint32_t timeout_ms, bool in_isr) { (void)timeout_ms; (void)in_isr; }
 int settings_get_mode(bool temporary) { (void)temporary; return 1; }
+int settings_get_usb_mode(bool current) { (void)current; return USB_MODE_MCA; }
 int settings_get_ps2_variant(void) { return 0; }
 bool ps2_cardman_is_accessible(void) { return true; }
 bool ps2_cardman_is_idle(void) { return true; }

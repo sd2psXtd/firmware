@@ -375,6 +375,12 @@ static void parse_command(char* input, serial_input_cmd_data_t* cmd_data) {
 }
 
 static void execute_command(const serial_input_cmd_data_t* cmd_data) {
+    if (settings_get_usb_mode(true) == USB_MODE_MASS && cmd_data->cmd != SERIAL_INPUT_CMD_HELP &&
+        cmd_data->cmd != SERIAL_INPUT_CMD_VERSION && cmd_data->cmd != SERIAL_INPUT_CMD_NONE &&
+        cmd_data->cmd != SERIAL_INPUT_CMD_INVALID) {
+        printf("Busy: USB storage owns the SD card\n");
+        return;
+    }
     switch (cmd_data->cmd) {
         case SERIAL_INPUT_CMD_NONE:
             break;
@@ -475,7 +481,7 @@ static void execute_command(const serial_input_cmd_data_t* cmd_data) {
             break;
         case SERIAL_INPUT_CMD_MCA_MODE:
             printf("Switching USB to MCA (serial will disconnect)\n");
-            settings_set_mca_enabled(true);
+            settings_set_usb_mode(USB_MODE_MCA);
             #if WITH_GUI
             gui_mca_mode_changed();
             #endif
