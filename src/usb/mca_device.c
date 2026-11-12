@@ -23,6 +23,7 @@
 #define MCA_INTERFACE_CLASS 0xff
 
 static bool profile_mca;
+static int session_usb_mode;
 static mca_device_callbacks_t device_callbacks;
 static union { uint32_t alignment; uint8_t bytes[MCA_PACKET_SIZE]; } ep_out_buffer;
 static union { uint32_t alignment; uint8_t bytes[1]; } ep_interrupt_buffer;
@@ -84,7 +85,12 @@ void usb_session_init(void) {
 }
 
 void usb_session_prepare(void) {
-    mca_device_init(settings_get_mca_enabled(), mca_protocol_callbacks());
+    session_usb_mode = settings_get_usb_mode(true);
+    mca_device_init(session_usb_mode == USB_MODE_MCA, mca_protocol_callbacks());
+}
+
+int usb_session_get_mode(void) {
+    return session_usb_mode;
 }
 
 void usb_session_start(void) {

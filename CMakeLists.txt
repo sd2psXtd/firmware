@@ -57,6 +57,7 @@ add_executable(${TARGET_NAME}
     src/usb/mca_page.c
     src/usb/mca_protocol.c
     src/usb/usb_descriptors.c
+    src/usb/usb_storage.c
 )
 
 target_compile_definitions(

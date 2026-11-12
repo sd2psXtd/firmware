@@ -1,3 +1,4 @@
+#include "settings.h"
 #include "../../src/usb/mca_device.h"
 #include "../../src/usb/mca_bridge.h"
 #include "../../src/usb/mca_protocol.h"
@@ -40,6 +41,7 @@ void watchdog_reboot(uint32_t pc, uint32_t sp, uint32_t delay_ms) {
     (void)delay_ms;
 }
 int settings_get_mode(bool temporary) { (void)temporary; return 1; }
+int settings_get_usb_mode(bool current) { (void)current; return USB_MODE_MCA; }
 int settings_get_ps2_variant(void) { return 1; }
 bool ps2_cardman_is_accessible(void) { return true; }
 bool ps2_cardman_is_idle(void) { return true; }

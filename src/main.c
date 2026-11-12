@@ -17,6 +17,7 @@
 #include "sd.h"
 #include "settings.h"
 #include "usb/mca_device.h"
+#include "usb/usb_storage.h"
 #if WITH_PSRAM
 #include "psram/psram.h"
 #endif
@@ -127,7 +128,12 @@ int main() {
         void (*mode_init)(void);
         bool (*mode_task)(void);
         void (*mode_deinit)(void);
-        if (settings_get_mode(true) == MODE_PS2) {
+        if (USB_MODE_MASS == settings_get_usb_mode(true)) {
+            QPRINTF("Starting USB storage mode...\n");
+            mode_init = usb_storage_init;
+            mode_task = usb_storage_task;
+            mode_deinit = usb_storage_deinit;
+        } else if (settings_get_mode(true) == MODE_PS2) {
             QPRINTF("Starting PS2 mode...\n");
             mode_init = ps2_init;
             mode_task = ps2_task;
@@ -149,10 +155,10 @@ int main() {
                 break;
         }
         usb_session_drain();
+        usb_session_stop();
         mode_deinit();
 
         // ReArm PS2 retry counter
         ps2_mmceman_rearm_retry_counter();
-        usb_session_stop();
     }
 }

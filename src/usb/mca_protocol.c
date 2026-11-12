@@ -93,7 +93,9 @@ static const uint8_t debug_exit_packet[] = {'M', 'C', 'A', '!'};
 static union { uint32_t alignment; uint8_t bytes[4]; } short_reply;
 
 static uint8_t card_type(void) {
-    if (!is_ready() || state == RECOVER ||
+    /* Stop admitting new operations during a switch to storage; work already
+     * owned by the bridge still drains through the normal protocol task. */
+    if (settings_get_usb_mode(true) == USB_MODE_MASS || !is_ready() || state == RECOVER ||
         (state == PAGE && mca_page_is_cancelling()))
         return 0;
     if (settings_get_mode(true) != MODE_PS2)
