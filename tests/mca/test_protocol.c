@@ -1,6 +1,7 @@
 #include "mca_bridge.h"
 #include "mca_protocol.h"
 #include "mca_page.h"
+#include "settings.h"
 #include <assert.h>
 #include <stdint.h>
 #include <string.h>
@@ -14,6 +15,7 @@ static bool mca_enabled = true;
 static unsigned mca_setting_updates;
 static bool auth_valid = true, card_accessible = true;
 static int card_mode = 1, card_variant;
+static int usb_mode = USB_MODE_MCA;
 static uint32_t card_capacity = 8u * 1024 * 1024;
 uint64_t time_us_64(void) { return now; }
 void sleep_ms(uint32_t milliseconds) { now += milliseconds * 1000; }
@@ -25,6 +27,9 @@ void tud_task_ext(uint32_t timeout_ms, bool in_isr) {
     }
 }
 int settings_get_mode(bool temporary) { (void)temporary; return card_mode; }
+int settings_get_usb_mode(bool current) {
+    return current ? usb_mode : USB_MODE_MCA;
+}
 bool settings_get_mca_enabled(void) { return mca_enabled; }
 void settings_set_mca_enabled(bool enabled) {
     mca_setting_updates++;
@@ -97,28 +102,34 @@ int main(void) {
         assert(sent[4 + i] == (uint8_t)(large_request[4 + i] ^ 0x5a));
     callbacks->in_complete(true, sent_length);
 
-    /* A requested profile switch stops admitting new card operations while
-     * preserving the reply to the transaction already owned by Core 1. */
-    callbacks->out_received(request, sizeof(request));
-    mca_protocol_task();
-    assert(mca_bridge_core1_begin(&mca_bridge));
-    mca_protocol_set_ready(false);
-    assert(mca_bridge_core1_respond(&mca_bridge, 0xff));
-    assert(mca_bridge_core1_finish(&mca_bridge));
-    mca_protocol_task();
-    assert(sent_length == 5 && sent[1] == 0x5a && sent[4] == 0xff);
-    callbacks->in_complete(true, sent_length);
+    /* Readiness loss and a Mass request both stop new operations while the
+     * transaction already owned by Core 1 can finish and deliver its reply. */
     const uint8_t detect[] = {0xaa, 0x40};
-    callbacks->out_received(detect, sizeof(detect));
-    mca_protocol_task();
-    assert(sent_length == 2 && sent[0] == 0x55 && sent[1] == 0);
-    callbacks->in_complete(true, sent_length);
-    callbacks->out_received(request, sizeof(request));
-    mca_protocol_task();
-    assert(sent_length == 2 && sent[1] == 0xaf);
-    assert(mca_bridge_state(&mca_bridge) == MCA_BRIDGE_IDLE);
-    callbacks->in_complete(true, sent_length);
-    mca_protocol_set_ready(true);
+    for (int mass = 0; mass < 2; ++mass) {
+        callbacks->out_received(request, sizeof(request));
+        mca_protocol_task();
+        assert(mca_bridge_core1_begin(&mca_bridge));
+        if (mass)
+            usb_mode = USB_MODE_MASS;
+        else
+            mca_protocol_set_ready(false);
+        assert(mca_bridge_core1_respond(&mca_bridge, 0xff));
+        assert(mca_bridge_core1_finish(&mca_bridge));
+        mca_protocol_task();
+        assert(sent_length == 5 && sent[1] == 0x5a && sent[4] == 0xff);
+        callbacks->in_complete(true, sent_length);
+        callbacks->out_received(detect, sizeof(detect));
+        mca_protocol_task();
+        assert(sent_length == 2 && sent[0] == 0x55 && sent[1] == 0);
+        callbacks->in_complete(true, sent_length);
+        callbacks->out_received(request, sizeof(request));
+        mca_protocol_task();
+        assert(sent_length == 2 && sent[1] == 0xaf);
+        assert(mca_bridge_state(&mca_bridge) == MCA_BRIDGE_IDLE);
+        callbacks->in_complete(true, sent_length);
+        mca_protocol_set_ready(true);
+        usb_mode = USB_MODE_MCA;
+    }
 
     callbacks->out_received(request, sizeof(request));
     mca_protocol_task();

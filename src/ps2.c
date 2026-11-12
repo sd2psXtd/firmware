@@ -128,8 +128,9 @@ bool ps2_task(void) {
         keystore_confirm();
     }
 
-    if (((settings_get_mode(true) == MODE_PS1)
-            || ps2_variant != settings_get_ps2_variant())
+    if (((MODE_PS1 == settings_get_mode(true))
+            || ps2_variant != settings_get_ps2_variant()
+            || USB_MODE_MASS == settings_get_usb_mode(true))
         && (ps2_cardman_is_idle())
         && !ps2_history_tracker_needs_refresh())
         return false;

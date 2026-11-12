@@ -78,6 +78,35 @@ extern "C" void sd_init() {
     }
 }
 
+/* Exclusive block access, as used by FlipperMCE MMCE SD mode. Core 0 only. */
+extern "C" bool sd_sync_device(void) {
+    return sd.card()->syncDevice();
+}
+
+extern "C" bool sd_unmount(void) {
+    bool ok = true;
+    for (size_t fd = 0; fd <= NUM_FILES; ++fd) {
+        if (files[fd].isOpen()) {
+            if (!files[fd].sync()) ok = false;
+            files[fd].close();
+        }
+    }
+    if (!sd_sync_device() || !ok) return false;
+    sd.end();
+    return true;
+}
+
+extern "C" bool sd_remount(void) { return sd.volumeBegin(); }
+extern "C" uint32_t sd_sector_count(void) { return sd.card()->sectorCount(); }
+extern "C" bool sd_read_sector(uint32_t sector, uint8_t *dst) {
+    while (sd.card()->isBusy()) tight_loop_contents();
+    return sd.card()->readSector(sector, dst);
+}
+extern "C" bool sd_write_sector(uint32_t sector, const uint8_t *src) {
+    while (sd.card()->isBusy()) tight_loop_contents();
+    return sd.card()->writeSector(sector, src);
+}
+
 void sdCsInit(SdCsPin_t pin) {
     gpio_init(pin);
     gpio_set_dir(pin, 1);

@@ -27,6 +27,26 @@ It provides the same functionality as the official stable firmware and extends i
 - **General:** USB-CDC command interface
 - **General:** USB PS3 Memory Card Adaptor emulation
 
+## USB mode
+
+The **USB Mode** submenu offers **Serial** (normal operation with CDC),
+**PS3 MCA** (Sony adaptor emulation), and **Mass** (microSD mass storage).
+Serial and PS3 MCA persist through the existing `MCA` setting. Mass is temporary:
+ejecting restores the selected normal profile, and reboots never retain Mass.
+
+### Mass storage
+
+Select **USB Mode → Mass** in the device menu to access the entire microSD card
+from a computer. Card emulation stops while the USB icon is displayed, and
+buttons are ignored. Eject the drive on the computer to return to normal
+operation; suspension, inactivity and unplugging are not eject events.
+
+CDC remains available during storage mode, with `help` and `version` commands.
+Commands that access files or change device state are rejected while storage
+owns the card. USB re-enumerates on entry and exit, so reopen the serial terminal
+when changing sessions. On exit the firmware remounts the card and restarts the
+previous console mode and USB profile.
+
 ## PS2: Game ID Switching
 
 Like on PS1, *sd2psXtd* can detect the game ID of a PS2 console and switch to a dedicated card per game. Game ID switching can be turned off in the device settings for PS2.
@@ -121,7 +141,7 @@ Please note: This is only possible using a special FreePSXBoot Version provided 
 
 ## General: USB-CDC Command Interface
 
-When PS3 Adapter mode is off, the device exposes a USB-CDC serial interface that accepts simple text commands. This can be used to change cards, channels, modes, PS2 variants, or to reboot the device without using the on-device controls.
+Select **USB Mode → Serial** to use the USB-CDC serial interface, which accepts simple text commands. This can be used to change cards, channels, modes, PS2 variants, or to reboot the device without using the on-device controls.
 
 Commands are lowercase and submitted with Enter:
 
@@ -144,9 +164,9 @@ set variant <retail|proto|conquest|arcade>
 
 ## General: USB PS3 Memory Card Adaptor Emulation
 
-PS3 Adapter mode presents the currently selected PS1 or PS2 card over USB as a Sony PS3 Memory Card Adaptor, allowing compatible software to access the emulated card. Select the card and channel using the device controls, and select PS1 or PS2 mode as appropriate.
+**PS3 MCA** mode presents the currently selected PS1 or PS2 card over USB as a Sony PS3 Memory Card Adaptor, allowing compatible software to access the emulated card. Select the card and channel using the device controls, and select PS1 or PS2 mode as appropriate.
 
-Enable or disable **PS3 Adapter** in the device menu, or set `MCA=ON` or `MCA=OFF` in the `[General]` section of the settings file. The USB connection changes between the adaptor and USB-CDC profiles; the serial command interface is unavailable while PS3 Adapter mode is enabled.
+Select **USB Mode → PS3 MCA** for adaptor emulation or **USB Mode → Serial** for normal operation. These correspond to `MCA=ON` and `MCA=OFF` in the `[General]` section of the settings file. The USB connection changes between the adaptor and USB-CDC profiles; the serial command interface is unavailable while PS3 MCA mode is enabled.
 
 
 ## General: Settings File

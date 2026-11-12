@@ -11,3 +11,9 @@ int settings_get_ps2_variant(void);
 bool settings_get_mca_enabled(void);
 void settings_set_mca_enabled(bool enabled);
 bool settings_get_ps1_controllercombo(void);
+
+#define USB_MODE_UART 0
+#define USB_MODE_MCA 1
+#define USB_MODE_MASS 2
+int settings_get_usb_mode(bool current);
+void settings_set_usb_mode(int mode);

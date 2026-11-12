@@ -1,4 +1,5 @@
 #include "mca_device.h"
+#include "settings.h"
 
 #include "pico/stdio_usb/reset_interface.h"
 #include "pico/unique_id.h"
@@ -34,6 +35,16 @@ static tusb_desc_device_t const desc_pico_device = {
     .bNumConfigurations = 1,
 };
 
+/* Separate PID avoids hosts caching the CDC-only configuration. */
+static tusb_desc_device_t const desc_storage_device = {
+    .bLength = sizeof(tusb_desc_device_t), .bDescriptorType = TUSB_DESC_DEVICE,
+    .bcdUSB = 0x0200, .bDeviceClass = TUSB_CLASS_MISC,
+    .bDeviceSubClass = MISC_SUBCLASS_COMMON, .bDeviceProtocol = MISC_PROTOCOL_IAD,
+    .bMaxPacketSize0 = 64, .idVendor = PICO_VID, .idProduct = 0x000b,
+    .bcdDevice = 0x0100, .iManufacturer = 1, .iProduct = 2,
+    .iSerialNumber = 3, .bNumConfigurations = 1,
+};
+
 static tusb_desc_device_t const desc_mca_device = {
     .bLength = sizeof(tusb_desc_device_t),
     .bDescriptorType = TUSB_DESC_DEVICE,
@@ -49,6 +60,7 @@ static tusb_desc_device_t const desc_mca_device = {
 };
 
 uint8_t const *tud_descriptor_device_cb(void) {
+    if (usb_session_get_mode() == USB_MODE_MASS) return (uint8_t const *)&desc_storage_device;
     return (uint8_t const *)(mca_device_profile_is_mca() ? &desc_mca_device : &desc_pico_device);
 }
 
@@ -82,8 +94,18 @@ static uint8_t const desc_pico[] = {
         RESET_INTERFACE_SUBCLASS, RESET_INTERFACE_PROTOCOL, 5,
 };
 
+#define STORAGE_TOTAL_LEN (PICO_TOTAL_LEN + TUD_MSC_DESC_LEN)
+static uint8_t const desc_storage[] = {
+    TUD_CONFIG_DESCRIPTOR(1, ITF_PICO_TOTAL + 1, 0, STORAGE_TOTAL_LEN, 0x00, 250),
+    TUD_CDC_DESCRIPTOR(ITF_CDC, 4, CDC_EP_NOTIF, 8, CDC_EP_OUT, CDC_EP_IN, 64),
+    9, TUSB_DESC_INTERFACE, ITF_RESET, 0, 0, TUSB_CLASS_VENDOR_SPECIFIC,
+        RESET_INTERFACE_SUBCLASS, RESET_INTERFACE_PROTOCOL, 5,
+    TUD_MSC_DESCRIPTOR(ITF_PICO_TOTAL, 0, 0x03, 0x83, 64),
+};
+
 uint8_t const *tud_descriptor_configuration_cb(uint8_t index) {
     (void)index;
+    if (usb_session_get_mode() == USB_MODE_MASS) return desc_storage;
     return mca_device_profile_is_mca() ? desc_mca : desc_pico;
 }
 

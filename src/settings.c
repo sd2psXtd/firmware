@@ -65,6 +65,7 @@ _Static_assert(sizeof(settings_t) == 24, "unexpected padding in the settings str
 static settings_t settings;
 static serialized_settings_t serialized_settings;
 static int tempmode;
+static int temp_usb_mode;
 static const char settings_path[] = "/.sd2psx/settings.ini";
 
 static void settings_update_part(void *settings_ptr, uint32_t sz);
@@ -313,6 +314,7 @@ void settings_init(void) {
 
 
     tempmode = settings.sys_flags & SETTINGS_SYS_FLAGS_PS2_MODE;
+    temp_usb_mode = USB_MODE_UART;
 }
 
 static void settings_update_part(void *settings_ptr, uint32_t sz) {
@@ -490,6 +492,25 @@ void settings_set_mca_enabled(bool enabled) {
         settings.sys_flags ^= SETTINGS_SYS_FLAGS_MCA_ENABLED;
         SETTINGS_UPDATE_FIELD(sys_flags);
     }
+}
+
+int settings_get_usb_mode(bool current) {
+    if (current && temp_usb_mode == USB_MODE_MASS)
+        return USB_MODE_MASS;
+    return settings_get_mca_enabled() ? USB_MODE_MCA : USB_MODE_UART;
+}
+
+void settings_set_usb_mode(int mode) {
+    if (mode == USB_MODE_MASS) {
+        temp_usb_mode = USB_MODE_MASS;
+        return;
+    }
+    if (mode != USB_MODE_UART && mode != USB_MODE_MCA)
+        return;
+
+    /* Clear the override even when the saved MCA bit already matches. */
+    temp_usb_mode = mode;
+    settings_set_mca_enabled(mode == USB_MODE_MCA);
 }
 
 void settings_set_mode(int mode) {

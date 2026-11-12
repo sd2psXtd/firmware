@@ -13,13 +13,17 @@
 static uint8_t saved_settings[24];
 static bool mca_profile;
 static unsigned default_card_switches;
+static unsigned settings_writes;
 
 void fatal(int error, const char *format, ...) { (void)error; (void)format; }
 int multicore_lockout_victim_is_initialized(unsigned int core) { (void)core; return 0; }
 void multicore_lockout_start_blocking(void) {}
 void multicore_lockout_end_blocking(void) {}
 wear_leveling_status_t wear_leveling_write(uint32_t address, const void *value, size_t length) {
-    (void)address; (void)value; (void)length; return WEAR_LEVELING_SUCCESS;
+    assert(address + length <= sizeof(saved_settings));
+    memcpy(saved_settings + address, value, length);
+    settings_writes++;
+    return WEAR_LEVELING_SUCCESS;
 }
 int sd_exists(const char *path) { (void)path; return 1; }
 int sd_mkdir(const char *path) { (void)path; return 0; }
@@ -98,6 +102,25 @@ int main(void) {
     assert(default_card_switches == before + 1);
     assert(settings_get_mode(false) == MODE_PS1);
     assert(settings_get_mode(true) == MODE_PS1);
+
+    for (int mode = USB_MODE_UART; mode <= USB_MODE_MCA; ++mode) {
+        settings_set_usb_mode(mode);
+        settings_set_mode(MODE_TEMP_PS1);
+        unsigned writes = settings_writes;
+        settings_set_usb_mode(USB_MODE_MASS);
+        assert(settings_get_usb_mode(true) == USB_MODE_MASS);
+        assert(settings_get_usb_mode(false) == mode);
+        assert(settings_writes == writes);
+        assert(settings_get_mode(true) == MODE_PS1);
+        settings_set_usb_mode(-1);
+        assert(settings_get_usb_mode(true) == USB_MODE_MASS);
+        settings_set_usb_mode(settings_get_usb_mode(false));
+        assert(settings_get_usb_mode(true) == mode);
+        assert(settings_writes == writes);
+        settings_set_usb_mode(USB_MODE_MASS);
+        settings_init();
+        assert(settings_get_usb_mode(true) == mode);
+    }
 
     puts("mode reset regression passed");
     return 0;

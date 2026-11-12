@@ -18,7 +18,8 @@
 
 /* The Pico CDC profile remains available alongside the alternate MCA class. */
 #define CFG_TUD_CDC 1
-#define CFG_TUD_MSC 0
+#define CFG_TUD_MSC 1
+#define CFG_TUD_MSC_EP_BUFSIZE 512
 #define CFG_TUD_HID 0
 #define CFG_TUD_MIDI 0
 #define CFG_TUD_VENDOR 0
