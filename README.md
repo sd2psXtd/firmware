@@ -36,6 +36,11 @@ ejecting restores the selected normal profile, and reboots never retain Mass.
 
 ### Mass storage
 
+$\color{red}{\textbf{WARNING: Mass mode transfer speeds are very limited by USB 1.1 Full Speed.}}$
+
+The RP2040's USB link is limited to 12 Mbit/s before protocol and SD-card overhead,
+so actual file transfer speeds are substantially lower.
+
 Select **USB Mode → Mass** in the device menu to access the entire microSD card
 from a computer. Card emulation stops while the USB icon is displayed, and
 buttons are ignored. Eject the drive on the computer to return to normal
