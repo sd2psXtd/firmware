@@ -4,6 +4,7 @@ on:
   push:
     tags:
       - '*'
+      - '!nightly-*'
     branches:
       - '*'
   pull_request:
@@ -57,14 +58,14 @@ jobs:
         git config --global --add safe.directory "$GITHUB_WORKSPACE"
         git submodule update --init --recursive --filter=blob:none
         git fetch origin --tags --force
-        TAG=$(git describe --tags --exact-match HEAD --exclude=latest --exclude=nightly) || true
-        if [ $TAG ]
+        TAG=$(git describe --tags --exact-match HEAD --exclude=latest --exclude=nightly --exclude='nightly-*') || true
+        if [ -n "$TAG" ]
         then
           echo "SD2PSX_VERSION=${TAG}" >> $GITHUB_ENV
           echo "SD2PSX_RLS_TAG=latest" >> $GITHUB_ENV
           echo "${TAG}"
         else
-          echo "SD2PSX_VERSION=nightly-$(git rev-parse --short HEAD)" >> $GITHUB_ENV
+          echo "SD2PSX_VERSION=nightly-${GITHUB_SHA:0:7}" >> $GITHUB_ENV
           echo "SD2PSX_RLS_TAG=nightly" >> $GITHUB_ENV
           echo "nightly"
         fi
@@ -88,6 +89,14 @@ jobs:
     needs: [build]
     runs-on: ubuntu-latest
     steps:
+    - name: Set release version
+      run: |
+        if [[ "$GITHUB_REF" == refs/tags/* ]]; then
+          echo "SD2PSX_VERSION=$GITHUB_REF_NAME" >> "$GITHUB_ENV"
+        else
+          echo "SD2PSX_VERSION=nightly-${GITHUB_SHA:0:7}" >> "$GITHUB_ENV"
+        fi
+
     - name: Download all artifacts
       uses: actions/download-artifact@v4
 
@@ -97,7 +106,7 @@ jobs:
       with:
         repo_token: "${{ secrets.GITHUB_TOKEN }}"
         prerelease: true
-        automatic_release_tag: "nightly"
+        automatic_release_tag: "${{ env.SD2PSX_VERSION }}"
         title: "${{ env.SD2PSX_VERSION }}"
         files: |
           */*.uf2
