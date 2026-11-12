@@ -8,7 +8,8 @@ The **USB Mode** submenu offers **Serial** (normal operation with CDC), **PS3 MC
 
 ## USB Mass Storage
 
-The RP2040's USB 1.1 Full Speed link is limited to 12 Mbit/s before protocol and SD-card overhead, so file transfers are substantially slower.
+> [!CAUTION]
+> The RP2040's USB 1.1 Full Speed link is limited to 12 Mbit/s before protocol and SD-card overhead, so file transfers are substantially slower.
 
 Select **USB Mode → Mass** in the device menu to access the entire microSD card from a computer. Card emulation stops while the USB icon is displayed, and buttons are ignored. Eject the drive on the computer to return to normal operation; suspension, inactivity, and unplugging are not eject events.
 
