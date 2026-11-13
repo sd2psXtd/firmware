@@ -72,9 +72,7 @@ static void frame_feed(const uint8_t *data, size_t length) {
     }
 }
 
-enum { IDLE, RAW, PAGE, PAGE_REPLY, RECOVER };
-static uint8_t state;
-static bool card_ready, reply_pending, in_flight, bridge_reply;
+static bool card_ready, discard_reply;
 static critical_section_t ready_lock;
 
 static bool is_ready(void) {
@@ -83,20 +81,17 @@ static bool is_ready(void) {
     critical_section_exit(&ready_lock);
     return ready;
 }
-static bool page_read;
-static uint64_t deadline;
 static uint64_t frame_deadline;
 #ifdef DEBUG_USB_UART
 static bool debug_exit_requested;
 static const uint8_t debug_exit_packet[] = {'M', 'C', 'A', '!'};
 #endif
-static union { uint32_t alignment; uint8_t bytes[4]; } short_reply;
 
 static uint8_t card_type(void) {
     /* Stop admitting new operations during a switch to storage; work already
      * owned by the bridge still drains through the normal protocol task. */
-    if (settings_get_usb_mode(true) == USB_MODE_MASS || !is_ready() || state == RECOVER ||
-        (state == PAGE && mca_page_is_cancelling()))
+    if (settings_get_usb_mode(true) == USB_MODE_MASS || !is_ready() ||
+        mca_bridge_cancelled(&mca_bridge))
         return 0;
     if (settings_get_mode(true) != MODE_PS2)
         return 1;
@@ -105,14 +100,14 @@ static uint8_t card_type(void) {
 
 static void out_received(const uint8_t *data, uint16_t length) {
 #ifdef DEBUG_USB_UART
-    if (mca_device_profile_is_mca() && state == IDLE && frame.length == 0 && !in_flight &&
+    if (mca_device_profile_is_mca() && mca_bridge_state(&mca_bridge) == MCA_BRIDGE_IDLE && frame.length == 0 &&
         length == sizeof(debug_exit_packet) &&
         memcmp(data, debug_exit_packet, sizeof(debug_exit_packet)) == 0) {
         debug_exit_requested = true;
         return;
     }
 #endif
-    if (state == IDLE && !in_flight && frame.result == FRAME_MORE) {
+    if (mca_bridge_state(&mca_bridge) == MCA_BRIDGE_IDLE && frame.result == FRAME_MORE) {
         frame_feed(data, length);
         if (length)
             frame_deadline = time_us_64() + 500000;
@@ -122,22 +117,18 @@ static void out_received(const uint8_t *data, uint16_t length) {
 static void in_complete(bool success, uint32_t transferred) {
     (void)success;
     (void)transferred;
-    in_flight = false;
-    if (bridge_reply) {
-        mca_bridge_core0_release_response(&mca_bridge);
-        bridge_reply = false;
-    }
+    mca_bridge_release(&mca_bridge);
 }
 
 static void bus_reset(void) {
-    reply_pending = false;
+    /* Accepted operations finish, including a page write's commit. Their old
+     * reply is discarded; the worker's buffers remain untouched until then. */
+    discard_reply = true;
+    mca_bridge_release(&mca_bridge);
     frame_reset();
 #ifdef DEBUG_USB_UART
     debug_exit_requested = false;
 #endif
-    if (in_flight && bridge_reply)
-        mca_bridge_core0_release_response(&mca_bridge);
-    in_flight = bridge_reply = false;
 }
 
 static const mca_device_callbacks_t callbacks = {
@@ -150,8 +141,7 @@ void mca_protocol_init(void) {
     critical_section_init(&ready_lock);
     mca_bridge_init(&mca_bridge);
     frame_reset();
-    state = IDLE;
-    card_ready = reply_pending = in_flight = bridge_reply = false;
+    card_ready = discard_reply = false;
 #ifdef DEBUG_USB_UART
     debug_exit_requested = false;
 #endif
@@ -165,15 +155,16 @@ void mca_protocol_set_ready(bool ready) {
 
 bool mca_protocol_idle(void) {
     mca_bridge_state_t bridge_state = mca_bridge_state(&mca_bridge);
-    return state == IDLE && (bridge_state == MCA_BRIDGE_IDLE ||
-                             (in_flight && bridge_reply && bridge_state == MCA_BRIDGE_RESPONSE));
+    /* No worker work remains once USB owns the reply. Session teardown drains
+     * that transfer separately before stopping USB. */
+    return bridge_state == MCA_BRIDGE_IDLE || bridge_state == MCA_BRIDGE_SENDING;
 }
 
 void mca_protocol_reset(void) { bus_reset(); }
 
 void mca_protocol_drain_reply(uint32_t milliseconds) {
     uint64_t end = time_us_64() + (uint64_t)milliseconds * 1000;
-    while (in_flight && time_us_64() < end) {
+    while (mca_bridge_state(&mca_bridge) == MCA_BRIDGE_SENDING && time_us_64() < end) {
         tud_task_ext(0, false);
         sleep_ms(1);
     }
@@ -188,48 +179,29 @@ void mca_protocol_switch_delay(uint32_t milliseconds) {
     }
 }
 
-static void short_response(uint8_t value) {
-    short_reply.bytes[0] = 0x55;
-    short_reply.bytes[1] = value;
-    if (mca_device_send(short_reply.bytes, 2))
-        in_flight = true;
-}
-
 static void process_frame(void) {
-    uint32_t page;
+    uint8_t command = mca_bridge.input[1];
+    uint8_t type = card_type();
+    discard_reply = false;
     if (frame.result == FRAME_INVALID) {
-        short_response(0xaf);
-    } else if (mca_bridge.input[1] == 0x40) {
-        short_response(card_type());
-    } else if (mca_bridge.input[1] == 0x42 && card_type() &&
-               mca_bridge_core0_publish_request(&mca_bridge, 4, frame.length - 4)) {
-        state = RAW;
-        reply_pending = true;
-        deadline = time_us_64() + 1000000;
-    } else if ((mca_bridge.input[1] == 0x52 || mca_bridge.input[1] == 0x57) &&
-               card_type() == 2 && settings_get_ps2_variant() == PS2_VARIANT_RETAIL &&
-               ps2_mc_auth_isValid()) {
-        page = (uint32_t)mca_bridge.input[3] | ((uint32_t)mca_bridge.input[4] << 8) |
-               ((uint32_t)mca_bridge.input[5] << 16) | ((uint32_t)mca_bridge.input[6] << 24);
-        page_read = mca_bridge.input[1] == 0x52;
-        if (((uint64_t)page + 1) * 512 <= ps2_cardman_get_card_size() &&
-            mca_page_start(&mca_bridge, !page_read, page,
-                           page_read ? NULL : mca_bridge.input + 7, time_us_64())) {
-            state = PAGE;
-            reply_pending = true;
-        } else {
-            short_response(0xaf);
-        }
+        mca_bridge_reply(&mca_bridge, 0xaf);
+    } else if (command == 0x40) {
+        mca_bridge_reply(&mca_bridge, type);
     } else {
-        short_response(0xaf);
+        bool valid = command == 0x42 && type;
+        if ((command == 0x52 || command == 0x57) && type == 2 &&
+            settings_get_ps2_variant() == PS2_VARIANT_RETAIL && ps2_mc_auth_isValid()) {
+            uint32_t page = (uint32_t)mca_bridge.input[3] | ((uint32_t)mca_bridge.input[4] << 8) |
+                ((uint32_t)mca_bridge.input[5] << 16) | ((uint32_t)mca_bridge.input[6] << 24);
+            valid = ((uint64_t)page + 1) * 512 <= ps2_cardman_get_card_size();
+        }
+        if (!valid || !mca_bridge_submit(&mca_bridge, frame.length))
+            mca_bridge_reply(&mca_bridge, 0xaf);
     }
     frame_reset();
 }
 
 void mca_protocol_task(void) {
-    size_t length;
-    uint8_t *response;
-
 #ifdef DEBUG_USB_UART
     if (debug_exit_requested) {
         debug_exit_requested = false;
@@ -241,63 +213,20 @@ void mca_protocol_task(void) {
 
     mca_device_set_presence(card_type() != 0);
     mca_device_task();
-    if (state == IDLE && frame.length && frame.result == FRAME_MORE &&
-        time_us_64() >= frame_deadline)
-        frame.result = FRAME_INVALID;
-    if (state == IDLE && !in_flight && frame.result != FRAME_MORE)
-        process_frame();
-
-    if (state == RAW) {
-        response = mca_bridge_core0_response_buffer(&mca_bridge, &length);
-        if (response) {
-            if (!reply_pending) {
-                mca_bridge_core0_release_response(&mca_bridge);
-                state = IDLE;
-            } else if (!in_flight) {
-                response -= 4;
-                response[0] = 0x55;
-                response[1] = 0x5a;
-                response[2] = (uint8_t)length;
-                response[3] = (uint8_t)(length >> 8);
-                if (mca_device_send(response, length + 4)) {
-                    bridge_reply = in_flight = true;
-                    state = IDLE;
-                }
-            }
-        } else if (time_us_64() >= deadline) {
-            mca_bridge_cancel(&mca_bridge);
-            state = RECOVER;
-        }
-    } else if (state == PAGE) {
-        mca_page_result_t result = mca_page_task(&mca_bridge, time_us_64());
-        if (result == MCA_PAGE_READ_DONE || result == MCA_PAGE_WRITE_DONE) {
-            state = PAGE_REPLY;
-        } else if (result == MCA_PAGE_FAILED) {
-            state = IDLE;
-            if (reply_pending)
-                short_response(0xaf);
-        }
-    } else if (state == RECOVER) {
-        response = mca_bridge_core0_response_buffer(&mca_bridge, &length);
-        if (response)
-            mca_bridge_core0_release_response(&mca_bridge);
-        if (mca_bridge_state(&mca_bridge) == MCA_BRIDGE_IDLE) {
-            state = IDLE;
-            if (reply_pending)
-                short_response(0xaf);
-        }
+    if (mca_bridge_state(&mca_bridge) == MCA_BRIDGE_IDLE) {
+        if (frame.length && frame.result == FRAME_MORE && time_us_64() >= frame_deadline)
+            frame.result = FRAME_INVALID;
+        if (frame.result != FRAME_MORE)
+            process_frame();
+        else
+            mca_device_receive();
     }
-    if (state == PAGE_REPLY) {
-        response = mca_bridge_core0_response_buffer(&mca_bridge, &length);
-        if (!reply_pending) {
-            mca_bridge_core0_release_response(&mca_bridge);
-            state = IDLE;
-        } else if (response && !in_flight &&
-                   mca_device_send(page_read ? response - 4 : response,
-                                   page_read ? length + 4 : length)) {
-            bridge_reply = in_flight = true;
-            state = IDLE;
-        }
+    mca_bridge_poll_timeout(&mca_bridge, time_us_64());
+    if (mca_bridge_state(&mca_bridge) == MCA_BRIDGE_RESPONSE) {
+        if (discard_reply)
+            mca_bridge_release(&mca_bridge);
+        else if (mca_device_send(mca_bridge.output, mca_bridge.output_length))
+            mca_bridge_sending(&mca_bridge);
     }
 }
 

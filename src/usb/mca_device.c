@@ -27,33 +27,21 @@ static int session_usb_mode;
 static mca_device_callbacks_t device_callbacks;
 static union { uint32_t alignment; uint8_t bytes[MCA_PACKET_SIZE]; } ep_out_buffer;
 static union { uint32_t alignment; uint8_t bytes[1]; } ep_interrupt_buffer;
-static bool in_busy;
 static bool interface_open;
-static bool out_open;
-static bool in_open;
-static bool interrupt_open;
-static bool interrupt_busy;
 static bool presence;
 static bool presence_reported;
 static bool presence_reported_valid;
 static bool removal_pending;
 static uint8_t reset_interface_number = 0xff;
 
-static void prime_out(uint8_t rhport) {
-    if (out_open)
-        (void)usbd_edpt_xfer(rhport, MCA_EP_OUT, ep_out_buffer.bytes, sizeof(ep_out_buffer.bytes));
-}
-
 static void service_presence(uint8_t rhport) {
     bool next = removal_pending ? false : presence;
-    if (!interrupt_open || interrupt_busy ||
+    if (!interface_open || usbd_edpt_busy(rhport, MCA_EP_INT) ||
         (!removal_pending && presence_reported_valid && presence_reported == next))
         return;
 
     ep_interrupt_buffer.bytes[0] = next ? 1 : 0;
-    if (usbd_edpt_xfer(rhport, MCA_EP_INT, ep_interrupt_buffer.bytes, sizeof(ep_interrupt_buffer.bytes))) {
-        interrupt_busy = true;
-    }
+    (void)usbd_edpt_xfer(rhport, MCA_EP_INT, ep_interrupt_buffer.bytes, sizeof(ep_interrupt_buffer.bytes));
 }
 
 void mca_device_init(bool mca_profile, const mca_device_callbacks_t *callbacks) {
@@ -63,11 +51,6 @@ void mca_device_init(bool mca_profile, const mca_device_callbacks_t *callbacks) 
     else
         memset(&device_callbacks, 0, sizeof(device_callbacks));
     interface_open = false;
-    out_open = false;
-    in_open = false;
-    in_busy = false;
-    interrupt_open = false;
-    interrupt_busy = false;
     presence = false;
     presence_reported = false;
     presence_reported_valid = false;
@@ -137,13 +120,10 @@ void usb_session_stop(void) {
 }
 
 bool mca_device_send(const uint8_t *data, size_t length) {
-    if (!profile_mca || !interface_open || !in_open || in_busy || !data ||
+    if (!profile_mca || !interface_open || usbd_edpt_busy(0, MCA_EP_IN) || !data ||
         length == 0 || length > MCA_DEVICE_MAX_TRANSFER || ((uintptr_t)data & 3u) != 0)
         return false;
-    if (!usbd_edpt_xfer(0, MCA_EP_IN, (uint8_t *)(uintptr_t)data, (uint32_t)length))
-        return false;
-    in_busy = true;
-    return true;
+    return usbd_edpt_xfer(0, MCA_EP_IN, (uint8_t *)(uintptr_t)data, (uint32_t)length);
 }
 
 void mca_device_set_presence(bool present) {
@@ -152,17 +132,17 @@ void mca_device_set_presence(bool present) {
     presence = present;
 }
 
+void mca_device_receive(void) {
+    if (interface_open && !usbd_edpt_busy(0, MCA_EP_OUT))
+        (void)usbd_edpt_xfer(0, MCA_EP_OUT, ep_out_buffer.bytes, sizeof(ep_out_buffer.bytes));
+}
+
 void mca_device_task(void) {
     service_presence(0);
 }
 
 static void mca_driver_init(void) {
     interface_open = false;
-    out_open = false;
-    in_open = false;
-    in_busy = false;
-    interrupt_open = false;
-    interrupt_busy = false;
     presence_reported_valid = false;
     removal_pending = false;
     reset_interface_number = 0xff;
@@ -181,6 +161,7 @@ static uint16_t mca_driver_open(uint8_t rhport,
     uint8_t const *descriptor;
     uint16_t consumed;
     uint8_t endpoint_index;
+    bool out_open = false, in_open = false, interrupt_open = false;
 
     if (interface_desc->bInterfaceClass == TUSB_CLASS_VENDOR_SPECIFIC &&
         interface_desc->bInterfaceSubClass == RESET_INTERFACE_SUBCLASS &&
@@ -199,9 +180,6 @@ static uint16_t mca_driver_open(uint8_t rhport,
 
     descriptor = (uint8_t const *)interface_desc + interface_desc->bLength;
     consumed = interface_desc->bLength;
-    out_open = false;
-    in_open = false;
-    interrupt_open = false;
     for (endpoint_index = 0; endpoint_index < 3; ++endpoint_index) {
         if (consumed > max_length || (size_t)(max_length - consumed) < sizeof(tusb_desc_endpoint_t))
             return 0;
@@ -220,13 +198,10 @@ static uint16_t mca_driver_open(uint8_t rhport,
         descriptor += endpoint->bLength;
         consumed += endpoint->bLength;
     }
-    if (!out_open || !in_open || !interrupt_open) {
-        out_open = in_open = interrupt_open = false;
+    if (!out_open || !in_open || !interrupt_open)
         return 0;
-    }
 
     interface_open = true;
-    prime_out(rhport);
     service_presence(rhport);
     return consumed;
 }
@@ -259,21 +234,19 @@ static bool mca_driver_control(uint8_t rhport, uint8_t stage,
 static bool mca_driver_xfer(uint8_t rhport, uint8_t endpoint_address,
                             xfer_result_t result, uint32_t transferred) {
     bool success = result == XFER_RESULT_SUCCESS;
+    (void)rhport;
 
     if (endpoint_address == MCA_EP_OUT) {
         if (success && device_callbacks.out_received)
             device_callbacks.out_received(ep_out_buffer.bytes, (uint16_t)transferred);
-        prime_out(rhport);
         return true;
     }
     if (endpoint_address == MCA_EP_IN) {
-        in_busy = false;
         if (device_callbacks.in_complete)
             device_callbacks.in_complete(success, transferred);
         return true;
     }
     if (endpoint_address == MCA_EP_INT) {
-        interrupt_busy = false;
         if (success && transferred == sizeof(ep_interrupt_buffer.bytes)) {
             presence_reported = ep_interrupt_buffer.bytes[0] != 0;
             presence_reported_valid = true;

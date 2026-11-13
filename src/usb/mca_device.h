@@ -38,6 +38,8 @@ void usb_session_stop(void);
  * unavailable, a transfer is already pending, or the payload exceeds the
  * device limit. */
 bool mca_device_send(const uint8_t *data, size_t length);
+/* Arm the next OUT packet only while the protocol can accept it. */
+void mca_device_receive(void);
 void mca_device_set_presence(bool present);
 /* Call from the normal USB/task loop to deliver pending presence updates. */
 void mca_device_task(void);
