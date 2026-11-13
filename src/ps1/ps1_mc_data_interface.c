@@ -35,7 +35,6 @@ static void __time_critical_func(ps1_mc_data_interface_rx_done)() {
 }
 
 void __time_critical_func(ps1_mc_data_interface_start_dma)(uint32_t page) {
-    ps1_dirty_lockout_renew();
     /* the spinlock will be unlocked by the DMA irq once all data is tx'd */
     ps1_dirty_lock();
     dma_in_progress = true;
@@ -64,15 +63,10 @@ uint8_t* __time_critical_func(ps1_mc_data_interface_get_page)(uint32_t page) {
     return ret;
 }
 
-void __time_critical_func(ps1_mc_data_interface_write_byte)(uint32_t address, uint8_t byte) {
+void __time_critical_func(ps1_mc_data_interface_write_byte)(uint32_t address, uint8_t byte) {    
+    ps1_dirty_lockout_renew();
 #if WITH_PSRAM
     card[address%PS1_PAGE_SIZE] = byte;
-    ps1_dirty_lockout_renew();
-    ps1_dirty_lock();
-    psram_write_dma(address, &card[address%PS1_PAGE_SIZE], 1, NULL);
-    psram_wait_for_dma();
-
-    ps1_dirty_unlock();
 #else
     card[address] = byte;
 #endif
@@ -80,7 +74,15 @@ void __time_critical_func(ps1_mc_data_interface_write_byte)(uint32_t address, ui
 }
 
 void __time_critical_func(ps1_mc_data_interface_write_mc)(uint32_t page) {
+    ps1_dirty_lockout_renew();
+    ps1_dirty_lock();
+#if WITH_PSRAM
+    psram_wait_for_dma();
+    psram_write_dma(page * PS1_PAGE_SIZE, card, PS1_PAGE_SIZE, NULL);
+    psram_wait_for_dma();
+#endif
     ps1_dirty_mark(page);
+    ps1_dirty_unlock();
 }
 
 void __time_critical_func(ps1_mc_data_interface_wait_for_byte)(uint32_t offset) {

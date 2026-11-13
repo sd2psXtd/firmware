@@ -1,7 +1,9 @@
 #include <ctype.h>
+#include <fcntl.h>
 #include <hardware/watchdog.h>
 #include <pico/bootrom.h>
 #include <pico/stdio.h>
+#include <pico/stdio_usb.h>
 #include <stdbool.h>
 #include <stdint.h>
 #include <stdlib.h>
@@ -12,13 +14,18 @@
 #endif
 #include "ps1/ps1_mmce.h"
 #include "ps2/mmceman/ps2_mmceman.h"
+#include "ps2/ps2_cardman.h"
+#include "sd.h"
 
 #include "debug.h"
 #include "serial_input.h"
 #include "settings.h"
+#include "version.h"
 
 #define SERIAL_INPUT_BUFFER_SIZE 256
 #define SERIAL_INPUT_MAX_ARGS   8
+#define SERIAL_INPUT_PATH_SIZE  128
+#define SERIAL_INPUT_LS_MAX     512
 
 #define ASCII_BS  0x08
 #define ASCII_DEL 0x7F
@@ -30,6 +37,7 @@ typedef enum {
     SERIAL_INPUT_CMD_RESET_TO_BOOTLOADER,
     SERIAL_INPUT_CMD_PS1_MODE,
     SERIAL_INPUT_CMD_PS2_MODE,
+    SERIAL_INPUT_CMD_MCA_MODE,
     SERIAL_INPUT_CMD_PS2_VARIANT_RETAIL,
     SERIAL_INPUT_CMD_PS2_VARIANT_PROTO,
     SERIAL_INPUT_CMD_PS2_VARIANT_SC2,
@@ -41,6 +49,9 @@ typedef enum {
     SERIAL_INPUT_CMD_CARD_IDX,
     SERIAL_INPUT_CMD_CHANNEL_IDX,
     SERIAL_INPUT_CMD_GAMEID,
+    SERIAL_INPUT_CMD_VERSION,
+    SERIAL_INPUT_CMD_LS,
+    SERIAL_INPUT_CMD_STAT,
     SERIAL_INPUT_CMD_HELP
 } serial_input_cmd_t;
 
@@ -49,6 +60,7 @@ typedef struct {
     int idx;
     int channel;
     char gameid[16];
+    char path[SERIAL_INPUT_PATH_SIZE];
     const char* error;
 } serial_input_cmd_data_t;
 
@@ -57,6 +69,9 @@ static const char prompt[] = "> ";
 static const char help_text[] =
     "Serial Input Commands:\n"
     "  help                                - Show this help\n"
+    "  version                             - Show firmware version and settings\n"
+    "  ls [path]                           - List a directory on the SD card\n"
+    "  stat <path>                         - Show whether a path exists, its type and size\n"
     "  reset bl                            - Reset to bootloader\n"
     "  reset dev                           - Reset device\n"
     "  channel up                          - Channel up\n"
@@ -66,7 +81,7 @@ static const char help_text[] =
     "  card down                           - Card down\n"
     "  set card <idx> [channel <idx>]      - Set card with optional channel\n"
     "  set game <id> [channel <idx>]       - Set game with optional channel\n"
-    "  set mode <mode>                     - Set mode: ps1, ps2\n"
+    "  set mode <mode>                     - Set mode: ps1, ps2, mca (disconnects USB serial)\n"
     "  set variant <variant>               - Set PS2 variant: retail, proto, conquest, arcade\n";
 
 static char in_buffer[SERIAL_INPUT_BUFFER_SIZE];
@@ -80,6 +95,7 @@ static void cmd_data_init(serial_input_cmd_data_t* cmd_data) {
     cmd_data->idx = -1;
     cmd_data->channel = -1;
     cmd_data->gameid[0] = '\0';
+    cmd_data->path[0] = '\0';
     cmd_data->error = NULL;
 }
 
@@ -181,6 +197,86 @@ static bool parse_optional_channel(int argc, char* argv[], int start_arg, int* c
     return true;
 }
 
+static bool copy_path_arg(const char* text, serial_input_cmd_data_t* cmd_data) {
+    if (strlen(text) >= sizeof(cmd_data->path)) {
+        cmd_data->error = "Path is too long";
+        return false;
+    }
+    strcpy(cmd_data->path, text);
+    return true;
+}
+
+/* The SD card is shared with the card emulation, whose file work runs
+ * from the same core0 loop as this parser, so the only thing to avoid is
+ * walking the card while a switch or card creation is mid-flight. */
+static bool sd_is_busy(void) {
+    return (settings_get_mode(true) == MODE_PS2) && !ps2_cardman_is_idle();
+}
+
+static void cmd_stat(const char* path) {
+    int fd;
+
+    if (sd_is_busy()) {
+        printf("Busy: card operation in progress\n");
+        return;
+    }
+    if (!sd_exists(path)) {
+        printf("Missing: %s\n", path);
+        return;
+    }
+    fd = sd_open(path, O_RDONLY);
+    if (fd < 0) {
+        printf("Exists but cannot open: %s\n", path);
+        return;
+    }
+    if (sd_is_dir(fd)) {
+        printf("Dir: %s\n", path);
+    } else {
+        printf("File: %s size %d\n", path, sd_filesize(fd));
+    }
+    sd_close(fd);
+}
+
+static void cmd_ls(const char* path) {
+    int dir, entry, count = 0;
+    char name[SERIAL_INPUT_PATH_SIZE];
+
+    if (sd_is_busy()) {
+        printf("Busy: card operation in progress\n");
+        return;
+    }
+    if (!sd_exists(path)) {
+        printf("Missing: %s\n", path);
+        return;
+    }
+    dir = sd_open(path, O_RDONLY);
+    if (dir < 0) {
+        printf("Exists but cannot open: %s\n", path);
+        return;
+    }
+    if (!sd_is_dir(dir)) {
+        printf("Not a directory: %s\n", path);
+        sd_close(dir);
+        return;
+    }
+    /* sd_iterate_dir(dir, -1) opens the next entry into a free slot and
+     * advances the directory's position, so closing each entry and
+     * asking with -1 again walks the whole directory. */
+    while ((count < SERIAL_INPUT_LS_MAX) && ((entry = sd_iterate_dir(dir, -1)) >= 0)) {
+        name[0] = '\0';
+        sd_get_name(entry, name, sizeof(name));
+        if (sd_is_dir(entry)) {
+            printf("D %s\n", name);
+        } else {
+            printf("F %d %s\n", sd_filesize(entry), name);
+        }
+        sd_close(entry);
+        count++;
+    }
+    sd_close(dir);
+    printf("Total: %d%s\n", count, (count >= SERIAL_INPUT_LS_MAX) ? " (truncated)" : "");
+}
+
 static void parse_command(char* input, serial_input_cmd_data_t* cmd_data) {
     char* argv[SERIAL_INPUT_MAX_ARGS];
     int argc;
@@ -200,6 +296,18 @@ static void parse_command(char* input, serial_input_cmd_data_t* cmd_data) {
 
     if ((argc == 1) && (strcmp(argv[0], "help") == 0)) {
         cmd_data->cmd = SERIAL_INPUT_CMD_HELP;
+    } else if ((argc == 1) && (strcmp(argv[0], "version") == 0)) {
+        cmd_data->cmd = SERIAL_INPUT_CMD_VERSION;
+    } else if ((argc >= 1) && (argc <= 2) && (strcmp(argv[0], "ls") == 0)) {
+        cmd_data->cmd = SERIAL_INPUT_CMD_LS;
+        if (!copy_path_arg((argc == 2) ? argv[1] : "/", cmd_data)) {
+            cmd_data->cmd = SERIAL_INPUT_CMD_INVALID;
+        }
+    } else if ((argc == 2) && (strcmp(argv[0], "stat") == 0)) {
+        cmd_data->cmd = SERIAL_INPUT_CMD_STAT;
+        if (!copy_path_arg(argv[1], cmd_data)) {
+            cmd_data->cmd = SERIAL_INPUT_CMD_INVALID;
+        }
     } else if ((argc == 2) && (strcmp(argv[0], "reset") == 0) && (strcmp(argv[1], "bl") == 0)) {
         cmd_data->cmd = SERIAL_INPUT_CMD_RESET_TO_BOOTLOADER;
     } else if ((argc == 2) && (strcmp(argv[0], "reset") == 0) && (strcmp(argv[1], "dev") == 0)) {
@@ -241,9 +349,11 @@ static void parse_command(char* input, serial_input_cmd_data_t* cmd_data) {
             cmd_data->cmd = SERIAL_INPUT_CMD_PS1_MODE;
         } else if (strcmp(argv[2], "ps2") == 0) {
             cmd_data->cmd = SERIAL_INPUT_CMD_PS2_MODE;
+        } else if (strcmp(argv[2], "mca") == 0) {
+            cmd_data->cmd = SERIAL_INPUT_CMD_MCA_MODE;
         } else {
             cmd_data->cmd = SERIAL_INPUT_CMD_INVALID;
-            cmd_data->error = "Mode must be one of: ps1, ps2";
+            cmd_data->error = "Mode must be one of: ps1, ps2, mca";
         }
     } else if ((argc == 3) && (strcmp(argv[0], "set") == 0) && (strcmp(argv[1], "variant") == 0)) {
         if (strcmp(argv[2], "retail") == 0) {
@@ -265,6 +375,12 @@ static void parse_command(char* input, serial_input_cmd_data_t* cmd_data) {
 }
 
 static void execute_command(const serial_input_cmd_data_t* cmd_data) {
+    if (settings_get_usb_mode(true) == USB_MODE_MASS && cmd_data->cmd != SERIAL_INPUT_CMD_HELP &&
+        cmd_data->cmd != SERIAL_INPUT_CMD_VERSION && cmd_data->cmd != SERIAL_INPUT_CMD_NONE &&
+        cmd_data->cmd != SERIAL_INPUT_CMD_INVALID) {
+        printf("Busy: USB storage owns the SD card\n");
+        return;
+    }
     switch (cmd_data->cmd) {
         case SERIAL_INPUT_CMD_NONE:
             break;
@@ -363,6 +479,13 @@ static void execute_command(const serial_input_cmd_data_t* cmd_data) {
             gui_request_refresh();
             #endif
             break;
+        case SERIAL_INPUT_CMD_MCA_MODE:
+            printf("Switching USB to MCA (serial will disconnect)\n");
+            settings_set_usb_mode(USB_MODE_MCA);
+            #if WITH_GUI
+            gui_mca_mode_changed();
+            #endif
+            break;
         case SERIAL_INPUT_CMD_PS2_VARIANT_RETAIL:
             printf("Set PS2 Variant: Retail\n");
             settings_set_ps2_variant(PS2_VARIANT_RETAIL);
@@ -395,6 +518,29 @@ static void execute_command(const serial_input_cmd_data_t* cmd_data) {
             gui_request_refresh();
             #endif
             break;
+        case SERIAL_INPUT_CMD_VERSION: {
+            const char* variant_name = "Unknown";
+            switch (settings_get_ps2_variant()) {
+                case PS2_VARIANT_RETAIL: variant_name = "Retail"; break;
+                case PS2_VARIANT_PROTO: variant_name = "Proto"; break;
+                case PS2_VARIANT_COH: variant_name = "Arcade"; break;
+                case PS2_VARIANT_SC2: variant_name = "Conquest"; break;
+                default: break;
+            }
+            printf("Version: %s\n", sd2psx_version);
+            printf("Commit: %s\n", sd2psx_commit);
+            printf("Branch: %s\n", sd2psx_branch);
+            printf("HW Variant: %s\n", sd2psx_variant);
+            printf("Mode: %s\n", (settings_get_mode(true) == MODE_PS2) ? "PS2" : "PS1");
+            printf("PS2 Variant: %s\n", variant_name);
+            break;
+        }
+        case SERIAL_INPUT_CMD_LS:
+            cmd_ls(cmd_data->path);
+            break;
+        case SERIAL_INPUT_CMD_STAT:
+            cmd_stat(cmd_data->path);
+            break;
         case SERIAL_INPUT_CMD_HELP:
             printf("%s", help_text);
             break;
@@ -419,12 +565,26 @@ static void submit_line(void) {
     in_buffer[0] = '\0';
 
     execute_command(&cmd_data);
+#if DEBUG_USB_UART
+    if (cmd_data.cmd == SERIAL_INPUT_CMD_MCA_MODE && settings_get_mca_enabled()) {
+        /* CDC disappeared with the Pico USB profile. Start a fresh prompt
+         * when the GUI later switches back to Pico CDC. */
+        prompt_started = false;
+        return;
+    }
+#endif
     terminal_prompt();
 }
 
 void serial_input_process(void) {
     int charin;
 
+#if DEBUG_USB_UART
+    /* After switching back from MCA, wait for a terminal to reopen CDC
+     * before printing the first prompt. */
+    if (!prompt_started && !stdio_usb_connected())
+        return;
+#endif
     if (!prompt_started) {
         terminal_prompt();
     } else if (prompt_needs_redraw && (in_len > 0)) {

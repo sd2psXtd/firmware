@@ -20,6 +20,7 @@
 #include "ps1_cardman.h"
 #include "ps1_dirty.h"
 #include "ps1_memory_card.h"
+#include "ps1_card_backend.h"
 #include "ps1_mmce.h"
 
 
@@ -72,6 +73,7 @@ void ps1_init() {
 }
 
 bool ps1_task() {
+    bool backend_running = ps1_card_backend_task();
     ps1_mmce_task();
 
 #if WITH_GUI
@@ -86,10 +88,11 @@ bool ps1_task() {
     led_task();
 #endif
     ps1_mc_data_interface_task();
-    if ((settings_get_mode(true) == MODE_PS2))
+    if ((MODE_PS2 == settings_get_mode(true))
+        || USB_MODE_MASS == settings_get_usb_mode(true))
         return false;
 
-    return true;
+    return backend_running;
 }
 
 void ps1_deinit(void) {
@@ -100,5 +103,4 @@ void ps1_deinit(void) {
         ps1_dirty_task();
     ps1_cardman_close();
     multicore_reset_core1();
-    ps1_memory_card_unload();
 }

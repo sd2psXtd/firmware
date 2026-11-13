@@ -1,0 +1,8 @@
+FROM ubuntu:26.04
+
+ARG DEBIAN_FRONTEND=noninteractive
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    build-essential ca-certificates clangd cmake gcc-arm-none-eabi git \
+    libnewlib-arm-none-eabi libstdc++-arm-none-eabi-newlib python3-venv ninja-build \
+    && rm -rf /var/lib/apt/lists/*

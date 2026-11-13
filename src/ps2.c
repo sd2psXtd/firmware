@@ -15,6 +15,7 @@
 #include "mmceman/ps2_mmceman.h"
 #include "mmceman/ps2_mmceman_fs.h"
 #include "card_emu/ps2_memory_card.h"
+#include "card_emu/ps2_card_backend.h"
 #include "ps2_dirty.h"
 #include "history_tracker/ps2_history_tracker.h"
 #include "ps2_cardman.h"
@@ -57,7 +58,7 @@ static int ps2_variant = PS2_VARIANT_RETAIL;
 
 void ps2_init(void) {
     log(LOG_INFO, "starting in PS2 mode\n");
-    mmceman_mcman_retry_counter = 0;
+
     keystore_init();
 
     multicore_launch_core1(ps2_memory_card_main);
@@ -90,6 +91,7 @@ void ps2_init(void) {
 }
 
 bool ps2_task(void) {
+    bool backend_running = ps2_card_backend_task();
     ps2_mmceman_task();
     ps2_cardman_task();
 #if WITH_GUI
@@ -109,7 +111,6 @@ bool ps2_task(void) {
     ps2_mmceman_fs_run();
     log(LOG_TRACE, "%s mmcefs\n", __func__);
 
-
     if (ps2_cardman_is_accessible())
         ps2_history_tracker_task();
 
@@ -127,13 +128,14 @@ bool ps2_task(void) {
         keystore_confirm();
     }
 
-    if (((settings_get_mode(true) == MODE_PS1)
-            || ps2_variant != settings_get_ps2_variant())
+    if (((MODE_PS1 == settings_get_mode(true))
+            || ps2_variant != settings_get_ps2_variant()
+            || USB_MODE_MASS == settings_get_usb_mode(true))
         && (ps2_cardman_is_idle())
         && !ps2_history_tracker_needs_refresh())
         return false;
 
-    return true;
+    return backend_running;
 }
 
 void ps2_deinit(void) {
@@ -142,6 +144,6 @@ void ps2_deinit(void) {
     while (ps2_mc_data_interface_write_occured())
         ps2_mc_data_interface_task();
     multicore_reset_core1();
+    ps2_mc_data_interface_flush();
     ps2_cardman_close();
-    ps2_memory_card_unload();
 }

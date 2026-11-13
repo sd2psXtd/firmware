@@ -16,11 +16,14 @@
 #include "pico/time.h"
 #include "sd.h"
 #include "settings.h"
+#include "usb/mca_device.h"
+#include "usb/usb_storage.h"
 #if WITH_PSRAM
 #include "psram/psram.h"
 #endif
 
 #include "ps2.h"
+#include "ps2/mmceman/ps2_mmceman.h"
 #include "ps1.h"
 
 #include "game_db/game_db.h"
@@ -86,7 +89,7 @@ int main() {
     clock_configure(clk_peri, 0, CLOCKS_CLK_PERI_CTRL_AUXSRC_VALUE_CLK_SYS, mhz * 1000000, mhz * 1000000);
 
 #if DEBUG_USB_UART
-    stdio_usb_init();
+    /* CDC is started after selecting the USB profile below. */
 #else
     stdio_uart_init_full(UART_PERIPH, UART_BAUD, UART_TX, UART_RX);
 #endif
@@ -104,6 +107,7 @@ int main() {
     QPRINTF("Splash base: 0x%X\n", FLASH_OFF_SPLASH);
 
     settings_init();
+    usb_session_init();
 #if WITH_PSRAM
     psram_init();
 #endif
@@ -116,33 +120,45 @@ int main() {
     sd_init();
 
     while (1) {
-        if (settings_get_mode(true) == MODE_PS2) {
+        /* Load the SD settings before choosing the mode, USB identity, and
+         * memory-card backend for this session. Keep the per-session reload
+         * so settings changed on SD are observed after every mode switch. */
+        settings_load_sd();
+        usb_session_prepare();
+        void (*mode_init)(void);
+        bool (*mode_task)(void);
+        void (*mode_deinit)(void);
+        if (USB_MODE_MASS == settings_get_usb_mode(true)) {
+            QPRINTF("Starting USB storage mode...\n");
+            mode_init = usb_storage_init;
+            mode_task = usb_storage_task;
+            mode_deinit = usb_storage_deinit;
+        } else if (settings_get_mode(true) == MODE_PS2) {
             QPRINTF("Starting PS2 mode...\n");
-            ps2_init();
-            settings_load_sd();
-#if DEBUG_USB_UART == 0
-            stdio_usb_init();
-#endif
-            do {
-                debug_task();
-            } while(ps2_task());
-            ps2_deinit();
-
+            mode_init = ps2_init;
+            mode_task = ps2_task;
+            mode_deinit = ps2_deinit;
         } else {
             QPRINTF("Starting PS1 mode...\n");
-            ps1_init();
-            settings_load_sd();
-
-#if DEBUG_USB_UART == 0
-            stdio_usb_init();
-#endif
-            do {
-                debug_task();
-            } while(ps1_task());
-            ps1_deinit();
+            mode_init = ps1_init;
+            mode_task = ps1_task;
+            mode_deinit = ps1_deinit;
         }
-#if DEBUG_USB_UART == 0
-        stdio_usb_deinit();
-#endif
+
+        mode_init();
+        usb_session_start();
+        while (true) {
+            usb_session_poll();
+            debug_task();
+            bool mode_running = mode_task();
+            if (!usb_session_continue(mode_running))
+                break;
+        }
+        usb_session_drain();
+        usb_session_stop();
+        mode_deinit();
+
+        // ReArm PS2 retry counter
+        ps2_mmceman_rearm_retry_counter();
     }
 }

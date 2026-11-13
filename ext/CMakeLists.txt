@@ -5,6 +5,8 @@ add_library(sd_fat STATIC
             ${CMAKE_CURRENT_SOURCE_DIR}/ESP8266SdFat/src/common/FsDateTime.cpp
             ${CMAKE_CURRENT_SOURCE_DIR}/ESP8266SdFat/src/common/FsName.cpp
             ${CMAKE_CURRENT_SOURCE_DIR}/ESP8266SdFat/src/common/FsStructs.cpp
+            ${CMAKE_CURRENT_SOURCE_DIR}/ESP8266SdFat/src/common/GptPartition.cpp
+            ${CMAKE_CURRENT_SOURCE_DIR}/ESP8266SdFat/src/common/VolumeLocator.cpp
             ${CMAKE_CURRENT_SOURCE_DIR}/ESP8266SdFat/src/common/FsUtf.cpp
             ${CMAKE_CURRENT_SOURCE_DIR}/ESP8266SdFat/src/common/upcase.cpp
             ${CMAKE_CURRENT_SOURCE_DIR}/ESP8266SdFat/src/ExFatLib/ExFatDbg.cpp

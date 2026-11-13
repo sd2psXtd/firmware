@@ -1,9 +1,6 @@
-#include "hardware/pio.h"
 #include "history_tracker/ps2_history_tracker.h"
 #include "ps2_cardman.h"
 #include "debug.h"
-#include "hardware/gpio.h"
-#include "hardware/structs/iobank0.h"
 #include "hardware/timer.h"
 #include "keystore.h"
 #include "pico/multicore.h"
@@ -14,8 +11,10 @@
 #include "mmceman/ps2_mmceman.h"
 #include "mmceman/ps2_mmceman_commands.h"
 #include "mmceman/ps2_mmceman_fs.h"
-#include "ps2_mc_spi.pio.h"
+#include "ps2_card_backend.h"
+#include "ps2_mc_data_interface.h"
 
+#include <hardware/watchdog.h>
 #include <settings.h>
 #include <stdbool.h>
 #include <stdint.h>
@@ -27,131 +26,20 @@
 #define log(level, fmt, x...) LOG_PRINT(LOG_LEVEL_PS2_MC, level, fmt, ##x)
 #endif
 
-uint64_t us_startup;
 
-volatile int reset;
 
-typedef struct {
-    uint32_t offset;
-    uint32_t sm;
-} pio_t;
-
-pio_t cmd_reader, dat_writer;
 uint8_t term = 0xFF;
 
 static int memcard_running;
-volatile bool card_active;
+volatile bool ps2_card_active;
 
-static volatile int mc_exit_request, mc_exit_response, mc_enter_request, mc_enter_response;
+volatile int ps2_mc_exit_request;
+static volatile int mc_exit_response, mc_enter_request, mc_enter_response;
 
-static inline void __time_critical_func(RAM_pio_sm_drain_tx_fifo)(PIO pio, uint sm) {
-    uint instr = (pio->sm[sm].shiftctrl & PIO_SM0_SHIFTCTRL_AUTOPULL_BITS) ? pio_encode_out(pio_null, 32) : pio_encode_pull(false, false);
-    while (!pio_sm_is_tx_fifo_empty(pio, sm)) {
-        pio_sm_exec(pio, sm, instr);
-    }
-}
+static int memcard_variant;
+static bool backend_mode;
 
-static void __time_critical_func(reset_pio)(void) {
-
-    /* NOTE: If the TX FIFO's not empty and this intr is triggered in the middle
-     * of a MMCEMAN FS function, it's a safe bet the PS2 was reset or the SD2PSX was unplugged */
-    if (mmceman_callback != NULL && pio_sm_is_tx_fifo_empty(pio0, dat_writer.sm) == false) {
-        mmceman_timeout_detected = true;
-    }
-
-    pio_set_sm_mask_enabled(pio0, (1 << cmd_reader.sm) | (1 << dat_writer.sm), false);
-    pio_restart_sm_mask(pio0, (1 << cmd_reader.sm) | (1 << dat_writer.sm));
-
-    pio_sm_exec(pio0, cmd_reader.sm, pio_encode_jmp(cmd_reader.offset));
-    pio_sm_exec(pio0, dat_writer.sm, pio_encode_jmp(dat_writer.offset));
-
-    pio_sm_clear_fifos(pio0, cmd_reader.sm);
-    RAM_pio_sm_drain_tx_fifo(pio0, dat_writer.sm);
-
-    pio_enable_sm_mask_in_sync(pio0, (1 << cmd_reader.sm) | (1 << dat_writer.sm));
-
-    if (mmceman_tx_queued) {
-        mc_respond(mmceman_tx_byte); //Preemptively place byte on tx for proper alignment with mmce fs read packets
-        mmceman_tx_queued = false;
-        mmceman_tx_byte = 0;
-    }
-
-    reset = 1;
-}
-
-static void __time_critical_func(init_pio)(void) {
-
-    mmceman_tx_queued = false;
-    mmceman_tx_byte = 0x0;
-
-    /* Set all pins as floating inputs */
-    gpio_set_dir(PIN_PSX_ACK, 0);
-    gpio_set_dir(PIN_PSX_SEL, 0);
-    gpio_set_dir(PIN_PSX_CLK, 0);
-    gpio_set_dir(PIN_PSX_CMD, 0);
-    gpio_set_dir(PIN_PSX_DAT, 0);
-    gpio_disable_pulls(PIN_PSX_ACK);
-    gpio_disable_pulls(PIN_PSX_SEL);
-    gpio_disable_pulls(PIN_PSX_CLK);
-    gpio_disable_pulls(PIN_PSX_CMD);
-    gpio_disable_pulls(PIN_PSX_DAT);
-
-    cmd_reader.offset = pio_add_program(pio0, &cmd_reader_program);
-    cmd_reader.sm = pio_claim_unused_sm(pio0, true);
-
-    dat_writer.offset = pio_add_program(pio0, &dat_writer_program);
-    dat_writer.sm = pio_claim_unused_sm(pio0, true);
-
-    cmd_reader_program_init(pio0, cmd_reader.sm, cmd_reader.offset);
-    dat_writer_program_init(pio0, dat_writer.sm, dat_writer.offset);
-}
-
-static void __time_critical_func(card_deselected)(uint gpio, uint32_t event_mask) {
-    if (gpio == PIN_PSX_SEL && (event_mask & GPIO_IRQ_EDGE_RISE)) {
-        card_active = false;
-        reset_pio();
-    }
-}
-
-
-uint8_t __time_critical_func(receive)(uint8_t *cmd) {
-    do {
-        while (pio_sm_is_rx_fifo_empty(pio0, cmd_reader.sm) && pio_sm_is_rx_fifo_empty(pio0, cmd_reader.sm) && pio_sm_is_rx_fifo_empty(pio0, cmd_reader.sm) &&
-            pio_sm_is_rx_fifo_empty(pio0, cmd_reader.sm) && pio_sm_is_rx_fifo_empty(pio0, cmd_reader.sm) && 1) {
-            if (reset) {
-                return RECEIVE_RESET;
-            }
-        }
-        (*cmd) = (pio_sm_get(pio0, cmd_reader.sm) >> 24);
-        return RECEIVE_OK;
-    }
-    while (0);
-}
-
-uint8_t __time_critical_func(receiveFirst)(uint8_t *cmd) {
-    do {
-        while (pio_sm_is_rx_fifo_empty(pio0, cmd_reader.sm)
-                && pio_sm_is_rx_fifo_empty(pio0, cmd_reader.sm)
-                && pio_sm_is_rx_fifo_empty(pio0, cmd_reader.sm)
-                && pio_sm_is_rx_fifo_empty(pio0, cmd_reader.sm)
-                && pio_sm_is_rx_fifo_empty(pio0, cmd_reader.sm)
-                && 1) {
-            if (reset)
-                return RECEIVE_RESET;
-            if (mc_exit_request)
-                return RECEIVE_EXIT;
-        }
-        (*cmd) = (pio_sm_get(pio0, cmd_reader.sm) >> 24);
-        card_active = true;
-        return RECEIVE_OK;
-    }
-    while (0);
-}
-
-void __time_critical_func(mc_respond)(uint8_t ch) {
-    pio_sm_put_blocking(pio0, dat_writer.sm, ch);
-}
-
+ps2_memory_card_backend_t* ps2_card_backend = NULL;
 
 const uint8_t EccTable[] = {
     0x00, 0x87, 0x96, 0x11, 0xa5, 0x22, 0x33, 0xb4, 0xb4, 0x33, 0x22, 0xa5, 0x11, 0x96, 0x87, 0x00, 0xc3, 0x44, 0x55, 0xd2, 0x66, 0xe1, 0xf0, 0x77, 0x77, 0xf0,
@@ -195,9 +83,8 @@ static void __time_critical_func(mc_main_loop)(void) {
     while (1) {
         uint8_t cmd = 0;
 
-        while (!reset && !reset && !reset && !reset && !reset) {
-            if (mc_exit_request) {
-                mc_exit_response = 1;
+        while (!ps2_card_backend->transactionAborted()) {
+            if (ps2_mc_exit_request) {
                 return;
             }
         }
@@ -214,23 +101,26 @@ static void __time_critical_func(mc_main_loop)(void) {
             mmceman_timeout_detected = false;
         }
 
-        reset = 0;
+        ps2_card_backend->signalTransactionReady();
         if (mmceman_callback != NULL) {
             mmceman_callback();
             continue;
         }
 
-        uint8_t received = receiveFirst(&cmd);
+        uint8_t received = ps2_card_backend->receiveFirst(&cmd);
 
-        if (received == RECEIVE_EXIT) {
-            mc_exit_response = 1;
+        if (received == PS2_RECEIVE_EXIT) {
             break;
         }
-        if (received == RECEIVE_RESET)
+        if (received == PS2_RECEIVE_RESET)
             continue;
 
 
         if (cmd == PS2_SIO2_CMD_IDENTIFIER) {
+            if (ps2_card_backend->probe()) {
+                continue;
+            }
+
             //Don't respond to mcman after a card switch to trigger its internal reset
             if (mmceman_mcman_retry_counter > 0) {
                 log(LOG_WARN, "Ignoring mcman for another %i requests\n", mmceman_mcman_retry_counter);
@@ -242,10 +132,10 @@ static void __time_critical_func(mc_main_loop)(void) {
             }
 
             /* resp to 0x81 */
-            mc_respond(0xFF);
+            ps2_card_backend->respond(0xFF);
 
             /* sub cmd */
-            if (receive(&cmd) == RECEIVE_RESET)
+            if (ps2_card_backend->receive(&cmd) == PS2_RECEIVE_RESET)
                 continue;
 
             log(LOG_TRACE, "%s: 0x81 %.02x\n", __func__, cmd);
@@ -287,7 +177,7 @@ static void __time_critical_func(mc_main_loop)(void) {
             }
         } else if (cmd == PS2_MMCEMAN_CMD_IDENTIFIER) {
             /* resp to 0x8B */
-            mc_respond(0xAA);
+            ps2_card_backend->respond(0xAA);
 
             /* sub cmd */
             receiveOrNextCmd(&cmd);
@@ -328,106 +218,83 @@ static void __time_critical_func(mc_main_loop)(void) {
             continue;
         } else {
             // not for us
+            ps2_card_backend->abort();
             continue;
         }
+
+        ps2_card_backend->finish();
     }
 }
 
 static void __no_inline_not_in_flash_func(mc_main)(void) {
     while (1) {
         while (!mc_enter_request) {}
-        mc_enter_response = 1;
+        log(LOG_TRACE, "Entering memcard core\n");
 
         ps2_history_tracker_card_changed();
         memcard_running = 1;
         mmceman_transfer_stage = 0;
         mmceman_callback = NULL;
 
-        reset_pio();
+        log(LOG_TRACE, "Resetting PIO for PS2 memory card emulation\n");
+        ps2_card_backend->reset();
+        ps2_card_backend->startup();
+        mc_enter_response = 1;
         mc_main_loop();
+        ps2_card_backend->abort();
+        ps2_card_backend->shutdown();
+
         log(LOG_TRACE, "%s exit\n", __func__);
-    }
-}
-
-static gpio_irq_callback_t callbacks[NUM_CORES];
-
-static void __time_critical_func(RAM_gpio_acknowledge_irq)(uint gpio, uint32_t events) {
-    check_gpio_param(gpio);
-    iobank0_hw->intr[gpio / 8] = events << (4 * (gpio % 8));
-}
-
-static void __time_critical_func(RAM_gpio_default_irq_handler)(void) {
-    uint core = get_core_num();
-    gpio_irq_callback_t callback = callbacks[core];
-    io_bank0_irq_ctrl_hw_t *irq_ctrl_base = core ? &iobank0_hw->proc1_irq_ctrl : &iobank0_hw->proc0_irq_ctrl;
-    for (uint gpio = 0; gpio < NUM_BANK0_GPIOS; gpio += 8) {
-        uint32_t events8 = irq_ctrl_base->ints[gpio >> 3u];
-        // note we assume events8 is 0 for non-existent GPIO
-        for (uint i = gpio; events8 && i < gpio + 8; i++) {
-            uint32_t events = events8 & 0xfu;
-            if (events) {
-                RAM_gpio_acknowledge_irq(i, events);
-                if (callback) {
-                    callback(i, events);
-                }
-            }
-            events8 >>= 4;
+        if (settings_get_mode(true) != MODE_PS2
+            || settings_get_ps2_variant() != memcard_variant
+            || settings_get_mca_enabled() != backend_mode) {
+            log(LOG_TRACE, "Mode or variant changed, exiting memcard core\n");
+            return;
+        } else {
+            mc_exit_response = 1;
+            log(LOG_TRACE, "Mode still PS2, reinitializing memcard core\n");
         }
     }
 }
 
-static void my_gpio_set_irq_callback(gpio_irq_callback_t callback) {
-    uint core = get_core_num();
-    if (callbacks[core]) {
-        if (!callback) {
-            irq_remove_handler(IO_IRQ_BANK0, RAM_gpio_default_irq_handler);
-        }
-        callbacks[core] = callback;
-    } else if (callback) {
-        callbacks[core] = callback;
-        irq_add_shared_handler(IO_IRQ_BANK0, RAM_gpio_default_irq_handler, GPIO_IRQ_CALLBACK_ORDER_PRIORITY);
-    }
-}
-
-static void my_gpio_set_irq_enabled_with_callback(uint gpio, uint32_t events, bool enabled, gpio_irq_callback_t callback) {
-    gpio_set_irq_enabled(gpio, events, enabled);
-    my_gpio_set_irq_callback(callback);
-    if (enabled)
-        irq_set_enabled(IO_IRQ_BANK0, true);
-}
 
 void ps2_memory_card_main(void) {
     multicore_lockout_victim_init();
-    init_pio();
-
-
-    us_startup = time_us_64();
+    memcard_variant = settings_get_ps2_variant();
+    backend_mode = settings_get_mca_enabled();
+    ps2_card_backend = ps2_card_backend_get();
     log(LOG_TRACE, "Secondary core!\n");
-
-    my_gpio_set_irq_enabled_with_callback(PIN_PSX_SEL, GPIO_IRQ_EDGE_RISE, 1, card_deselected);
-
-    gpio_set_slew_rate(PIN_PSX_DAT, GPIO_SLEW_RATE_FAST);
-    gpio_set_drive_strength(PIN_PSX_DAT, GPIO_DRIVE_STRENGTH_12MA);
-
+    ps2_card_backend->init();
     mc_main();
+    ps2_card_backend->deinit();
+    log(LOG_TRACE, "Secondary core exit!\n");
+    mc_exit_response = 1;
 }
 
-
 void ps2_memory_card_exit(void) {
-    uint64_t exit_timeout = time_us_64() + (1000 * 1000);
+    uint64_t exit_timeout;
     if (!memcard_running)
         return;
 
-    mc_exit_request = 1;
+    ps2_mc_exit_request = 1;
+    exit_timeout = time_us_64() + (1000 * 1000);
     while (!mc_exit_response) {
         if (time_us_64() > exit_timeout) {
-            multicore_reset_core1();
-            multicore_launch_core1(ps2_memory_card_main);
+            log(LOG_ERROR, "MEMCARD EXIT TIMEOUT! This is an unrecoverable error! Rebooting...\n");
+            watchdog_reboot(0, 0, 0);
+            while (true) {
+                tight_loop_contents();
+            }
         }
+        ps2_cardman_task();
+
+        if (ps2_cardman_is_idle())
+            ps2_mc_data_interface_task();
     };
-    mc_exit_request = mc_exit_response = 0;
+    ps2_mc_exit_request = mc_exit_response = 0;
     memcard_running = 0;
-    mmceman_mcman_retry_counter = 5;
+
+    ps2_mmceman_rearm_retry_counter();
     log(LOG_TRACE, "MEMCARD EXIT END!\n");
 }
 
@@ -439,18 +306,4 @@ void ps2_memory_card_enter(void) {
     mc_enter_request = 1;
     while (!mc_enter_response) {}
     mc_enter_request = mc_enter_response = 0;
-}
-
-void ps2_memory_card_unload(void) {
-    pio_remove_program(pio0, &cmd_reader_program, cmd_reader.offset);
-    pio_sm_unclaim(pio0, cmd_reader.sm);
-    pio_remove_program(pio0, &dat_writer_program, dat_writer.offset);
-    pio_sm_unclaim(pio0, dat_writer.sm);
-    log(LOG_TRACE, "Unclaimed %u, %u!\n", cmd_reader.sm, dat_writer.sm);
-
-
-}
-
-bool ps2_memory_card_running(void) {
-    return (memcard_running != 0);
 }

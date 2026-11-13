@@ -15,12 +15,16 @@
 
 uint8_t ps2_civ[8];
 const char civ_path[]           = "civ.bin";
+const char civ_folder_backup[]  = ".sd2psx";
 const char civ_path_backup[]    = ".sd2psx/civ.bin";
 int ps2_magicgate;
 static bool is_confirmed = false;
 
 
 void __not_in_flash_func(keystore_backup)(void) {
+    if (!sd_exists(civ_folder_backup)) {
+        sd_mkdir(civ_folder_backup);
+    }
     if (!sd_exists(civ_path_backup)) {
         int fd = sd_open(civ_path_backup, O_CREAT | O_WRONLY);
         sd_write(fd, ps2_civ, 8);

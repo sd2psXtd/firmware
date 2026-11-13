@@ -1,10 +1,8 @@
-#include "hardware/gpio.h"
-#include "hardware/structs/iobank0.h"
-#include "hardware/pio.h"
 #include "hardware/timer.h"
 #include "pico.h"
 #include "pico/multicore.h"
 #include "ps1_mc_data_interface.h"
+#include "ps1_mc_internal.h"
 #include "ps1_mmce.h"
 #include "string.h"
 #include <settings.h>
@@ -12,10 +10,9 @@
 #include <stdint.h>
 
 #include "config.h"
-#include "ps1_mc_spi.pio.h"
 #include "debug.h"
 #include "ps1/ps1_memory_card.h"
-#include "game_db/game_db.h"
+#include "ps1_card_backend.h"
 
 static uint64_t us_startup;
 
@@ -27,111 +24,31 @@ static uint64_t us_startup;
 
 
 static uint64_t us_startup;
-static volatile int reset;
 static uint8_t flag;
 static uint8_t* curr_page = NULL;
 static bool ps2_multitap = false;
-static volatile bool card_active = false;
 
-typedef struct {
-    uint32_t offset;
-    uint32_t sm;
-} pio_t;
+volatile bool ps1_card_active = false;
+volatile int ps1_mc_exit_request, ps1_mc_reset;
+static volatile int mc_exit_response, mc_enter_request, mc_enter_response;
 
-static pio_t cmd_reader, dat_writer, cntrl_reader;
-static volatile int mc_exit_request, mc_exit_response, mc_enter_request, mc_enter_response;
+static ps1_memory_card_backend_t* ps1_card_backend = NULL;
+static bool backend_mode;
 
-enum { RECEIVE_RESET, RECEIVE_EXIT, RECEIVE_OK };
-
-
-static void __time_critical_func(reset_pio)(void) {
-    pio_set_sm_mask_enabled(pio0, (1 << cmd_reader.sm) | (1 << dat_writer.sm) | (1 << cntrl_reader.sm), false);
-    pio_restart_sm_mask(pio0, (1 << cmd_reader.sm) | (1 << dat_writer.sm) | (1 << cntrl_reader.sm));
-
-    pio_sm_exec(pio0, cmd_reader.sm, pio_encode_jmp(cmd_reader.offset));
-    pio_sm_exec(pio0, dat_writer.sm, pio_encode_jmp(dat_writer.offset));
-    pio_sm_exec(pio0, cntrl_reader.sm, pio_encode_jmp(cntrl_reader.offset));
-
-    pio_sm_clear_fifos(pio0, cmd_reader.sm);
-    pio_sm_clear_fifos(pio0, cntrl_reader.sm);
-    pio_sm_drain_tx_fifo(pio0, dat_writer.sm);
-
-    pio_enable_sm_mask_in_sync(pio0, (1 << cmd_reader.sm) | (1 << dat_writer.sm) | (1 << cntrl_reader.sm));
-
-    reset = 1;
-}
-
-static void __time_critical_func(init_pio)(void) {
-    /* Set all pins as floating inputs */
-    gpio_set_dir(PIN_PSX_ACK, 0);
-    gpio_set_dir(PIN_PSX_SEL, 0);
-    gpio_set_dir(PIN_PSX_CLK, 0);
-    gpio_set_dir(PIN_PSX_CMD, 0);
-    gpio_set_dir(PIN_PSX_DAT, 0);
-    gpio_disable_pulls(PIN_PSX_ACK);
-    gpio_disable_pulls(PIN_PSX_SEL);
-    gpio_disable_pulls(PIN_PSX_CLK);
-    gpio_disable_pulls(PIN_PSX_CMD);
-    gpio_disable_pulls(PIN_PSX_DAT);
-
-    cmd_reader.offset = pio_add_program(pio0, &cmd_reader_program);
-    cmd_reader.sm = pio_claim_unused_sm(pio0, true);
-    log(LOG_TRACE, "cmd_reader offset %d, sm %d\n", cmd_reader.offset, cmd_reader.sm);
-
-    dat_writer.offset = pio_add_program(pio0, &dat_writer_program);
-    dat_writer.sm = pio_claim_unused_sm(pio0, true);
-    log(LOG_TRACE, "dat_writer offset %d, sm %d\n", dat_writer.offset, dat_writer.sm);
-
-    cntrl_reader.offset = pio_add_program(pio0, &cmd_reader_program);
-    cntrl_reader.sm = pio_claim_unused_sm(pio0, true);
-    log(LOG_TRACE, "cntrl_reader offset %d, sm %d\n", cntrl_reader.offset, cntrl_reader.sm);
-
-
-    cmd_reader_program_init(pio0, cmd_reader.sm, cmd_reader.offset);
-    dat_writer_program_init(pio0, dat_writer.sm, dat_writer.offset);
-    controller_program_init(pio0, cntrl_reader.sm, cntrl_reader.offset);
-}
-
-static void __time_critical_func(card_deselected)(uint gpio, uint32_t event_mask) {
-    if (gpio == PIN_PSX_SEL && (event_mask & GPIO_IRQ_EDGE_RISE)) {
-        reset_pio();
-        card_active = false;
-    } else if (gpio == PIN_PSX_SEL && (event_mask & GPIO_IRQ_EDGE_FALL)) {
-        card_active = true;
-    }
-
-}
-
-static uint8_t __time_critical_func(recv_cmd)(uint8_t* cmd, uint32_t sm) {
-    while (pio_sm_is_rx_fifo_empty(pio0, sm) && pio_sm_is_rx_fifo_empty(pio0, sm))  {
-        if (mc_exit_request)
-            return RECEIVE_EXIT;
-        if (reset)
-            return RECEIVE_RESET;
-    }
-    *cmd = (pio_sm_get(pio0, sm) >> 24);
-    return RECEIVE_OK;
-}
-
-#define recv_cntrl(cmd) recv_cmd(cmd, cntrl_reader.sm)
-#define recv_mc(cmd)    recv_cmd(cmd, cmd_reader.sm)
 
 #define receiveOrNextCmd(cmd)          \
-    if ((recv_cmd(cmd, cmd_reader.sm) == RECEIVE_RESET) || !card_active) \
+    if ((ps1_card_backend->recv_mc(cmd) == PS1_RECEIVE_RESET) || !ps1_card_active) \
     { \
     return;}
 
 #define receiveOrNextCntrl(cmd)          \
-    if ((recv_cmd(cmd, cntrl_reader.sm) == RECEIVE_RESET) || !card_active) \
+    if ((ps1_card_backend->recv_cntrl(cmd) == PS1_RECEIVE_RESET) || !ps1_card_active) \
     { \
     return;}
 
-static void __time_critical_func(ps1_mc_respond)(uint8_t ch) {
-    pio_sm_put_blocking(pio0, dat_writer.sm, ~ch & 0xFF);
-}
 
 #define respondOrNextCmd(cmd)          \
-    if (card_active) ps1_mc_respond(cmd);\
+    if (ps1_card_active) ps1_card_backend->respond(cmd);\
     else {DPRINTF("!RR: %s:%u\n", __func__, __LINE__); return;}
 
 /*
@@ -182,7 +99,6 @@ static void __time_critical_func(mc_cmd_read)(bool long_read) {
     uint8_t chk = 0;
     uint16_t page = 0U;
     uint8_t _;
-
     respondOrNextCmd(0x5A);       receiveOrNextCmd(&_);
     respondOrNextCmd(0x5D);       receiveOrNextCmd(&_);
     respondOrNextCmd(0x00);       receiveOrNextCmd(&page_msb);
@@ -233,7 +149,6 @@ static void __time_critical_func(mc_cmd_write)(void) {
     uint8_t prev;
     uint8_t chk = 0;
     uint8_t _;
-
     flag = 0;
 
     respondOrNextCmd(0x5A);       receiveOrNextCmd(&_);
@@ -242,9 +157,9 @@ static void __time_critical_func(mc_cmd_write)(void) {
     respondOrNextCmd(page_msb);   receiveOrNextCmd(&page_lsb);
     chk = page_msb ^ page_lsb;
     prev = page_lsb;
-    for (offset = 0; offset < 128; offset++) {
+    for (offset = 0; offset < PS1_PAGE_SIZE; offset++) {
         respondOrNextCmd(prev);   receiveOrNextCmd(&in);
-        ps1_mc_data_interface_write_byte(((page_msb * 256) + page_lsb) * 128 + offset, in);
+        ps1_mc_data_interface_write_byte(((page_msb * 256) + page_lsb) * PS1_PAGE_SIZE + offset, in);
         chk ^= in;
         prev = in;
     }
@@ -252,7 +167,8 @@ static void __time_critical_func(mc_cmd_write)(void) {
     respondOrNextCmd(0x5C);           receiveOrNextCmd(&_);
     respondOrNextCmd(0x5D);           receiveOrNextCmd(&_);
     if (in == chk) {
-        ps1_mc_data_interface_write_mc((page_msb * 256) + page_lsb);
+        uint16_t page = (page_msb * 256) + page_lsb;
+        ps1_mc_data_interface_write_mc(page);
         respondOrNextCmd(0x47);
     } else {
         respondOrNextCmd(0x4E);
@@ -429,30 +345,22 @@ static void __time_critical_func(mc_main_loop)(void) {
     while (1) {
         uint8_t ch = 0x00;
 
-        while (!reset && !reset && !reset && !reset && !reset) {
-            if (mc_exit_request) {
-                mc_exit_response = 1;
-                return;
-            }
-        }
-        reset = 0;
-        uint8_t received = recv_mc(&ch);
+        uint8_t received = ps1_card_backend->receive_first(&ch);
 
-        if (received != RECEIVE_OK) {
-            if (received == RECEIVE_EXIT) {
-                mc_exit_response = 1;
+        if (received != PS1_RECEIVE_OK) {
+            if (received == PS1_RECEIVE_EXIT) {
                 break;
             }
             /* If this ch belongs to the next command sequence */
-            if (received == RECEIVE_RESET) {
+            if (received == PS1_RECEIVE_RESET) {
                 continue;
             }
         }
 
         if (0x81 == ch) { /* Command is for MC - process! */
-            ps1_mc_respond(flag);
+            ps1_card_backend->respond(flag);
 
-            if (recv_mc(&ch) == RECEIVE_RESET)
+            if (ps1_card_backend->recv_mc(&ch) == PS1_RECEIVE_RESET)
                 continue;
 
             switch (ch) {
@@ -472,13 +380,13 @@ static void __time_critical_func(mc_main_loop)(void) {
         } else if ((0x01 == ch) && (settings_get_ps1_controllercombo())) {
             mc_read_controller();
         } else if ((0x21 == ch) && !ps2_multitap) {
-            ps1_mc_respond(0x00);
+            ps1_card_backend->respond(0x00);
 
-            if (RECEIVE_RESET == recv_mc(&ch))
+            if (PS1_RECEIVE_RESET == ps1_card_backend->recv_mc(&ch))
                 continue;
 
             if (0x53 == ch) {
-                ps1_mc_respond(0x0F);
+                ps1_card_backend->respond(0x0F);
             } else if (ch == 0x21) {      // PS2 multitap is also sending 0x21 as configuration command
                 ps2_multitap = true;
             }
@@ -493,85 +401,48 @@ static void __no_inline_not_in_flash_func(mc_main)(void) {
     while (1) {
         while (!mc_enter_request)
         {}
+        ps1_card_backend->reset();
+        ps1_card_backend->startup();
         mc_enter_response = 1;
-
         mc_main_loop();
-    }
-}
+        ps1_card_backend->shutdown();
 
-static gpio_irq_callback_t callbacks[NUM_CORES];
-
-static void __time_critical_func(RAM_gpio_acknowledge_irq)(uint gpio, uint32_t events) {
-    check_gpio_param(gpio);
-    iobank0_hw->intr[gpio / 8] = events << (4 * (gpio % 8));
-}
-
-static void __time_critical_func(RAM_gpio_default_irq_handler)(void) {
-    uint core = get_core_num();
-    gpio_irq_callback_t callback = callbacks[core];
-    io_bank0_irq_ctrl_hw_t *irq_ctrl_base = core ? &iobank0_hw->proc1_irq_ctrl : &iobank0_hw->proc0_irq_ctrl;
-    for (uint gpio = 0; gpio < NUM_BANK0_GPIOS; gpio+=8) {
-        uint32_t events8 = irq_ctrl_base->ints[gpio >> 3u];
-        // note we assume events8 is 0 for non-existent GPIO
-        for(uint i=gpio;events8 && i<gpio+8;i++) {
-            uint32_t events = events8 & 0xfu;
-            if (events) {
-                RAM_gpio_acknowledge_irq(i, events);
-                if (callback) {
-                    callback(i, events);
-                }
-            }
-            events8 >>= 4;
+        log(LOG_TRACE, "%s exit\n", __func__);
+        if (settings_get_mode(true) != MODE_PS1 ||
+            settings_get_mca_enabled() != backend_mode) {
+            log(LOG_TRACE, "Mode or variant changed, exiting memcard core\n");
+            return;
+        } else {
+            mc_exit_response = 1;
+            log(LOG_TRACE, "Mode still PS1, reinitializing memcard core\n");
         }
     }
 }
 
-static void my_gpio_set_irq_callback(gpio_irq_callback_t callback) {
-    uint core = get_core_num();
-    if (callbacks[core]) {
-        if (!callback) {
-            irq_remove_handler(IO_IRQ_BANK0, RAM_gpio_default_irq_handler);
-        }
-        callbacks[core] = callback;
-    } else if (callback) {
-        callbacks[core] = callback;
-        irq_add_shared_handler(IO_IRQ_BANK0, RAM_gpio_default_irq_handler, GPIO_IRQ_CALLBACK_ORDER_PRIORITY);
-    }
-}
-
-static void my_gpio_set_irq_enabled_with_callback(uint gpio, uint32_t events, bool enabled, gpio_irq_callback_t callback) {
-    gpio_set_irq_enabled(gpio, events, enabled);
-    my_gpio_set_irq_callback(callback);
-    if (enabled) irq_set_enabled(IO_IRQ_BANK0, true);
-}
 
 void ps1_memory_card_main(void) {
     multicore_lockout_victim_init();
 
-    init_pio();
+    backend_mode = settings_get_mca_enabled();
+    ps1_card_backend = ps1_card_backend_get();
+    ps1_card_backend->init();
 
     us_startup = time_us_64();
-    DPRINTF("Secondary core!\n");
-
-    my_gpio_set_irq_enabled_with_callback(PIN_PSX_SEL, GPIO_IRQ_EDGE_RISE, 1, card_deselected);
-    my_gpio_set_irq_enabled_with_callback(PIN_PSX_SEL, GPIO_IRQ_EDGE_FALL, 1, card_deselected);
-
-    gpio_set_slew_rate(PIN_PSX_DAT, GPIO_SLEW_RATE_SLOW);
-    gpio_set_drive_strength(PIN_PSX_DAT, GPIO_DRIVE_STRENGTH_4MA);
-
     mc_main();
+    ps1_card_backend->deinit();
+    log(LOG_TRACE, "Secondary core exit!\n");
+    mc_exit_response = 1;
 }
-
 static int memcard_running;
 
 void ps1_memory_card_exit(void) {
     if (!memcard_running)
         return;
 
-    mc_exit_request = 1;
+    ps1_mc_exit_request = 1;
     while (!mc_exit_response)
     {}
-    mc_exit_request = mc_exit_response = 0;
+    ps1_mc_exit_request = mc_exit_response = 0;
     memcard_running = 0;
 }
 
@@ -584,15 +455,4 @@ void ps1_memory_card_enter(void) {
     {}
     mc_enter_request = mc_enter_response = 0;
     memcard_running = 1;
-}
-
-void ps1_memory_card_unload(void) {
-    pio_remove_program(pio0, &cmd_reader_program, cmd_reader.offset);
-    pio_sm_unclaim(pio0, cmd_reader.sm);
-    pio_remove_program(pio0, &cmd_reader_program, cntrl_reader.offset);
-    pio_sm_unclaim(pio0, cntrl_reader.sm);
-    pio_remove_program(pio0, &dat_writer_program, dat_writer.offset);
-    pio_sm_unclaim(pio0, dat_writer.sm);
-    log(LOG_TRACE, "Unclaimed %u, %u, %u!\n", cmd_reader.sm, dat_writer.sm, cntrl_reader.sm);
-
 }

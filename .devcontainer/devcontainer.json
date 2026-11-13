@@ -3,16 +3,12 @@
 {
 	"name": "SD2PSX Ubuntu",
 	// Or use a Dockerfile or Docker Compose file. More info: https://containers.dev/guide/dockerfile
-	"image": "mcr.microsoft.com/devcontainers/cpp:ubuntu",
+	"image": "ghcr.io/sd2psxtd/sd2psxtd-dev:latest",
 	"features": {
-		"ghcr.io/devcontainers/features/python:1": {
-			"installTools": true,
-			"version": "latest"
-		}
 	},
 	"containerEnv": {
-		"PICO_SDK_PATH": "/opt/pico-sdk",
-		"PICO_TOOLCHAIN_PATH": "/usr/bin"
+//		"PICO_SDK_PATH": "/opt/pico-sdk",
+//		"PICO_TOOLCHAIN_PATH": "/usr/bin"
 	},
 
 	// Features to add to the dev container. More info: https://containers.dev/features.
@@ -22,7 +18,7 @@
 	// "forwardPorts": [],
 
 	// Use 'postCreateCommand' to run commands after the container is created.
-	 "postCreateCommand": "sudo bash .devcontainer/install-dependencies.sh",
+//	 "postCreateCommand": "sudo bash .devcontainer/install-dependencies.sh",
 
 	// Configure tool-specific properties.
 	"customizations": {

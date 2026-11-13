@@ -30,21 +30,27 @@
 .wrap
 
 .program dat_writer
-.side_set 1 opt pindirs
     set pindirs, 0           ; release DAT line (set pin as input = Hi-Z)
     wait 0 gpio PIN_PSX_SEL  ; wait for SEL
 .wrap_target
-    pull block          [3]   ; pull a byte to send, blocking
-ack:
-     nop side 1 [4]
-    set x, 7  side 0 [5]
+    pull block               ; pull a byte to send, blocking
+    wait 1 gpio PIN_PSX_CLK  ; wait for clock to rise
+    set x, 7
+    irq 4
 sendbit:
     wait 1 gpio PIN_PSX_CLK  ; wait for clock to rise
     wait 0 gpio PIN_PSX_CLK  ; wait for falling clock edge
     out pindirs 1            ; output 1 bit (by changing pin direction)
     jmp x-- sendbit
-    nop [7]
-    jmp !osre ack
+.wrap
+
+.program ack_generator
+    set pindirs, 0          ; Release ACK
+
+.wrap_target
+    wait 1 irq 4 [7]        ; Consume request; 3.2 us to assertion
+    set pindirs, 1 [5]      ; ACK low for 2.4 us
+    set pindirs, 0          ; Release ACK
 .wrap
 
 
@@ -64,7 +70,7 @@ static inline void cmd_reader_program_init(PIO pio, uint sm, uint offset) {
     sm_config_set_in_shift(&c, true, true, 8);
     sm_config_set_fifo_join(&c, PIO_FIFO_JOIN_RX);
 
-    sm_config_set_clkdiv_int_frac(&c, PS1_CLKDIV, 0x00);
+    sm_config_set_clkdiv_int_frac(&c, 1, 0x00);
 
     pio_sm_init(pio, sm, offset, &c);
 }
@@ -81,7 +87,7 @@ static inline void controller_program_init(PIO pio, uint sm, uint offset) {
     sm_config_set_in_shift(&c, true, true, 8);
     sm_config_set_fifo_join(&c, PIO_FIFO_JOIN_RX);
 
-    sm_config_set_clkdiv_int_frac(&c, PS1_CLKDIV, 0x00);
+    sm_config_set_clkdiv_int_frac(&c, 1, 0x00);
 
     pio_sm_init(pio, sm, offset, &c);
 }
@@ -91,12 +97,6 @@ static inline void dat_writer_program_init(PIO pio, uint sm, uint offset) {
 
     sm_config_set_out_pins(&c, PIN_PSX_DAT, 1);
     sm_config_set_set_pins(&c, PIN_PSX_DAT, 1);
-    sm_config_set_sideset_pins(&c, PIN_PSX_ACK);
-
-    /* configure ACK pin for open drain */
-    pio_sm_set_pins_with_mask(pio, sm, 0x00000000, 1 << PIN_PSX_ACK);
-    pio_sm_set_consecutive_pindirs(pio, sm, PIN_PSX_ACK, 1, false);
-    pio_gpio_init(pio, PIN_PSX_ACK);
 
     /* configure DAT pin for open drain */
     pio_sm_set_pins_with_mask(pio, sm, 0x00000000, 1 << PIN_PSX_DAT);
@@ -110,6 +110,22 @@ static inline void dat_writer_program_init(PIO pio, uint sm, uint offset) {
     /* shift OSR to right, autopull every 8 bits */
     sm_config_set_out_shift(&c, true, true, 8);
     sm_config_set_fifo_join(&c, PIO_FIFO_JOIN_TX);
+
+    sm_config_set_clkdiv_int_frac(&c, 1, 0x00);
+
+    pio_sm_init(pio, sm, offset, &c);
+}
+
+
+static inline void ack_generator_program_init(PIO pio, uint sm, uint offset) {
+    pio_sm_config c = ack_generator_program_get_default_config(offset);
+
+    sm_config_set_set_pins(&c, PIN_PSX_ACK, 1);
+
+    /* configure ACK pin for open drain */
+    pio_sm_set_pins_with_mask(pio, sm, 0x00000000, 1 << PIN_PSX_ACK);
+    pio_sm_set_consecutive_pindirs(pio, sm, PIN_PSX_ACK, 1, false);
+    pio_gpio_init(pio, PIN_PSX_ACK);
 
     sm_config_set_clkdiv_int_frac(&c, PS1_CLKDIV, 0x00);
 

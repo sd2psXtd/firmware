@@ -16,6 +16,8 @@ bool settings_get_ps1_controllercombo(void);
 void settings_set_ps1_controllercombo(bool controllercombo);
 uint8_t settings_get_ps1_maxcardidx(void);
 void settings_set_ps1_maxcardidx(uint8_t x);
+uint8_t settings_get_ps1_maxchannels(void);
+void settings_set_ps1_maxchannels(uint8_t x);
 
 int settings_get_ps2_card(void);
 int settings_get_ps2_channel(void);
@@ -29,6 +31,8 @@ void settings_set_ps2_cardsize(uint8_t size);
 void settings_set_ps2_variant(int x);
 uint8_t settings_get_ps2_maxcardidx(void);
 void settings_set_ps2_maxcardidx(uint8_t x);
+uint8_t settings_get_ps2_maxchannels(void);
+void settings_set_ps2_maxchannels(uint8_t x);
 
 enum {
     MODE_PS1 = 0,
@@ -43,8 +47,19 @@ enum {
     PS2_VARIANT_SC2 = 3,    // Arcade. port 2
 };
 
+enum {
+    USB_MODE_UART = 0,
+    USB_MODE_MCA = 1,
+    USB_MODE_MASS = 2
+};
+
+/* current includes the RAM-only Mass override; false returns the saved mode. */
+int settings_get_usb_mode(bool current);
+void settings_set_usb_mode(int mode);
 int settings_get_mode(bool current);
 void settings_set_mode(int mode);
+bool settings_get_mca_enabled(void);
+void settings_set_mca_enabled(bool enabled);
 bool settings_get_ps1_autoboot(void);
 void settings_set_ps1_autoboot(bool autoboot);
 bool settings_get_ps1_game_id(void);

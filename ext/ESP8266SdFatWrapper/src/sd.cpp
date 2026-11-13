@@ -68,14 +68,43 @@ extern "C" void sd_init() {
 
             if (sd.sdErrorCode()) {
                 fatal(ERR_SDCARD, "failed to mount the card\nSdError: 0x%02X,0x%02X\ncheck the card\n%s", sd.sdErrorCode(), sd.sdErrorData(), text);
-            } else if (!sd.fatType()) {
-                fatal(ERR_SDCARD, "failed to mount the card\ncheck the card is formatted correctly");
+            } else if (sd.initErrorCode() == static_cast<uint8_t>(FsVolume::FsInitError::CorruptPartitionTable)) {
+                fatal(ERR_SDCARD, "failed to mount the card\nPartition table is corrupt or invalid\n%s", text);
             } else {
-                fatal(ERR_SDCARD, "failed to mount the card\nUNKNOWN\n%s", text);
+                fatal(ERR_SDCARD, "failed to mount the card\nNo supported FAT/exFAT filesystem found\ncheck the card is formatted correctly\n%s", text);
             }
         }
         initialized = true;
     }
+}
+
+/* Exclusive block access, as used by FlipperMCE MMCE SD mode. Core 0 only. */
+extern "C" bool sd_sync_device(void) {
+    return sd.card()->syncDevice();
+}
+
+extern "C" bool sd_unmount(void) {
+    bool ok = true;
+    for (size_t fd = 0; fd <= NUM_FILES; ++fd) {
+        if (files[fd].isOpen()) {
+            if (!files[fd].sync()) ok = false;
+            files[fd].close();
+        }
+    }
+    if (!sd_sync_device() || !ok) return false;
+    sd.end();
+    return true;
+}
+
+extern "C" bool sd_remount(void) { return sd.volumeBegin(); }
+extern "C" uint32_t sd_sector_count(void) { return sd.card()->sectorCount(); }
+extern "C" bool sd_read_sector(uint32_t sector, uint8_t *dst) {
+    while (sd.card()->isBusy()) tight_loop_contents();
+    return sd.card()->readSector(sector, dst);
+}
+extern "C" bool sd_write_sector(uint32_t sector, const uint8_t *src) {
+    while (sd.card()->isBusy()) tight_loop_contents();
+    return sd.card()->writeSector(sector, src);
 }
 
 void sdCsInit(SdCsPin_t pin) {
