@@ -144,5 +144,6 @@ void ps2_deinit(void) {
     while (ps2_mc_data_interface_write_occured())
         ps2_mc_data_interface_task();
     multicore_reset_core1();
+    ps2_mc_data_interface_flush();
     ps2_cardman_close();
 }
