@@ -165,7 +165,9 @@ static void settings_deserialize(void) {
                                              .ps2_variant = settings.ps2_variant,
                                              .ps1_flags = settings.ps1_flags,
                                              .ps1_maxcardidx = settings.ps1_maxcardidx,
-                                             .ps2_maxcardidx = settings.ps2_maxcardidx};
+                                             .ps2_maxcardidx = settings.ps2_maxcardidx,
+                                             .ps1_maxchannels = settings.ps1_maxchannels,
+                                             .ps2_maxchannels = settings.ps2_maxchannels};
         serialized_settings = newSettings;
         ini_parse_sd_file(fd, parse_card_configuration, &newSettings);
         sd_close(fd);
