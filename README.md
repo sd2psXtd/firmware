@@ -70,7 +70,7 @@ PMC+ and PMCZero now support using the onboard buttons. They are assigned in the
 - **@Mena / PhenomMods**: for providing hardware to some team members ❤️
 - **BitFunX**: for providing PSXMemcard and PSXMemcard Gen2 Hardware for dev ❤️
 - **@mathewbeall**: for arcade fixes ❤️
-- **@wark**: for USB mass storage inspiration ❤️
+- **@warksmith**: for USB mass storage inspiration ❤️
 - **@max-las**: for SD-related fixes ❤️
 - **All Testers**: ripto, Vapor, seewood, john3d, rippenbiest, ... ❤️
 - **@niemasd**: For his [*GameDB-PSX*](https://github.com/niemasd/GameDB-PSX) database - Game naming and ID on PS1 would not be possible without it! ❤️
