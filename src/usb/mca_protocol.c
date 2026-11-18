@@ -95,7 +95,7 @@ static uint8_t card_type(void) {
         return 0;
     if (settings_get_mode(true) != MODE_PS2)
         return 1;
-    return ps2_cardman_is_idle() && ps2_cardman_is_accessible() ? 2 : 0;
+    return ps2_cardman_is_accessible() ? 2 : 0;
 }
 
 static void out_received(const uint8_t *data, uint16_t length) {

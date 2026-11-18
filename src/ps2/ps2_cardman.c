@@ -56,6 +56,7 @@ int current_read_sector = 0, priority_sector = -1;
 #define MAX_PATH_LENGTH      (256)
 
 #define MAX_SLICE_LENGTH     (30 * 1000)
+#define MAX_SLICE_LENGTH_MCA     (500)
 
 
 static int card_variant;
@@ -432,7 +433,7 @@ static void ps2_cardman_continue(void) {
 #if WITH_PSRAM
             uint8_t thisIter = 0;
             log(LOG_TRACE, "%s:%u\n", __func__, __LINE__);
-            while ((ps2_mmceman_fs_idle()) && (time_us_64() - slice_start < MAX_SLICE_LENGTH)) {
+            while ((ps2_mmceman_fs_idle()) && (time_us_64() - slice_start < (settings_get_mca_enabled() ? MAX_SLICE_LENGTH_MCA : MAX_SLICE_LENGTH))) {
                 log(LOG_TRACE, "Slice!\n");
 
                 ps2_dirty_lock();
@@ -478,7 +479,7 @@ static void ps2_cardman_continue(void) {
         }
     } else if (cardman_operation == CARDMAN_CREATE) {
         uint64_t slice_start = time_us_64();
-        while ((ps2_mmceman_fs_idle()) && (time_us_64() - slice_start < MAX_SLICE_LENGTH)) {
+        while ((ps2_mmceman_fs_idle()) && (time_us_64() - slice_start < (settings_get_mca_enabled() ? MAX_SLICE_LENGTH_MCA : MAX_SLICE_LENGTH))) {
             cardprog_pos = cardman_sectors_done * BLOCK_SIZE;
             if (cardprog_pos >= card_size) {
                 sd_flush(cardman_fd);
