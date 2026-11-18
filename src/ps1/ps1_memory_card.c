@@ -108,6 +108,8 @@ static void __time_critical_func(mc_cmd_read)(bool long_read) {
     respondOrNextCmd(0x5D);       receiveOrNextCmd(&_);
     respondOrNextCmd(page_msb);   receiveOrNextCmd(&_);
     page = (page_msb << 8) | page_lsb;
+    if (page >= 1024U)
+        return;
     ps1_mc_data_interface_setup_read_page(page);
     respondOrNextCmd(page_lsb);   receiveOrNextCmd(&_);
     do {
@@ -118,7 +120,10 @@ static void __time_critical_func(mc_cmd_read)(bool long_read) {
             chk ^= curr_page[offset];
             receiveOrNextCmd(&_)
         }
-        page++;
+        if (!long_read)
+            break;
+        if (++page >= 1024U)
+            return;
         ps1_mc_data_interface_setup_read_page(page);
     } while (long_read);
     respondOrNextCmd(chk);        receiveOrNextCmd(&_);
@@ -149,6 +154,7 @@ static void __time_critical_func(mc_cmd_write)(void) {
     uint8_t prev;
     uint8_t chk = 0;
     uint8_t _;
+    uint8_t write_buffer[PS1_PAGE_SIZE];
     flag = 0;
 
     respondOrNextCmd(0x5A);       receiveOrNextCmd(&_);
@@ -159,15 +165,21 @@ static void __time_critical_func(mc_cmd_write)(void) {
     prev = page_lsb;
     for (offset = 0; offset < PS1_PAGE_SIZE; offset++) {
         respondOrNextCmd(prev);   receiveOrNextCmd(&in);
-        ps1_mc_data_interface_write_byte(((page_msb * 256) + page_lsb) * PS1_PAGE_SIZE + offset, in);
+        write_buffer[offset] = in;
         chk ^= in;
         prev = in;
     }
     respondOrNextCmd(prev);           receiveOrNextCmd(&in);
     respondOrNextCmd(0x5C);           receiveOrNextCmd(&_);
     respondOrNextCmd(0x5D);           receiveOrNextCmd(&_);
-    if (in == chk) {
-        uint16_t page = (page_msb * 256) + page_lsb;
+    uint16_t page = (page_msb * 256) + page_lsb;
+    if (page >= 1024U) {
+        respondOrNextCmd(0xFF);
+    } else if (in == chk) {
+        /* An interrupted read may still own the shared PSRAM page buffer. */
+        ps1_mc_data_interface_wait_for_byte(PS1_PAGE_SIZE - 1U);
+        for (offset = 0; offset < PS1_PAGE_SIZE; ++offset)
+            ps1_mc_data_interface_write_byte(page * PS1_PAGE_SIZE + offset, write_buffer[offset]);
         ps1_mc_data_interface_write_mc(page);
         respondOrNextCmd(0x47);
     } else {
