@@ -31,9 +31,9 @@ static bool ps2_multitap = false;
 volatile bool ps1_card_active = false;
 volatile int ps1_mc_exit_request, ps1_mc_reset;
 static volatile int mc_exit_response, mc_enter_request, mc_enter_response;
-static volatile int mc_stop_request, mc_stop_response;
 
 static ps1_memory_card_backend_t* ps1_card_backend = NULL;
+static bool backend_mode;
 
 
 #define receiveOrNextCmd(cmd)          \
@@ -399,10 +399,8 @@ static void __time_critical_func(mc_main_loop)(void) {
 
 static void __no_inline_not_in_flash_func(mc_main)(void) {
     while (1) {
-        while (!mc_enter_request && !mc_stop_request)
+        while (!mc_enter_request)
         {}
-        if (mc_stop_request)
-            return;
         ps1_card_backend->reset();
         ps1_card_backend->startup();
         mc_enter_response = 1;
@@ -410,7 +408,12 @@ static void __no_inline_not_in_flash_func(mc_main)(void) {
         ps1_card_backend->shutdown();
 
         log(LOG_TRACE, "%s exit\n", __func__);
-        if (mc_stop_request) {
+        /* Mass storage is a temporary USB override: neither the console mode
+           nor the saved MCA flag necessarily changes when entering it. */
+        if (settings_get_mode(true) != MODE_PS1 ||
+            settings_get_mca_enabled() != backend_mode ||
+            settings_get_usb_mode(true) == USB_MODE_MASS) {
+            log(LOG_TRACE, "Mode or USB profile changed, exiting memcard core\n");
             return;
         } else {
             mc_exit_response = 1;
@@ -423,6 +426,7 @@ static void __no_inline_not_in_flash_func(mc_main)(void) {
 void ps1_memory_card_main(void) {
     multicore_lockout_victim_init();
 
+    backend_mode = settings_get_mca_enabled();
     ps1_card_backend = ps1_card_backend_get();
     ps1_card_backend->init();
 
@@ -431,7 +435,6 @@ void ps1_memory_card_main(void) {
     ps1_card_backend->deinit();
     log(LOG_TRACE, "Secondary core exit!\n");
     mc_exit_response = 1;
-    mc_stop_response = 1;
 }
 static int memcard_running;
 
@@ -455,15 +458,4 @@ void ps1_memory_card_enter(void) {
     {}
     mc_enter_request = mc_enter_response = 0;
     memcard_running = 1;
-}
-
-void ps1_memory_card_stop(void) {
-    /* Unlike a card switch, every session teardown must release the backend,
-       including PS1 -> mass storage where neither mode nor MCA bit changes. */
-    mc_stop_request = 1;
-    ps1_memory_card_exit();
-    while (!mc_stop_response)
-    {}
-    mc_stop_request = mc_stop_response = 0;
-    mc_exit_response = 0;
 }
