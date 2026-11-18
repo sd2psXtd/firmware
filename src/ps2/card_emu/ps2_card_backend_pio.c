@@ -4,6 +4,7 @@
 
 #include "ps2_mc_commands.h"
 #include "ps2_mc_spi.pio.h"
+#include "ps2_memory_card.h"
 #include "mmceman/ps2_mmceman.h"
 
 #include "hardware/pio.h"
@@ -239,6 +240,46 @@ static void __time_critical_func(ps2_pio_signalTransactionReady)(void) {
     ps2_reset = 0;
 }
 
+/* Pull ACK low briefly after a byte, with roughly the delay and width the
+ * PS1 mode PIO uses. ACK stays open drain (outover LOW), so this is safe on
+ * a PS1 bus. */
+static void __time_critical_func(ps2_pio_ps1_ack_pulse)(void) {
+    busy_wait_us_32(3);
+    gpio_set_oeover(PIN_PSX_ACK, GPIO_OVERRIDE_HIGH);
+    busy_wait_us_32(3);
+    gpio_set_oeover(PIN_PSX_ACK, GPIO_OVERRIDE_LOW);
+}
+
+/* An unconfirmed host that sends 0x81 0x21 is a PS1 sending its MMCE Game ID:
+ * 0x81 0x21 <reserved> <length> <length bytes of id>. DAT stays Hi-Z; only
+ * ACK is pulsed so the host keeps clocking until the ID is received. Like a
+ * real card, the last byte of the packet is not acknowledged. */
+static void __time_critical_func(ps2_pio_probe_ps1_gameid)(void) {
+    uint8_t game_id[UINT8_MAX];
+    uint8_t length = 0;
+    uint8_t _ = 0;
+
+    ps2_pio_ps1_ack_pulse();                                    // 0x21
+
+    if (ps2_pio_receive(&_) != PS2_RECEIVE_OK)                  // Reserved
+        return;
+    ps2_pio_ps1_ack_pulse();
+
+    if (ps2_pio_receive(&length) != PS2_RECEIVE_OK)             // Length
+        return;
+    if (length > 0)
+        ps2_pio_ps1_ack_pulse();
+
+    for (uint8_t i = 0; i < length; i++) {
+        if (ps2_pio_receive(&game_id[i]) != PS2_RECEIVE_OK)
+            return;
+        if (i + 1 < length)
+            ps2_pio_ps1_ack_pulse();
+    }
+
+    ps2_memory_card_set_ps1_gameid(game_id, length);
+}
+
 static bool __time_critical_func(ps2_pio_probe)(void) {
     if (ps2_host_confirmed)
         return false;
@@ -258,6 +299,8 @@ static bool __time_critical_func(ps2_pio_probe)(void) {
         ps2_host_confirmed = true;
     } else {
         gpio_set_oeover(PIN_PSX_ACK, GPIO_OVERRIDE_LOW);
+        if (cmd == PS2_SIO2_CMD_SET_ERASE_ADDRESS)
+            ps2_pio_probe_ps1_gameid();
     }
 
     return true;
