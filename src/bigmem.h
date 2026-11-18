@@ -1,11 +1,6 @@
 #include <inttypes.h>
 #include <stdint.h>
 
-#if WITH_PSRAM
-    #define CACHE_SIZE  512 * 45
-#else
-    #define CACHE_SIZE 1024 * 128
-#endif
 typedef union {
     struct {
         uint16_t dirty_heap[1024];
@@ -22,4 +17,4 @@ typedef union {
 
 
 extern bigmem_t bigmem;
-extern uint8_t cache[CACHE_SIZE];
+extern uint8_t cache[];

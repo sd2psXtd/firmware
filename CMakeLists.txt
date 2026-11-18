@@ -136,6 +136,7 @@ if (SD2PSX_WITH_GUI)
     target_compile_definitions(sd2psx_common PUBLIC "WITH_GUI=1")
     target_sources(sd2psx_common PRIVATE
                 ${CMAKE_CURRENT_SOURCE_DIR}/src/gui.c
+                ${CMAKE_CURRENT_SOURCE_DIR}/src/gui_menu.c
                 ${CMAKE_CURRENT_SOURCE_DIR}/src/oled.c
                 ${CMAKE_CURRENT_SOURCE_DIR}/src/splash.c
                 ${CMAKE_CURRENT_SOURCE_DIR}/src/ui_menu.c
