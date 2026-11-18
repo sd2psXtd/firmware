@@ -141,7 +141,7 @@ static void ps1_pio_deinit(void) {
     log(LOG_TRACE, "Unclaimed %u, %u, %u!\n", cmd_reader.sm, dat_writer.sm, cntrl_reader.sm);
 }
 
-static uint8_t ps1_pio_receive_mc(uint8_t *cmd) {
+static uint8_t __time_critical_func(ps1_pio_receive_mc)(uint8_t *cmd) {
     while (pio_sm_is_rx_fifo_empty(pio0, cmd_reader.sm) && pio_sm_is_rx_fifo_empty(pio0, cmd_reader.sm))  {
         if (ps1_mc_exit_request)
             return PS1_RECEIVE_EXIT;
@@ -152,7 +152,7 @@ static uint8_t ps1_pio_receive_mc(uint8_t *cmd) {
     return PS1_RECEIVE_OK;
 }
 
-static uint8_t ps1_pio_receive_cntrl(uint8_t *cmd) {
+static uint8_t __time_critical_func(ps1_pio_receive_cntrl)(uint8_t *cmd) {
     while (pio_sm_is_rx_fifo_empty(pio0, cntrl_reader.sm) && pio_sm_is_rx_fifo_empty(pio0, cntrl_reader.sm))  {
         if (ps1_mc_exit_request)
             return PS1_RECEIVE_EXIT;
@@ -163,7 +163,7 @@ static uint8_t ps1_pio_receive_cntrl(uint8_t *cmd) {
     return PS1_RECEIVE_OK;
 }
 
-static uint8_t ps1_pio_receive_first(uint8_t *cmd) {
+static uint8_t __time_critical_func(ps1_pio_receive_first)(uint8_t *cmd) {
     while (!ps1_mc_reset && !ps1_mc_reset && !ps1_mc_reset && !ps1_mc_reset && !ps1_mc_reset) {
         if (ps1_mc_exit_request)
             return PS1_RECEIVE_EXIT;
@@ -174,7 +174,7 @@ static uint8_t ps1_pio_receive_first(uint8_t *cmd) {
 
 static void ps1_pio_finish(void) {}
 
-static void ps1_pio_respond(uint8_t ch) {
+static void __time_critical_func(ps1_pio_respond)(uint8_t ch) {
     pio_sm_put_blocking(pio0, dat_writer.sm, ~ch & 0xFF);
 }
 
@@ -184,20 +184,26 @@ static void ps1_pio_irq_shutdown(void) {
     const uint32_t sm_mask =
         (1u << cmd_reader.sm) | (1u << dat_writer.sm) | (1u << cntrl_reader.sm) | (1u << ack_generator.sm);
 
-    pio_set_sm_mask_enabled(pio0, sm_mask, false);
-
     log(LOG_TRACE, "Disable IRQ\n");
     // Prevent the handler from running again on this core.
     irq_set_enabled(IO_IRQ_BANK0, false);
 
     log(LOG_TRACE, "IRQ disabled\n");
 
-    // Disable SEL rising events for core 1.
+    // Disable both SEL events for core 1 before removing the handler.
     // The SDK also acknowledges the selected event here.
-    gpio_set_irq_enabled(PIN_PSX_SEL, GPIO_IRQ_EDGE_RISE, false);
+    gpio_set_irq_enabled(PIN_PSX_SEL, GPIO_IRQ_EDGE_RISE | GPIO_IRQ_EDGE_FALL, false);
 
-    log(LOG_TRACE, "SEL rising edge interrupt disabled\n");
+    log(LOG_TRACE, "SEL edge interrupts disabled\n");
     ps1_pio_set_irq_callback(NULL);
+
+    /* Stop after masking SEL so a final deselect IRQ cannot restart the SMs. */
+    pio_set_sm_mask_enabled(pio0, sm_mask, false);
+    /* Disabled state machines retain their pin directions. Release the bus
+       even when a switch interrupts a byte or ACK pulse. */
+    pio_sm_exec(pio0, dat_writer.sm, pio_encode_set(pio_pindirs, 0));
+    pio_sm_exec(pio0, ack_generator.sm, pio_encode_set(pio_pindirs, 0));
+    ps1_card_active = false;
 }
 
 
@@ -254,8 +260,8 @@ static void ps1_pio_set_irq_callback(gpio_irq_callback_t callback) {
 }
 
 static void ps1_pio_set_irq_enabled_with_callback(uint gpio, uint32_t events, bool enabled, gpio_irq_callback_t callback) {
-    gpio_set_irq_enabled(gpio, events, enabled);
     ps1_pio_set_irq_callback(callback);
+    gpio_set_irq_enabled(gpio, events, enabled);
     if (enabled) irq_set_enabled(IO_IRQ_BANK0, true);
 }
 

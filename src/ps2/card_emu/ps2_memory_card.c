@@ -247,8 +247,9 @@ static void __no_inline_not_in_flash_func(mc_main)(void) {
         log(LOG_TRACE, "%s exit\n", __func__);
         if (settings_get_mode(true) != MODE_PS2
             || settings_get_ps2_variant() != memcard_variant
-            || settings_get_mca_enabled() != backend_mode) {
-            log(LOG_TRACE, "Mode or variant changed, exiting memcard core\n");
+            || settings_get_mca_enabled() != backend_mode
+            || settings_get_usb_mode(true) == USB_MODE_MASS) {
+            log(LOG_TRACE, "Mode, variant or USB profile changed, exiting memcard core\n");
             return;
         } else {
             mc_exit_response = 1;
