@@ -1,59 +1,85 @@
-#include "mca_comms.h"
-#include <assert.h>
-#include <string.h>
+/* Framing is now private to mca_protocol.c. Test it through OUT callbacks. */
+#include "protocol_fixture.h"
+#include "mca_page.h"
+
+static void expect_invalid(const uint8_t *input, size_t length) {
+    sent_length = 0;
+    mca_protocol_callbacks()->out_received(input, (uint16_t)length);
+    mca_protocol_task();
+    assert(sent_length == 2 && sent[0] == 0x55 && sent[1] == 0xaf);
+    mca_protocol_callbacks()->in_complete(true, sent_length);
+}
 
 int main(void) {
-    uint8_t buffer[MCA_FRAME_MAX], input[MCA_FRAME_MAX];
-    mca_frame_t frame;
-    mca_frame_init(&frame, buffer, sizeof(buffer));
-
+    const mca_device_callbacks_t *callbacks = mca_protocol_callbacks();
+    mca_protocol_init();
+    mca_protocol_set_ready(true);
     const uint8_t detect[] = {0xaa, 0x40, 0xaa, 0x40};
-    assert(mca_frame_feed(&frame, detect, sizeof(detect)) == 2);
-    assert(frame.result == MCA_FRAME_READY && frame.length == 2);
-    mca_frame_reset(&frame);
+    callbacks->out_received(detect, sizeof(detect));
+    mca_protocol_task();
+    assert(sent_length == 2 && sent[0] == 0x55 && sent[1] == 2);
+    callbacks->in_complete(true, sent_length);
 
-    memset(input, 0, sizeof(input));
-    input[0] = 0xaa; input[1] = 0x42;
-    input[2] = MCA_RAW_MAX & 0xff; input[3] = MCA_RAW_MAX >> 8;
+    uint8_t input[MCA_BRIDGE_RX_CAPACITY] = {0xaa, 0x42};
+    input[2] = (uint8_t)MCA_BRIDGE_BUFFER_MAX;
+    input[3] = (uint8_t)(MCA_BRIDGE_BUFFER_MAX >> 8);
     for (size_t i = 0; i < sizeof(input); ++i) {
-        assert(mca_frame_feed(&frame, input + i, 1) == 1);
-        assert(frame.result == (i + 1 == sizeof(input) ? MCA_FRAME_READY : MCA_FRAME_MORE));
+        callbacks->out_received(input + i, 1);
+        mca_protocol_task();
+        assert(mca_bridge_state(&mca_bridge) ==
+               (i + 1 == sizeof(input) ? MCA_BRIDGE_REQUEST : MCA_BRIDGE_IDLE));
     }
-    mca_frame_reset(&frame);
-    input[2]++; /* exceeds the supported maximum */
-    assert(mca_frame_feed(&frame, input, 4) == 4);
-    assert(frame.result == MCA_FRAME_INVALID);
-    mca_frame_reset(&frame);
+    assert(mca_bridge_begin(&mca_bridge));
+    uint8_t byte;
+    for (unsigned i = 0; i < MCA_BRIDGE_BUFFER_MAX; ++i)
+        assert(mca_bridge_receive(&mca_bridge, &byte) && byte == 0);
+    assert(!mca_bridge_receive(&mca_bridge, &byte));
+    mca_bridge_finish(&mca_bridge, true);
+    mca_protocol_task();
+    callbacks->in_complete(true, sent_length);
 
-    const uint8_t page[] = {0xaa, 0x52, 0x03, 1, 2, 3, 4, 0x55, 0x2b};
-    assert(mca_frame_feed(&frame, page, sizeof(page) - 1) == sizeof(page) - 1);
-    assert(frame.result == MCA_FRAME_MORE);
-    assert(mca_frame_feed(&frame, page + sizeof(page) - 1, 1) == 1);
-    assert(frame.result == MCA_FRAME_READY);
-    mca_frame_reset(&frame);
-    memcpy(input, page, sizeof(page)); input[8] = 0;
-    assert(mca_frame_feed(&frame, input, sizeof(page)) == sizeof(page));
-    assert(frame.result == MCA_FRAME_INVALID);
-    mca_frame_reset(&frame);
-    mca_frame_init(&frame, buffer, 8);
-    assert(mca_frame_feed(&frame, page, sizeof(page)) == 2);
-    assert(frame.result == MCA_FRAME_INVALID);
+    ++input[2]; /* exceeds the supported maximum */
+    expect_invalid(input, 4);
+    const uint8_t empty[] = {0xaa, 0x42, 0, 0};
+    expect_invalid(empty, sizeof(empty));
+    const uint8_t bad_header[] = {0xab, 0x40};
+    expect_invalid(bad_header, sizeof(bad_header));
+    const uint8_t bad_command[] = {0xaa, 0x41};
+    expect_invalid(bad_command, sizeof(bad_command));
 
-    mca_frame_init(&frame, buffer, sizeof(buffer));
-    memset(input, 0, sizeof(input));
-    input[0] = 0xaa; input[1] = 0x57; input[2] = 3;
-    input[MCA_PS2_PAGE_RAW + 7] = 0x55;
-    input[MCA_PS2_PAGE_RAW + 8] = 0x2b;
-    for (size_t i = 0; i < MCA_PS2_PAGE_RAW + 9;) {
-        size_t n = MCA_PS2_PAGE_RAW + 9 - i;
+    uint8_t page[] = {0xaa, 0x52, 3, 1, 0, 0, 0, 0x55, 0x2b};
+    callbacks->out_received(page, sizeof(page) - 1);
+    mca_protocol_task();
+    assert(mca_bridge_state(&mca_bridge) == MCA_BRIDGE_IDLE);
+    callbacks->out_received(page + sizeof(page) - 1, 1);
+    mca_protocol_task();
+    assert(mca_bridge_state(&mca_bridge) == MCA_BRIDGE_REQUEST);
+    assert(mca_bridge_begin(&mca_bridge));
+    mca_bridge_finish(&mca_bridge, false);
+    mca_protocol_task();
+    callbacks->in_complete(true, sent_length);
+    page[8] = 0;
+    expect_invalid(page, sizeof(page));
+    page[8] = 0x2b;
+    page[2] = 2;
+    expect_invalid(page, sizeof(page));
+
+    uint8_t write[MCA_PAGE_RAW_SIZE + 9] = {0xaa, 0x57, 3};
+    write[sizeof(write) - 2] = 0x55;
+    write[sizeof(write) - 1] = 0x2b;
+    for (size_t i = 0; i < sizeof(write);) {
+        size_t n = sizeof(write) - i;
         if (n > 64) n = 64;
-        assert(mca_frame_feed(&frame, input + i, n) == n);
+        callbacks->out_received(write + i, (uint16_t)n);
         i += n;
-        assert(frame.result == (i == MCA_PS2_PAGE_RAW + 9 ? MCA_FRAME_READY : MCA_FRAME_MORE));
+        mca_protocol_task();
+        assert(mca_bridge_state(&mca_bridge) ==
+               (i == sizeof(write) ? MCA_BRIDGE_REQUEST : MCA_BRIDGE_IDLE));
     }
-    mca_frame_reset(&frame);
-    const uint8_t bad[] = {0xaa, 0x42, 0, 0};
-    assert(mca_frame_feed(&frame, bad, sizeof(bad)) == sizeof(bad));
-    assert(frame.result == MCA_FRAME_INVALID);
+    assert(mca_bridge_begin(&mca_bridge));
+    mca_bridge_finish(&mca_bridge, false);
+    mca_protocol_task();
+    callbacks->in_complete(true, sent_length);
+    critical_section_deinit(&mca_bridge.lock);
     return 0;
 }

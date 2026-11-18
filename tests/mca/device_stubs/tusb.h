@@ -5,6 +5,9 @@
 #include <stdint.h>
 
 void tud_task_ext(uint32_t timeout_ms, bool in_isr);
+bool tusb_init(void);
+bool tud_disconnect(void);
+bool tud_deinit(uint8_t rhport);
 
 #define TUSB_CLASS_VENDOR_SPECIFIC 0xff
 #define TUSB_DESC_ENDPOINT 5

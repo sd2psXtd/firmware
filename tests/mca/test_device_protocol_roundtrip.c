@@ -22,6 +22,11 @@ typedef struct {
 static transfer_t transfers[16];
 static size_t transfer_count;
 static uint64_t now;
+static bool endpoint_busy[256];
+bool usbd_edpt_busy(uint8_t rhport, uint8_t endpoint) {
+    (void)rhport;
+    return endpoint_busy[endpoint];
+}
 
 uint64_t time_us_64(void) { return now; }
 void sleep_ms(uint32_t milliseconds) { now += (uint64_t)milliseconds * 1000; }
@@ -57,6 +62,8 @@ bool usbd_edpt_xfer(uint8_t rhport, uint8_t endpoint, uint8_t *buffer,
                     uint32_t length) {
     (void)rhport;
     assert(transfer_count < sizeof(transfers) / sizeof(transfers[0]));
+    assert(!endpoint_busy[endpoint]);
+    endpoint_busy[endpoint] = true;
     transfers[transfer_count++] = (transfer_t){endpoint, buffer, length};
     return true;
 }
@@ -96,6 +103,7 @@ static void receive_out(usbd_class_driver_t const *driver, const uint8_t *data,
     assert(out.endpoint == EP_OUT);
     assert(length <= out.length);
     memcpy(out.buffer, data, length);
+    endpoint_busy[EP_OUT] = false;
     assert(driver->xfer_cb(0, EP_OUT, XFER_RESULT_SUCCESS, length));
 }
 
@@ -108,6 +116,7 @@ int main(void) {
     mca_protocol_set_ready(true);
     mca_device_init(true, mca_protocol_callbacks());
     driver = open_device();
+    mca_protocol_task(); /* The protocol explicitly arms OUT while idle. */
 
     raw_request[0] = 0xaa;
     raw_request[1] = 0x42;
@@ -117,17 +126,19 @@ int main(void) {
         raw_request[i] = (uint8_t)(i ^ 0x5a);
     receive_out(driver, raw_request, sizeof(raw_request));
     mca_protocol_task();
-    assert(mca_bridge_core1_begin(&mca_bridge));
+    assert(mca_bridge_begin(&mca_bridge));
     for (size_t i = 4; i < sizeof(raw_request); ++i) {
         uint8_t byte;
-        assert(mca_bridge_core1_receive(&mca_bridge, &byte));
+        assert(mca_bridge_receive(&mca_bridge, &byte));
         assert(byte == raw_request[i]);
-        assert(mca_bridge_core1_respond(&mca_bridge, byte));
+        mca_bridge_respond(&mca_bridge, byte);
     }
-    assert(mca_bridge_core1_finish(&mca_bridge));
+    mca_bridge_finish(&mca_bridge, true);
     mca_protocol_task();
 
     first_in_index = transfer_count - 1;
+    assert(mca_bridge_state(&mca_bridge) == MCA_BRIDGE_SENDING);
+    assert(!mca_bridge_begin(&mca_bridge));
     assert(transfers[first_in_index].endpoint == EP_IN);
     assert(transfers[first_in_index].length == 64);
     assert(transfers[first_in_index].buffer[0] == 0x55);
@@ -137,20 +148,22 @@ int main(void) {
     for (size_t i = 4; i < 64; ++i)
         assert(transfers[first_in_index].buffer[i] == raw_request[i]);
 
+    endpoint_busy[EP_IN] = false;
     assert(driver->xfer_cb(0, EP_IN, XFER_RESULT_SUCCESS, 64));
     mca_protocol_task();
     assert(mca_bridge_state(&mca_bridge) == MCA_BRIDGE_IDLE);
-    assert(transfer_count == first_in_index + 1);
+    assert(transfer_count == first_in_index + 2); /* Re-arm OUT after release. */
 
     const uint8_t detect_request[] = {0xaa, 0x40};
     size_t before_detect = transfer_count;
     receive_out(driver, detect_request, sizeof(detect_request));
     mca_protocol_task();
-    assert(transfer_count == before_detect + 2);
+    assert(transfer_count == before_detect + 1);
     assert(transfers[transfer_count - 1].endpoint == EP_IN);
     assert(transfers[transfer_count - 1].length == 2);
     assert(transfers[transfer_count - 1].buffer[0] == 0x55);
     assert(transfers[transfer_count - 1].buffer[1] == 2);
+    endpoint_busy[EP_IN] = false;
     assert(driver->xfer_cb(0, EP_IN, XFER_RESULT_SUCCESS, 2));
     mca_protocol_task();
     assert(transfer_count == before_detect + 2);

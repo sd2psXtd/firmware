@@ -21,11 +21,16 @@ typedef struct {
 static xfer_record_t transfers[128];
 static size_t transfer_count;
 static bool fail_next_xfer;
+static bool endpoint_busy[256];
+
+bool usbd_edpt_busy(uint8_t rhport, uint8_t endpoint) {
+    (void)rhport;
+    return endpoint_busy[endpoint];
+}
 static unsigned bus_reset_calls;
 static unsigned in_complete_calls;
 static bool last_in_success;
 static uint32_t last_in_transferred;
-static unsigned presence_complete_calls;
 static unsigned bootsel_calls;
 static unsigned flash_reboot_calls;
 static int last_bootsel_gpio;
@@ -52,6 +57,8 @@ bool usbd_edpt_xfer(uint8_t rhport, uint8_t endpoint_address, uint8_t *buffer,
         fail_next_xfer = false;
         return false;
     }
+    assert(!endpoint_busy[endpoint_address]);
+    endpoint_busy[endpoint_address] = true;
     return true;
 }
 
@@ -76,16 +83,10 @@ static void on_in_complete(bool success, uint32_t transferred) {
     last_in_success = success;
     last_in_transferred = transferred;
 }
-static void on_presence_complete(bool success, uint32_t transferred) {
-    (void)success;
-    (void)transferred;
-    ++presence_complete_calls;
-}
 
 static const mca_device_callbacks_t callbacks = {
     .in_complete = on_in_complete,
     .bus_reset = on_bus_reset,
-    .presence_complete = on_presence_complete,
 };
 
 static usbd_class_driver_t const *driver(void) {
@@ -122,14 +123,17 @@ static uint16_t open_mca_interface(void) {
 }
 
 static void setup_mca_interface(void) {
+    memset(endpoint_busy, 0, sizeof(endpoint_busy));
     assert(open_mca_interface() == 30);
 }
 
 static void complete_in(uint32_t transferred) {
+    endpoint_busy[EP_IN] = false;
     assert(driver()->xfer_cb(0, EP_IN, XFER_RESULT_SUCCESS, transferred));
 }
 
 static void complete_interrupt(void) {
+    endpoint_busy[EP_INT] = false;
     assert(driver()->xfer_cb(0, EP_INT, XFER_RESULT_SUCCESS, 1));
 }
 
@@ -151,6 +155,7 @@ static void test_bulk_in_completion(void) {
     assert(transfers[first_call].endpoint == EP_IN);
     assert(transfers[first_call].buffer == exact_packet);
     assert(transfers[first_call].length == sizeof(exact.bytes));
+    assert(!mca_device_send(non_multiple, sizeof(non_multiple_storage.bytes)));
     complete_in(sizeof(exact.bytes));
     assert(transfer_count == first_call + 1); /* No extra packet after exact-size IN. */
     assert(in_complete_calls == 1 && last_in_success);
@@ -245,18 +250,20 @@ static void test_presence_ordering(void) {
     size_t before;
 
     transfer_count = 0;
-    presence_complete_calls = 0;
     mca_device_init(true, &callbacks);
     driver()->init();
     mca_device_set_presence(true);
     setup_mca_interface();
-    assert(transfer_count >= 2);
-    assert(transfers[1].endpoint == EP_INT && transfers[1].int_value == 1);
+    assert(transfer_count == 1);
+    assert(transfers[0].endpoint == EP_INT && transfers[0].int_value == 1);
 
     /* Removal and reinsertion happen while the initial insertion event is
      * still in flight. The host must observe insertion, removal, insertion. */
     mca_device_set_presence(false);
     mca_device_set_presence(true);
+    before = transfer_count;
+    mca_device_task();
+    assert(transfer_count == before); /* Initial event still owns INT. */
     complete_interrupt();
     mca_device_task();
     before = transfer_count;
@@ -267,7 +274,9 @@ static void test_presence_ordering(void) {
     assert(transfers[transfer_count - 1].endpoint == EP_INT);
     assert(transfers[transfer_count - 1].int_value == 1);
     complete_interrupt();
-    assert(presence_complete_calls == 3);
+    before = transfer_count;
+    mca_device_task();
+    assert(transfer_count == before); /* Already delivered: no duplicate insertion. */
 }
 
 int main(void) {
