@@ -31,18 +31,18 @@ static bool ps2_multitap = false;
 volatile bool ps1_card_active = false;
 volatile int ps1_mc_exit_request, ps1_mc_reset;
 static volatile int mc_exit_response, mc_enter_request, mc_enter_response;
+static volatile int mc_stop_request, mc_stop_response;
 
 static ps1_memory_card_backend_t* ps1_card_backend = NULL;
-static bool backend_mode;
 
 
 #define receiveOrNextCmd(cmd)          \
-    if ((ps1_card_backend->recv_mc(cmd) == PS1_RECEIVE_RESET) || !ps1_card_active) \
+    if ((ps1_card_backend->recv_mc(cmd) != PS1_RECEIVE_OK) || !ps1_card_active) \
     { \
     return;}
 
 #define receiveOrNextCntrl(cmd)          \
-    if ((ps1_card_backend->recv_cntrl(cmd) == PS1_RECEIVE_RESET) || !ps1_card_active) \
+    if ((ps1_card_backend->recv_cntrl(cmd) != PS1_RECEIVE_OK) || !ps1_card_active) \
     { \
     return;}
 
@@ -360,7 +360,7 @@ static void __time_critical_func(mc_main_loop)(void) {
         if (0x81 == ch) { /* Command is for MC - process! */
             ps1_card_backend->respond(flag);
 
-            if (ps1_card_backend->recv_mc(&ch) == PS1_RECEIVE_RESET)
+            if (ps1_card_backend->recv_mc(&ch) != PS1_RECEIVE_OK)
                 continue;
 
             switch (ch) {
@@ -382,7 +382,7 @@ static void __time_critical_func(mc_main_loop)(void) {
         } else if ((0x21 == ch) && !ps2_multitap) {
             ps1_card_backend->respond(0x00);
 
-            if (PS1_RECEIVE_RESET == ps1_card_backend->recv_mc(&ch))
+            if (PS1_RECEIVE_OK != ps1_card_backend->recv_mc(&ch))
                 continue;
 
             if (0x53 == ch) {
@@ -399,8 +399,10 @@ static void __time_critical_func(mc_main_loop)(void) {
 
 static void __no_inline_not_in_flash_func(mc_main)(void) {
     while (1) {
-        while (!mc_enter_request)
+        while (!mc_enter_request && !mc_stop_request)
         {}
+        if (mc_stop_request)
+            return;
         ps1_card_backend->reset();
         ps1_card_backend->startup();
         mc_enter_response = 1;
@@ -408,13 +410,11 @@ static void __no_inline_not_in_flash_func(mc_main)(void) {
         ps1_card_backend->shutdown();
 
         log(LOG_TRACE, "%s exit\n", __func__);
-        if (settings_get_mode(true) != MODE_PS1 ||
-            settings_get_mca_enabled() != backend_mode) {
-            log(LOG_TRACE, "Mode or variant changed, exiting memcard core\n");
+        if (mc_stop_request) {
             return;
         } else {
             mc_exit_response = 1;
-            log(LOG_TRACE, "Mode still PS1, reinitializing memcard core\n");
+            log(LOG_TRACE, "Card worker paused for re-entry\n");
         }
     }
 }
@@ -423,7 +423,6 @@ static void __no_inline_not_in_flash_func(mc_main)(void) {
 void ps1_memory_card_main(void) {
     multicore_lockout_victim_init();
 
-    backend_mode = settings_get_mca_enabled();
     ps1_card_backend = ps1_card_backend_get();
     ps1_card_backend->init();
 
@@ -432,6 +431,7 @@ void ps1_memory_card_main(void) {
     ps1_card_backend->deinit();
     log(LOG_TRACE, "Secondary core exit!\n");
     mc_exit_response = 1;
+    mc_stop_response = 1;
 }
 static int memcard_running;
 
@@ -455,4 +455,15 @@ void ps1_memory_card_enter(void) {
     {}
     mc_enter_request = mc_enter_response = 0;
     memcard_running = 1;
+}
+
+void ps1_memory_card_stop(void) {
+    /* Unlike a card switch, every session teardown must release the backend,
+       including PS1 -> mass storage where neither mode nor MCA bit changes. */
+    mc_stop_request = 1;
+    ps1_memory_card_exit();
+    while (!mc_stop_response)
+    {}
+    mc_stop_request = mc_stop_response = 0;
+    mc_exit_response = 0;
 }

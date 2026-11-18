@@ -97,7 +97,7 @@ bool ps1_task() {
 
 void ps1_deinit(void) {
 
-    ps1_memory_card_exit();
+    ps1_memory_card_stop();
 
     while(ps1_dirty_activity)
         ps1_dirty_task();
