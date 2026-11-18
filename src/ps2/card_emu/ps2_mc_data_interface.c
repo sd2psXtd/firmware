@@ -36,9 +36,6 @@
 
 #if WITH_PSRAM
 uint8_t cache[PAGE_CACHE_SIZE * PS2_PAGE_SIZE];
-#else
-/* PS1 keeps the full card in the shared buffer on builds without PSRAM. */
-uint8_t cache[128 * 1024];
 #endif
 
 #define MAX_TIME_SLICE  ( 5 * 1000 )
