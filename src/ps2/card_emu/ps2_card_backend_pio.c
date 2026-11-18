@@ -380,8 +380,8 @@ static void pio_set_irq_callback(gpio_irq_callback_t callback) {
 }
 
 static void pio_set_irq_enabled_with_callback(uint gpio, uint32_t events, bool enabled, gpio_irq_callback_t callback) {
-    gpio_set_irq_enabled(gpio, events, enabled);
     pio_set_irq_callback(callback);
+    gpio_set_irq_enabled(gpio, events, enabled);
     if (enabled)
         irq_set_enabled(IO_IRQ_BANK0, true);
 }
