@@ -287,7 +287,7 @@ static void build_superblock(uint8_t *buf) {
     wr32(&buf[0x040], (uint32_t)CARD_BACKUP_BLOCK1);  // Backup block 1
     wr32(&buf[0x044], (uint32_t)CARD_BACKUP_BLOCK2);  // Backup block 2
 
-    for (int i = 0; i < CARD_IFC_LENGTH; i++) {
+    for (size_t i = 0; i < CARD_IFC_LENGTH; i++) {
         wr32(&buf[0x050 + i * 4], (uint32_t)(CARD_RESERVED_CLUSTERS + i));
     }
 
