@@ -61,6 +61,8 @@ void ps2_init(void) {
 
     keystore_init();
 
+    mmceman_mcman_retry_counter = 0;
+
     multicore_launch_core1(ps2_memory_card_main);
 
     ps2_history_tracker_init();

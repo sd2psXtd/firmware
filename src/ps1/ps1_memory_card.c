@@ -376,6 +376,15 @@ static void __time_critical_func(mc_main_loop)(void) {
                 continue;
 
             switch (ch) {
+                case 0x11: {
+                    if (settings_get_mode(false) != MODE_PS1) {
+                        log(LOG_INFO, "Switching to PS2 mode due to MC command.\n");
+                        ps1_card_backend->respond(0x2B);
+                        ps1_card_backend->respond(0x66);
+                        settings_set_mode(MODE_PS2);
+                    }
+                    break;
+                }
                 case 0x20: mc_mmce_ping(); break;
                 case 0x21: mc_mmce_set_game_id(); break;
                 case 0x22: mc_mmce_prev_channel(); break;

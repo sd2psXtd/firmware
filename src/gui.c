@@ -556,6 +556,8 @@ void gui_init(void) {
         refresh_gui = false;
         installing_exploit = false;
         ui_state = UI_STATE_SPLASH;
+    } else {
+        refresh_gui = true;
     }
 }
 
