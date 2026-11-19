@@ -141,7 +141,7 @@ static const lv_font_t number_font = {
 #define ICON_PS2  "\xee\x80\x81"
 #define ICON_MCA  "\xee\x80\x82"
 #define ICON_CARD "\xee\x80\x83"
-enum { STATUS_ICON_HEIGHT = 12, CONSOLE_ICON_WIDTH = 24, USB_ICON_WIDTH = 8, CARD_ICON_WIDTH = 10 };
+enum { MAIN_HEADER_HEIGHT = 14, STATUS_ICON_HEIGHT = 12, CONSOLE_ICON_WIDTH = 24, USB_ICON_WIDTH = 8, CARD_ICON_WIDTH = 10 };
 
 /* Row-major monochrome bitmaps with three bytes per row and the left pixel in bit 7.
  * References: https://commons.wikimedia.org/wiki/File:PlayStation_logo.svg
@@ -759,28 +759,31 @@ static lv_obj_t *ui_panel_label(lv_obj_t *panel, int y, const char *text) {
 static void create_main_screen(void) {
     scr_main = ui_scr_create();
     lv_obj_add_event_cb(scr_main, evt_scr_main, LV_EVENT_ALL, NULL);
-    main_status = ui_label_create_at(scr_main, 2, 1, "");
+    const int status_y = (MAIN_HEADER_HEIGHT - STATUS_ICON_HEIGHT) / 2;
+    main_status = ui_label_create_at(scr_main, 2, status_y, "");
     main_capacity = ui_label_create(scr_main, "");
     lv_obj_set_style_text_font(main_status, &status_font, 0);
     lv_obj_set_style_text_font(main_capacity, &status_font, 0);
-    lv_obj_align(main_capacity, LV_ALIGN_TOP_RIGHT, -2, 1);
+    lv_obj_align(main_capacity, LV_ALIGN_TOP_RIGHT, -2, status_y);
     update_main_status();
 
-    lv_obj_t *card = ui_panel(scr_main, 1, 14, 85, 29);
-    lv_obj_t *channel = ui_panel(scr_main, 88, 14, 39, 29);
-    ui_panel_label(card, 2, "Card");
-    ui_panel_label(channel, 2, "Chan");
+    /* Leave four blank rows above, between, and below the seven-pixel text. */
+    const int panel_height = 28, heading_y = 3, value_y = 14;
+    lv_obj_t *card = ui_panel(scr_main, 1, MAIN_HEADER_HEIGHT, 85, panel_height);
+    lv_obj_t *channel = ui_panel(scr_main, 88, MAIN_HEADER_HEIGHT, 39, panel_height);
+    ui_panel_label(card, heading_y, "Card");
+    ui_panel_label(channel, heading_y, "Chan");
 
     lv_anim_init(&main_scroll_animation);
     lv_anim_set_delay(&main_scroll_animation, 1000);
     lv_style_init(&main_scroll_style);
     lv_style_set_anim(&main_scroll_style, &main_scroll_animation);
 
-    scr_main_idx_lbl = ui_panel_label(card, 13, "");
+    scr_main_idx_lbl = ui_panel_label(card, value_y, "");
     lv_label_set_long_mode(scr_main_idx_lbl, LV_LABEL_LONG_SCROLL_CIRCULAR);
     lv_obj_add_style(scr_main_idx_lbl, &main_scroll_style, 0);
 
-    scr_main_channel_lbl = ui_panel_label(channel, 13, "");
+    scr_main_channel_lbl = ui_panel_label(channel, value_y, "");
 
     src_main_title_lbl = ui_label_create_at(scr_main, 2, 44, "");
     lv_label_set_long_mode(src_main_title_lbl, LV_LABEL_LONG_SCROLL_CIRCULAR);
