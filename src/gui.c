@@ -52,12 +52,27 @@ static lv_obj_t *main_status, *main_capacity;
 static lv_style_t style_inv, main_scroll_style;
 static lv_anim_t main_scroll_animation;
 static lv_obj_t *scr_main_idx_lbl, *scr_main_channel_lbl, *src_main_title_lbl, *lbl_ps1_autoboot, *lbl_ps1_game_id, *lbl_ps1_controllercombo,
-    *lbl_ps2_autoboot, *lbl_ps2_cardsize, *lbl_ps2_variant, *lbl_ps2_game_id, *lbl_civ_err, *auto_off_lbl, *contrast_lbl, *vcomh_lbl, *lbl_mode, *lbl_scrn_flip, *lbl_usb_mode;
+    *lbl_ps2_autoboot, *lbl_ps2_cardsize, *lbl_ps2_variant, *lbl_ps2_game_id, *lbl_civ_err, *contrast_lbl, *vcomh_lbl, *lbl_mode, *lbl_scrn_flip, *lbl_usb_mode;
 
-static struct {
-    uint8_t value;
-    lv_obj_t *selection_lbl;
-} auto_off_options[6];
+typedef struct {
+    const char *title;
+    const uint8_t *choices;
+    size_t choice_count;
+    uint8_t (*get_timeout)(void);
+    void (*set_timeout)(uint8_t);
+    lv_obj_t *page, *value_label;
+} display_timer_menu_t;
+
+static const uint8_t auto_off_delays[] = {0, 5, 15, 30, 60, 120};
+static const uint8_t dim_delays[] = {0, 10, 20, 60};
+static display_timer_menu_t auto_off_menu = {
+    .title = "Auto off", .choices = auto_off_delays, .choice_count = sizeof(auto_off_delays),
+    .get_timeout = settings_get_display_timeout, .set_timeout = settings_set_display_timeout,
+};
+static display_timer_menu_t dim_menu = {
+    .title = "Dim after", .choices = dim_delays, .choice_count = sizeof(dim_delays),
+    .get_timeout = settings_get_display_dim_timeout, .set_timeout = settings_set_display_dim_timeout,
+};
 
 static struct {
     uint16_t value;
@@ -399,25 +414,21 @@ static void reload_card_cb(int progress, bool done) {
     }
 }
 
-static void ui_set_display_timeout(uint8_t display_timeout) {
-    char text[8];
+static void ui_update_display_timer(display_timer_menu_t *timer) {
+    unsigned current = timer->get_timeout();
+    if (current)
+        lv_label_set_text_fmt(timer->value_label, "%us >", current);
+    else
+        lv_label_set_text_static(timer->value_label, "Off >");
 
-    if (auto_off_options[0].value == display_timeout) {
-        snprintf(text, sizeof(text), "Off >"), lv_label_set_text(auto_off_lbl, text);
-
-        snprintf(text, sizeof(text), "> Off"), lv_label_set_text(auto_off_options[0].selection_lbl, text);
-    } else {
-        snprintf(text, sizeof(text), "  Off"), lv_label_set_text(auto_off_options[0].selection_lbl, text);
-    }
-
-    for (size_t i = 1; i < ARRAY_SIZE(auto_off_options); i++) {
-        if (auto_off_options[i].value == display_timeout) {
-            snprintf(text, sizeof(text), "%hhus >", auto_off_options[i].value), lv_label_set_text(auto_off_lbl, text);
-
-            snprintf(text, sizeof(text), "> %hhus", auto_off_options[i].value), lv_label_set_text(auto_off_options[i].selection_lbl, text);
-        } else {
-            snprintf(text, sizeof(text), "  %hhus", auto_off_options[i].value), lv_label_set_text(auto_off_options[i].selection_lbl, text);
-        }
+    for (size_t i = 0; i < timer->choice_count; ++i) {
+        lv_obj_t *label = lv_obj_get_child(lv_obj_get_child(timer->page, i), 0);
+        unsigned delay = timer->choices[i];
+        char mark = delay == current ? '>' : ' ';
+        if (delay)
+            lv_label_set_text_fmt(label, "%c %us", mark, delay);
+        else
+            lv_label_set_text_static(label, current ? "  Off" : "> Off");
     }
 }
 
@@ -717,9 +728,23 @@ void gui_mca_mode_changed(void) {
 }
 
 static void evt_set_display_timeout(lv_event_t *event) {
-    uint8_t display_timeout = (uint8_t)(intptr_t)event->user_data;
-    settings_set_display_timeout(display_timeout);
-    ui_set_display_timeout(display_timeout);
+    display_timer_menu_t *timer = event->user_data;
+    timer->set_timeout(timer->choices[lv_obj_get_index(lv_event_get_current_target(event))]);
+    ui_update_display_timer(timer);
+}
+
+static void create_display_timer_menu(lv_obj_t *display_page, display_timer_menu_t *timer) {
+    timer->page = ui_menu_subpage_create(menu, timer->title);
+    for (size_t i = 0; i < timer->choice_count; ++i) {
+        lv_obj_t *row = ui_menu_cont_create_nav(timer->page);
+        ui_label_create_grow(row, NULL);
+        lv_obj_add_event_cb(row, evt_set_display_timeout, LV_EVENT_CLICKED, timer);
+    }
+    lv_obj_t *row = ui_menu_cont_create_nav(display_page);
+    ui_label_create_grow(row, timer->title);
+    timer->value_label = ui_label_create(row, NULL);
+    ui_menu_set_load_page_event(menu, row, timer->page);
+    ui_update_display_timer(timer);
 }
 
 static void evt_set_display_contrast(lv_event_t *event) {
@@ -867,25 +892,6 @@ static void create_menu_screen(void) {
         ui_menu_set_load_page_event(menu, cont, ps2_switch_warn);
     }
 
-    /* display / auto off submenu */
-    lv_obj_t *auto_off_page = ui_menu_subpage_create(menu, "Auto off");
-    {
-        auto_off_options[0].value = 0;
-        auto_off_options[1].value = 5;
-        auto_off_options[2].value = 15;
-        auto_off_options[3].value = 30;
-        auto_off_options[4].value = 60;
-        auto_off_options[5].value = 120;
-
-        for (size_t i = 0; i < ARRAY_SIZE(auto_off_options); i++) {
-            uint8_t value = auto_off_options[i].value;
-
-            cont = ui_menu_cont_create_nav(auto_off_page);
-            auto_off_options[i].selection_lbl = ui_label_create_grow(cont, NULL);
-            lv_obj_add_event_cb(cont, evt_set_display_timeout, LV_EVENT_CLICKED, (void *)(intptr_t)value);
-        }
-    }
-
     /* display / contrast submenu */
     lv_obj_t *contrast_page = ui_menu_subpage_create(menu, "Contrast");
     {
@@ -927,11 +933,8 @@ static void create_menu_screen(void) {
     /* display config */
     lv_obj_t *display_page = ui_menu_subpage_create(menu, "Display");
     {
-        cont = ui_menu_cont_create_nav(display_page);
-        ui_label_create_grow(cont, "Auto off");
-        auto_off_lbl = ui_label_create(cont, NULL);
-        ui_menu_set_load_page_event(menu, cont, auto_off_page);
-        ui_set_display_timeout(settings_get_display_timeout());
+        create_display_timer_menu(display_page, &auto_off_menu);
+        create_display_timer_menu(display_page, &dim_menu);
 
         cont = ui_menu_cont_create_nav(display_page);
         ui_label_create_grow(cont, "Contrast");
@@ -1126,17 +1129,6 @@ static void create_menu_screen(void) {
         lv_obj_add_event_cb(cont, evt_usb_storage, LV_EVENT_CLICKED, NULL);
     }
 
-    lv_obj_t *controls_page = ui_menu_subpage_create(menu, "Controls");
-    cont = ui_menu_cont_create(controls_page);
-    lv_obj_t *help = ui_label_create_grow(cont,
-        "Home tap: Chan\nHome hold: Card\nBoth: menu/home\nMenu hold L:Back\nMenu hold R: OK");
-    lv_obj_set_style_text_letter_space(help, -1, 0);
-    lv_obj_set_style_text_line_space(help, -1, 0);
-    cont = ui_menu_cont_create_nav(controls_page);
-    lv_obj_set_style_min_height(cont, 9, 0);
-    ui_label_create(cont, "Back");
-    lv_obj_add_event_cb(cont, evt_go_back, LV_EVENT_CLICKED, NULL);
-
     /* Main menu */
     main_page = ui_menu_subpage_create(menu, "Main Menu");
     {
@@ -1169,11 +1161,6 @@ static void create_menu_screen(void) {
         ui_label_create_grow_scroll(cont, "Info");
         ui_label_create(cont, ">");
         ui_menu_set_load_page_event(menu, cont, info_page);
-
-        cont = ui_menu_cont_create_nav(main_page);
-        ui_label_create_grow(cont, "Controls");
-        ui_label_create(cont, ">");
-        ui_menu_set_load_page_event(menu, cont, controls_page);
     }
 
     ui_menu_set_page(menu, main_page);
@@ -1250,7 +1237,10 @@ static void update_activity(void) {
     static bool write_occured = false;
     static bool visible = false;
     uint64_t time = time_us_64();
-    write_occured |= (ps1_mc_data_interface_write_occured() || ps2_mc_data_interface_write_occured());
+    if (ps1_mc_data_interface_write_occured() || ps2_mc_data_interface_write_occured()) {
+        write_occured = true;
+        oled_update_last_action_time();
+    }
     if ((time - last_update) > 200 * 1000) {
         if (write_occured) {
             if (!visible) {
@@ -1351,6 +1341,7 @@ void gui_task(void) {
     }
     if (!wait_button_release)
         input_update_display(g_navbar);
+    update_activity();
 
     char card_name[127];
     const char *folder_name = NULL;
@@ -1432,7 +1423,6 @@ void gui_task(void) {
             }
 
             refresh_gui = false;
-            update_activity();
         } else if (settings_get_mode(true) == MODE_PS2){
             static int displayed_card_idx = -1;
             static int displayed_card_channel = -1;
@@ -1481,11 +1471,6 @@ void gui_task(void) {
 
                 refresh_gui = false;
             }
-
-
-            update_activity();
-        } else {
-
         }
     }
     if (splash_game_image_available

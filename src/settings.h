@@ -74,10 +74,12 @@ void settings_set_ps2_game_id(bool enabled);
 #define CHAN_MIN 1
 
 uint8_t settings_get_display_timeout(void);
+uint8_t settings_get_display_dim_timeout(void);
 uint8_t settings_get_display_contrast(void);
 uint8_t settings_get_display_vcomh(void);
 bool    settings_get_display_flipped(void);
 void settings_set_display_timeout(uint8_t display_timeout);
+void settings_set_display_dim_timeout(uint8_t timeout);
 void settings_set_display_contrast(uint8_t display_contrast);
 void settings_set_display_vcomh(uint8_t display_vcomh);
 void settings_set_display_flipped(bool flipped);

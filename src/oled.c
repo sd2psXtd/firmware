@@ -13,6 +13,7 @@
 #include "blit16.h"
 
 #define FRAME_TIMEOUT_US 50000u
+#define DIM_VCOMH 0x00
 
 enum {
     UPDATE_CONTRAST = 1,
@@ -28,7 +29,7 @@ typedef enum {
 } transfer_state_t;
 
 static ssd1306_t oled_disp = { .external_vcc = 0 };
-static bool initialized, powered, frame_pending, frame_retried;
+static bool initialized, powered, dimmed, frame_pending, frame_retried;
 static atomic_bool showing_error, transfer_active;
 static uint64_t last_action_time_us;
 static uint32_t transfer_start;
@@ -68,9 +69,11 @@ int oled_init(void) {
         init_bus();
         oled_update_last_action_time();
 
+        contrast = settings_get_display_contrast();
+        vcomh = settings_get_display_vcomh();
         powered = ssd1306_init(
             &oled_disp, DISPLAY_WIDTH, DISPLAY_HEIGHT, OLED_I2C_ADDR, OLED_I2C_PERIPH,
-            settings_get_display_contrast(), settings_get_display_vcomh(), settings_get_display_flipped()
+            contrast, vcomh, settings_get_display_flipped()
         );
         if (powered) {
             dma_channel = dma_claim_unused_channel(false);
@@ -169,6 +172,17 @@ void oled_flip(bool flip) {
     updates |= UPDATE_FLIP;
 }
 
+static void apply_brightness(bool dim) {
+    if (dim != dimmed) {
+        updates |= UPDATE_CONTRAST | UPDATE_VCOMH;
+        dimmed = dim;
+    }
+    if (updates & UPDATE_CONTRAST)
+        ssd1306_contrast(&oled_disp, dim ? contrast / 5 : contrast);
+    if (updates & UPDATE_VCOMH)
+        ssd1306_set_vcomh(&oled_disp, dim ? DIM_VCOMH : vcomh);
+}
+
 static int text_x, text_y;
 
 static void draw_text(const char *text) {
@@ -205,6 +219,7 @@ void oled_show_error(const char *message) {
     while ((state = transfer_state()) == TRANSFER_BUSY)
         tight_loop_contents();
     finish_transfer(state);
+    apply_brightness(false);
     if (!powered)
         ssd1306_poweron(&oled_disp);
     ssd1306_clear(&oled_disp);
@@ -226,9 +241,12 @@ void oled_task(void) {
     if (state == TRANSFER_BUSY)
         return;
 
+    uint64_t idle_us = time_us_64() - last_action_time_us;
     uint8_t timeout = settings_get_display_timeout();
-    bool should_power = !timeout || time_us_64() - last_action_time_us < (timeout + 1u) * 1000000u;
-    if (state == TRANSFER_IDLE && !updates && powered == should_power && !(powered && frame_pending))
+    uint8_t dim_timeout = settings_get_display_dim_timeout();
+    bool should_power = !timeout || idle_us < (timeout + 1u) * 1000000u;
+    bool should_dim = should_power ? dim_timeout && idle_us >= dim_timeout * 1000000u : dimmed;
+    if (state == TRANSFER_IDLE && !updates && powered == should_power && dimmed == should_dim && !(powered && frame_pending))
         return;
     if (!mutex_try_enter(&oled_lock, NULL))
         return;
@@ -238,10 +256,7 @@ void oled_task(void) {
             frame_pending = true;
             frame_retried = true;
         }
-        if (updates & UPDATE_CONTRAST)
-            ssd1306_contrast(&oled_disp, contrast);
-        if (updates & UPDATE_VCOMH)
-            ssd1306_set_vcomh(&oled_disp, vcomh);
+        apply_brightness(should_dim);
         if (updates & UPDATE_FLIP)
             ssd1306_flip_display(&oled_disp, flipped);
         updates = 0;

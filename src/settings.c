@@ -59,6 +59,11 @@ typedef struct {
 #define SETTINGS_SYS_FLAGS_PS2_MODE         (0b0000001)
 #define SETTINGS_SYS_FLAGS_FLIPPED_DISPLAY  (0b0000010)
 #define SETTINGS_SYS_FLAGS_MCA_ENABLED      (0b0000100)
+#define SETTINGS_SYS_FLAGS_DIM_SHIFT        3
+#define SETTINGS_SYS_FLAGS_DIM_MASK         (3u << SETTINGS_SYS_FLAGS_DIM_SHIFT)
+
+/* Zero in existing settings selects the 20-second default. */
+static const uint8_t display_dim_delays[] = {20, 0, 10, 60};
 
 _Static_assert(sizeof(settings_t) == 24, "unexpected padding in the settings structure");
 
@@ -196,7 +201,7 @@ static void settings_serialize(void) {
         serialized_settings.ps2_maxcardidx == settings.ps2_maxcardidx &&
         serialized_settings.ps2_cardsize == settings.ps2_cardsize &&
         serialized_settings.ps2_flags == settings.ps2_flags &&
-        serialized_settings.sys_flags == settings.sys_flags &&
+        ((serialized_settings.sys_flags ^ settings.sys_flags) & ~SETTINGS_SYS_FLAGS_DIM_MASK) == 0 &&
         serialized_settings.ps2_variant == settings.ps2_variant &&
         serialized_settings.ps1_flags == settings.ps1_flags) {
         return;
@@ -585,6 +590,10 @@ uint8_t settings_get_display_timeout() {
     return settings.display_timeout;
 }
 
+uint8_t settings_get_display_dim_timeout(void) {
+    return display_dim_delays[(settings.sys_flags & SETTINGS_SYS_FLAGS_DIM_MASK) >> SETTINGS_SYS_FLAGS_DIM_SHIFT];
+}
+
 uint8_t settings_get_display_contrast() {
     return settings.display_contrast;
 }
@@ -600,6 +609,18 @@ bool settings_get_display_flipped() {
 void settings_set_display_timeout(uint8_t display_timeout) {
     settings.display_timeout = display_timeout;
     SETTINGS_UPDATE_FIELD(display_timeout);
+}
+
+void settings_set_display_dim_timeout(uint8_t timeout) {
+    if (timeout == settings_get_display_dim_timeout())
+        return;
+    for (unsigned i = 0; i < sizeof(display_dim_delays); ++i) {
+        if (display_dim_delays[i] == timeout) {
+            settings.sys_flags = (settings.sys_flags & ~SETTINGS_SYS_FLAGS_DIM_MASK) | (i << SETTINGS_SYS_FLAGS_DIM_SHIFT);
+            SETTINGS_UPDATE_FIELD(sys_flags);
+            return;
+        }
+    }
 }
 
 void settings_set_display_contrast(uint8_t display_contrast) {
