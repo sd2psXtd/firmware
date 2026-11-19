@@ -38,23 +38,28 @@ def signed_div():
  q=int(a/b);u.reg_write(UC_ARM_REG_R1,(a-q*b)&0xffffffff);ret(q)
 put(['__wrap___aeabi_idiv'],signed_div)
 put(['oled_init','oled_is_powered_on'],lambda:ret(1))
-put(['oled_clear','oled_show','input_flip','splash_init','buffered_printf','oled_update_last_action_time'],lambda:ret())
+put(['oled_show','input_flip','splash_init','buffered_printf','oled_update_last_action_time'],lambda:ret())
+frame = bytearray(128 * 64)
+def write_pixels():
+    x, y, width, height = (reg(i) for i in range(4))
+    source = struct.unpack('<I', u.mem_read(u.reg_read(UC_ARM_REG_SP), 4))[0]
+    assert width * height <= 128 * 16
+    assert x + width <= 128 and y + height <= 64
+    pixels = u.mem_read(source, width * height)
+    for row in range(height):
+        offset = (y + row) * 128 + x
+        frame[offset:offset + width] = bytes(bool(p) for p in pixels[row * width:(row + 1) * width])
+    ret()
+put(['oled_write_pixels'], write_pixels)
 def time_return():
  u.reg_write(UC_ARM_REG_R1, 0)
  ret(1)
 put(['time_us_64','get_absolute_time'],time_return)
 for n in syms:
  if n.startswith('settings_get_'):put([n],lambda:ret(0))
-mca_enabled = False
-mca_selections = []
-def set_mca():
- global mca_enabled
- mca_enabled = bool(reg(0))
- mca_selections.append(mca_enabled)
- ret()
-put(['settings_set_mca_enabled'],set_mca)
-put(['settings_get_mca_enabled'],lambda:ret(mca_enabled))
-hooks.pop(syms['settings_get_usb_mode'], None)
+for n in ('settings_get_usb_mode', 'settings_get_mca_enabled'):
+    hooks.pop(syms[n], None)
+put(['multicore_lockout_victim_is_initialized', 'wear_leveling_write', 'settings_serialize'], lambda:ret())
 put(['settings_get_ps2_cardsize'],lambda:ret(8))
 put(['sd_get_CID'],lambda:(u.mem_write(reg(0),bytes(16)),ret(reg(0))))
 put(['__wrap_memset','memset'],lambda:(u.mem_write(reg(0),bytes([reg(1)&255])*reg(2)),ret(reg(0))))
@@ -132,18 +137,20 @@ call('lv_disp_load_scr', menu_screen)
 for row, enabled in [(uart_row, False), (mca_row, True), (mca_row, True), (uart_row, False), (mca_row, True)]:
     call('lv_event_send', usb_row, 7, 0)  # LV_EVENT_CLICKED
     call('lv_event_send', row, 7, 0)
-    assert mca_enabled == enabled
-assert mca_selections == [False, True, True, False, True]
+    assert bool(call('settings_get_mca_enabled')) == enabled
+    assert call('settings_get_usb_mode', 1) == enabled
 call('lv_event_send', usb_row, 7, 0)
 call('lv_event_send', mass_row, 7, 0)
 assert call('settings_get_usb_mode', 1) == 2
 assert call('settings_get_usb_mode', 0) == 1
-assert mca_enabled and mca_selections == [False, True, True, False, True]
+assert call('settings_get_mca_enabled')
 heap('USB icon rendered')
 assert call('lv_disp_get_scr_act', 0) == screen
 assert call('lv_img_get_src', widget) == source
 assert bytes(u.mem_read(syms['splash_img'], 1032)) != pixels
-assert bytes(u.mem_read(syms['splash_img'], 1032)) == bytes(u.mem_read(syms['usb_splash_img'], 1032))
+usb_pixels = bytes(u.mem_read(syms['usb_splash_img'], 1032))
+assert bytes(u.mem_read(syms['splash_img'], 1032)) == usb_pixels
+assert frame == bytes((p >> bit) & 1 for p in usb_pixels[8:] for bit in range(7, -1, -1))
 call('settings_set_usb_mode', call('settings_get_usb_mode', 0))
 call('gui_usb_storage', 0)
 # Normal GUI refresh reloads the card image into the same buffer after remount.

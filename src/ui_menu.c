@@ -280,15 +280,18 @@ void ui_menu_set_page(lv_obj_t * obj, lv_obj_t * page)
         lv_obj_add_flag(menu->main_header_back_btn, LV_OBJ_FLAG_HIDDEN);
     }
 
-    if (page) {
-        uint8_t selected_item = ((ui_menu_page_t*)page)->selected_item;
-        lv_obj_t *focus = ui_menu_find_next_focusable(page, selected_item);
-        lv_group_focus_obj(focus);
-    }
-
     lv_event_send((lv_obj_t *)menu, LV_EVENT_VALUE_CHANGED, NULL);
 
     ui_menu_refr_main_header_mode(obj);
+
+    if (page) {
+        uint8_t selected_item = ((ui_menu_page_t*)page)->selected_item;
+        lv_obj_t *focus = ui_menu_find_next_focusable(page, selected_item);
+        if (focus) {
+            lv_group_focus_obj(focus);
+            lv_obj_scroll_to_view(focus, LV_ANIM_OFF);
+        }
+    }
 }
 
 void ui_menu_set_sidebar_page(lv_obj_t * obj, lv_obj_t * page)
@@ -385,7 +388,6 @@ void ui_menu_set_load_page_event(lv_obj_t * menu, lv_obj_t * obj, lv_obj_t * pag
 
     lv_obj_add_flag(obj, LV_OBJ_FLAG_CLICKABLE);
     lv_obj_clear_flag(obj, LV_OBJ_FLAG_SCROLLABLE);
-    lv_obj_add_flag(obj, LV_OBJ_FLAG_SCROLL_ON_FOCUS);
 
     /* Remove old event */
     if(lv_obj_remove_event_cb(obj, ui_menu_load_page_event_cb)) {
@@ -523,7 +525,7 @@ static void ui_menu_constructor(const lv_obj_class_t * class_p, lv_obj_t * obj)
     lv_obj_class_init_obj(main_header);
     lv_obj_set_size(main_header, LV_PCT(100), LV_SIZE_CONTENT);
     lv_obj_set_flex_flow(main_header, LV_FLEX_FLOW_ROW);
-    lv_obj_set_flex_align(main_header, LV_FLEX_ALIGN_START, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
+    lv_obj_set_flex_align(main_header, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER, LV_FLEX_ALIGN_CENTER);
     lv_obj_clear_flag(main_header, LV_OBJ_FLAG_CLICKABLE);
     lv_obj_add_flag(main_header, LV_OBJ_FLAG_EVENT_BUBBLE);
     menu->main_header = main_header;

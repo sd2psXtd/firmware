@@ -64,11 +64,7 @@ void fatal(int err, const char *format, ...) {
     static int fatal_reentry;
     if (!fatal_reentry) {
         fatal_reentry = 1;
-        oled_init();
-        oled_clear();
-        oled_draw_text("FATAL ERROR\n\n");
-        oled_draw_text(buf);
-        oled_show();
+        oled_show_error(buf);
     }
 #endif
     while (true) {

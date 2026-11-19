@@ -17,6 +17,7 @@
 #include <src/widgets/lv_label.h>
 #include <stdint.h>
 #include <stdio.h>
+#include <string.h>
 
 #include "card_config.h"
 #include "config.h"
@@ -44,12 +45,13 @@
 static uint64_t time_screen;
 
 /* Displays the line at the bottom for long pressing buttons */
-static lv_obj_t *g_navbar, *g_progress_bar, *g_progress_text, *g_activity_frame;
+static lv_obj_t *g_navbar, *g_progress_bar, *g_progress_text, *g_progress_pct, *g_write_indicator;
 
-static lv_obj_t *scr_switch_nag, *scr_card_switch, *scr_main, *scr_splash, *scr_menu, *menu, *main_page, *main_header;
-static lv_style_t style_inv, src_main_label_style;
-static lv_anim_t src_main_animation_template;
-static lv_obj_t *scr_main_idx_lbl, *scr_main_channel_lbl, *src_main_title_lbl, *lbl_channel, *lbl_ps1_autoboot, *lbl_ps1_game_id, *lbl_ps1_controllercombo,
+static lv_obj_t *scr_card_switch, *scr_main, *scr_splash, *scr_menu, *menu, *main_page;
+static lv_obj_t *main_status, *main_capacity;
+static lv_style_t style_inv, main_scroll_style;
+static lv_anim_t main_scroll_animation;
+static lv_obj_t *scr_main_idx_lbl, *scr_main_channel_lbl, *src_main_title_lbl, *lbl_ps1_autoboot, *lbl_ps1_game_id, *lbl_ps1_controllercombo,
     *lbl_ps2_autoboot, *lbl_ps2_cardsize, *lbl_ps2_variant, *lbl_ps2_game_id, *lbl_civ_err, *auto_off_lbl, *contrast_lbl, *vcomh_lbl, *lbl_mode, *lbl_scrn_flip, *lbl_usb_mode;
 
 static struct {
@@ -78,7 +80,6 @@ static struct {
 static int have_oled;
 static lv_obj_t *splash_image;
 static bool usb_screen, wait_button_release;
-static bool usb_nav_hidden, usb_activity_hidden;
 static enum {
     UI_STATE_SPLASH,
     UI_STATE_MAIN,
@@ -87,13 +88,150 @@ static enum {
     UI_STATE_GAME_IMG
 } ui_state;
 static int current_progress;
+static int displayed_progress = -1;
 static bool refresh_gui;
-static bool installing_exploit;
 
 #define COLOR_FG lv_color_white()
 #define COLOR_BG lv_color_black()
 
 #define ARRAY_SIZE(x) (sizeof(x) / sizeof((x)[0]))
+#define PROGRESS_WIDTH (DISPLAY_WIDTH - 10)
+
+/* Large numerals share the normal font for any non-numeric text. */
+#define NUMBER(a, b, c, d, e, f, g) {a, a, b, b, c, c, d, d, e, e, f, f, g, g}
+static const uint8_t number_glyphs[][14] = {
+    NUMBER(0x3c, 0x66, 0x66, 0x66, 0x66, 0x66, 0x3c),
+    NUMBER(0x18, 0x38, 0x18, 0x18, 0x18, 0x18, 0x3c),
+    NUMBER(0x3c, 0x66, 0x06, 0x0c, 0x30, 0x60, 0x7e),
+    NUMBER(0x3c, 0x66, 0x06, 0x1c, 0x06, 0x66, 0x3c),
+    NUMBER(0x0c, 0x1c, 0x2c, 0x4c, 0x7e, 0x0c, 0x0c),
+    NUMBER(0x7e, 0x60, 0x7c, 0x06, 0x06, 0x66, 0x3c),
+    NUMBER(0x1c, 0x30, 0x60, 0x7c, 0x66, 0x66, 0x3c),
+    NUMBER(0x7e, 0x06, 0x0c, 0x18, 0x30, 0x30, 0x30),
+    NUMBER(0x3c, 0x66, 0x66, 0x3c, 0x66, 0x66, 0x3c),
+    NUMBER(0x3c, 0x66, 0x66, 0x3e, 0x06, 0x0c, 0x38),
+    NUMBER(0x62, 0x64, 0x08, 0x10, 0x20, 0x46, 0x86),
+};
+#undef NUMBER
+
+static const uint8_t *number_bitmap(const lv_font_t *font, uint32_t c) {
+    (void)font;
+    if (c >= '0' && c <= '9')
+        return number_glyphs[c - '0'];
+    return c == '%' ? number_glyphs[10] : NULL;
+}
+
+static bool number_metrics(const lv_font_t *font, lv_font_glyph_dsc_t *dsc, uint32_t c, uint32_t next) {
+    (void)next;
+    if (!number_bitmap(font, c))
+        return false;
+    *dsc = (lv_font_glyph_dsc_t){.adv_w = 11, .box_w = 8, .box_h = 14, .bpp = 1};
+    return true;
+}
+
+static const lv_font_t number_font = {
+    .get_glyph_dsc = number_metrics,
+    .get_glyph_bitmap = number_bitmap,
+    .line_height = 16,
+    .fallback = LV_FONT_DEFAULT,
+};
+
+/* Private-use characters for the OLED status icons. */
+#define ICON_PS1  "\xee\x80\x80"
+#define ICON_PS2  "\xee\x80\x81"
+#define ICON_MCA  "\xee\x80\x82"
+#define ICON_CARD "\xee\x80\x83"
+enum { STATUS_ICON_HEIGHT = 12, CONSOLE_ICON_WIDTH = 24, USB_ICON_WIDTH = 8, CARD_ICON_WIDTH = 10 };
+
+/* Row-major monochrome bitmaps with three bytes per row and the left pixel in bit 7.
+ * References: https://commons.wikimedia.org/wiki/File:PlayStation_logo.svg
+ *             https://commons.wikimedia.org/wiki/File:PlayStation_2_logo.svg
+ */
+static const uint8_t console_icons[][CONSOLE_ICON_WIDTH / 8 * STATUS_ICON_HEIGHT] = {
+    { /* PlayStation symbol */
+        0x00, 0x30, 0x00,
+        0x00, 0x3e, 0x00,
+        0x00, 0x3b, 0x80,
+        0x00, 0x3b, 0x80,
+        0x00, 0x3b, 0x80,
+        0x00, 0x3b, 0x80,
+        0x00, 0x3b, 0x00,
+        0x01, 0xb9, 0xc0,
+        0x0f, 0x3f, 0x38,
+        0x1c, 0xb8, 0xf0,
+        0x03, 0xbf, 0xc0,
+        0x00, 0x1c, 0x00,
+    },
+    { /* PlayStation 2 symbol */
+        0x00, 0x00, 0x00,
+        0x00, 0x00, 0x00,
+        0xff, 0x1e, 0xff,
+        0x01, 0x10, 0x01,
+        0x01, 0x10, 0x01,
+        0xff, 0x10, 0xff,
+        0x80, 0x10, 0x80,
+        0x80, 0x10, 0x80,
+        0x81, 0xf0, 0xff,
+        0x00, 0x00, 0x00,
+        0x00, 0x00, 0x00,
+        0x00, 0x00, 0x00,
+    },
+};
+/* USB 2.0 trident, rotated upright and downscaled with one byte per row.
+ * Reference: https://commons.wikimedia.org/wiki/File:USB_icon.svg
+ */
+static const uint8_t usb_icon[USB_ICON_WIDTH / 8 * STATUS_ICON_HEIGHT] = {
+    0x10, 0x38, 0x16, 0x16,
+    0xd4, 0xdc, 0x58, 0x70,
+    0x10, 0x10, 0x38, 0x38,
+};
+
+/* Four 10-bit rows per five bytes, packed from the top left. */
+static const uint8_t card_icon[CARD_ICON_WIDTH * STATUS_ICON_HEIGHT / 8] = {
+    0x7f, 0xa3, 0x19, 0xe6, 0x01,
+    0x9e, 0x60, 0x18, 0x06, 0x01,
+    0x80, 0x60, 0x18, 0x05, 0xfe,
+};
+
+static const uint8_t *status_bitmap(const lv_font_t *font, uint32_t c) {
+    (void)font;
+    if (c >= 0xe000 && c <= 0xe001)
+        return console_icons[c - 0xe000];
+    if (c == 0xe002)
+        return usb_icon;
+    return c == 0xe003 ? card_icon : NULL;
+}
+
+static bool status_metrics(const lv_font_t *font, lv_font_glyph_dsc_t *dsc, uint32_t c, uint32_t next) {
+    (void)next;
+    if (c == ' ') {
+        *dsc = (lv_font_glyph_dsc_t){.adv_w = 4};
+        return true;
+    }
+    if (!status_bitmap(font, c))
+        return false;
+    uint8_t width = USB_ICON_WIDTH;
+    if (c <= 0xe001)
+        width = CONSOLE_ICON_WIDTH;
+    else if (c == 0xe003)
+        width = CARD_ICON_WIDTH;
+    *dsc = (lv_font_glyph_dsc_t){
+        .adv_w = width + 2,
+        .box_w = width,
+        .box_h = STATUS_ICON_HEIGHT,
+        .ofs_y = -2,
+        .bpp = 1,
+    };
+    return true;
+}
+
+static const lv_font_t status_font = {
+    .get_glyph_dsc = status_metrics,
+    .get_glyph_bitmap = status_bitmap,
+    .line_height = STATUS_ICON_HEIGHT,
+    .base_line = 2,
+    .fallback = LV_FONT_DEFAULT,
+};
 
 
 static void ui_goto_screen(lv_obj_t *scr) {
@@ -121,13 +259,18 @@ static lv_obj_t *ui_menu_cont_create_nav(lv_obj_t *parent) {
 static lv_obj_t *ui_menu_subpage_create(lv_obj_t *menu, const char *title) {
     lv_obj_t *page = ui_menu_page_create(menu, title);
     lv_obj_add_flag(page, LV_OBJ_FLAG_EVENT_BUBBLE);
-    lv_obj_clear_flag(page, LV_OBJ_FLAG_SCROLLABLE);  // handled ourselves in `evt_menu_page`
-    lv_group_add_obj(lv_group_get_default(), page);
-    lv_obj_add_event_cb(page, evt_menu_page, LV_EVENT_ALL, page);
+    lv_obj_set_scroll_dir(page, LV_DIR_VER);
+    lv_obj_add_event_cb(page, evt_menu_page, LV_EVENT_KEY, page);
     return page;
 }
 
 static lv_obj_t *ui_label_create(lv_obj_t *parent, const char *text) {
+    lv_obj_t *label = lv_label_create(parent);
+    lv_label_set_text_static(label, text ? text : "");
+    return label;
+}
+
+static lv_obj_t *ui_label_create_value(lv_obj_t *parent, const char *text) {
     lv_obj_t *label = lv_label_create(parent);
     lv_label_set_text(label, text);
     return label;
@@ -165,41 +308,30 @@ static lv_obj_t *ui_label_create_grow_scroll(lv_obj_t *parent, const char *text)
     return label;
 }
 
-static lv_obj_t *ui_header_create(lv_obj_t *parent, const char *text, bool inverted) {
-    lv_obj_t *lbl = lv_label_create(parent);
-    lv_obj_set_align(lbl, LV_ALIGN_TOP_MID);
-    if (inverted)
-        lv_obj_add_style(lbl, &style_inv, 0);
-    lv_obj_set_width(lbl, DISPLAY_WIDTH);
-    lv_obj_set_style_text_align(lbl, LV_TEXT_ALIGN_CENTER, 0);
-    lv_label_set_text(lbl, text);
-    return lbl;
+static lv_obj_t *ui_band(lv_obj_t *parent, int y, const char *text) {
+    lv_obj_t *label = ui_label_create_at(parent, 0, y, text);
+    lv_obj_add_style(label, &style_inv, 0);
+    lv_obj_set_size(label, DISPLAY_WIDTH, 12);
+    lv_obj_set_style_pad_top(label, 2, 0);
+    lv_obj_set_style_text_align(label, LV_TEXT_ALIGN_CENTER, 0);
+    return label;
 }
 
 static void update_bar(void) {
-    static lv_point_t line_points[2] = {{0, DISPLAY_HEIGHT / 2}, {0, DISPLAY_HEIGHT / 2}};
-    static int prev_progress;
-    if (current_progress / 5 == prev_progress / 5)
+    int progress = LV_CLAMP(0, current_progress, 100);
+    if (progress == displayed_progress)
         return;
-    prev_progress = current_progress;
-    line_points[1].x = (lv_coord_t)(DISPLAY_WIDTH * current_progress / 100);
-    lv_line_set_points(g_progress_bar, line_points, 2);
+    displayed_progress = progress;
+    lv_obj_set_width(g_progress_bar, PROGRESS_WIDTH * progress / 100);
+    lv_label_set_text_fmt(g_progress_pct, "%d%%", progress);
     lv_label_set_text(g_progress_text, ps2_cardman_get_progress_text());
 }
 
 static void flush_cb(lv_disp_drv_t *disp_drv, const lv_area_t *area, lv_color_t *color_p) {
     if (have_oled) {
-        oled_clear();
-
-        for (int y = area->y1; y <= area->y2; y++) {
-            for (int x = area->x1; x <= area->x2; x++) {
-                if (color_p->full)
-                    oled_draw_pixel(x, y);
-                color_p++;
-            }
-        }
-
-        oled_show();
+        oled_write_pixels(area->x1, area->y1, lv_area_get_width(area), lv_area_get_height(area), (const uint8_t *)color_p);
+        if (lv_disp_flush_is_last(disp_drv))
+            oled_show();
     }
     lv_disp_flush_ready(disp_drv);
 }
@@ -230,23 +362,10 @@ static void create_nav(void) {
     static lv_style_t style_line;
     lv_style_init(&style_line);
     lv_style_set_line_width(&style_line, 1);
-    lv_style_set_line_color(&style_line, lv_palette_main(LV_PALETTE_BLUE));
+    lv_style_set_line_color(&style_line, COLOR_FG);
 
     g_navbar = lv_line_create(lv_layer_top());
     lv_obj_add_style(g_navbar, &style_line, 0);
-
-    static lv_style_t style_frame;
-    lv_style_init(&style_frame);
-    lv_style_set_line_width(&style_frame, 20);
-    lv_style_set_line_color(&style_frame, lv_palette_main(LV_PALETTE_BLUE));
-
-    g_activity_frame = lv_line_create(lv_layer_top());
-    lv_obj_add_style(g_activity_frame, &style_frame, 0);
-
-    static lv_point_t line_points[5] = {{0, 0}, {DISPLAY_WIDTH, 0}, {DISPLAY_WIDTH, DISPLAY_HEIGHT}, {0, DISPLAY_HEIGHT}, {0, 0}};
-    lv_line_set_points(g_activity_frame, line_points, 5);
-
-    lv_obj_add_flag(g_activity_frame, LV_OBJ_FLAG_HIDDEN);
 }
 
 static void gui_tick(void) {
@@ -272,6 +391,7 @@ static void reload_card_cb(int progress, bool done) {
     if (done) {
         ps2_cardman_set_progress_cb(NULL);
         input_flush();
+        refresh_gui = true;
         if (ui_state != UI_STATE_SPLASH)
             ui_state = UI_STATE_MAIN;
     } else if (time_us_64() > GUI_SCREEN_IMAGE_TIMEOUT_US){
@@ -350,8 +470,6 @@ static void evt_scr_main(lv_event_t *event) {
             lv_scr_load(scr_menu);
             ui_menu_set_page(menu, NULL);
             ui_menu_set_page(menu, main_page);
-            lv_obj_t *first = lv_obj_get_child(main_page, 0);
-            lv_group_focus_obj(first);
             lv_event_stop_bubbling(event);
             ui_state = UI_STATE_MENU;
         }
@@ -401,40 +519,15 @@ void evt_menu_page(lv_event_t *event) {
         lv_obj_t *cur = lv_group_get_focused(lv_group_get_default());
         if (lv_obj_get_parent(cur) != page)
             return;
-        uint32_t idx = lv_obj_get_index(cur);
-        uint32_t count = lv_obj_get_child_cnt(page);
-        if (key == INPUT_KEY_NEXT) {
-            int next_idx = (int)((idx + 1) % count);
-            lv_obj_t *next = ui_menu_find_next_focusable(page, next_idx);
+        int idx = (int)lv_obj_get_index(cur);
+        int count = (int)lv_obj_get_child_cnt(page);
+        if (key == INPUT_KEY_PREV || key == INPUT_KEY_NEXT) {
+            lv_obj_t *next = key == INPUT_KEY_PREV
+                ? ui_menu_find_prev_focusable(page, (idx + count - 1) % count)
+                : ui_menu_find_next_focusable(page, (idx + 1) % count);
             lv_group_focus_obj(next);
+            lv_obj_scroll_to_view(next, LV_ANIM_OFF);
             lv_event_stop_bubbling(event);
-
-            lv_coord_t page_h = lv_obj_get_height(page);
-            lv_coord_t obj_h = lv_obj_get_height(next);
-            lv_coord_t view_y1 = lv_obj_get_scroll_y(page);
-            lv_coord_t view_y2 = view_y1 + page_h;
-            lv_coord_t obj_y1 = obj_h * (lv_coord_t)next_idx;
-            lv_coord_t obj_y2 = obj_y1 + obj_h;
-            if (obj_y2 > view_y2)
-                lv_obj_scroll_to_y(page, obj_y2 - page_h, false);  // scroll down
-            else if (view_y1 > obj_y1)
-                lv_obj_scroll_to_y(page, obj_y1, false);  // wrap around
-        } else if (key == INPUT_KEY_PREV) {
-            int prev_idx = (int)((idx + count - 1) % count);
-            lv_obj_t *prev = ui_menu_find_prev_focusable(page, prev_idx);
-            lv_group_focus_obj(prev);
-            lv_event_stop_bubbling(event);
-
-            lv_coord_t page_h = lv_obj_get_height(page);
-            lv_coord_t obj_h = lv_obj_get_height(prev);
-            lv_coord_t view_y1 = lv_obj_get_scroll_y(page);
-            lv_coord_t view_y2 = view_y1 + page_h;
-            lv_coord_t obj_y1 = obj_h * (lv_coord_t)prev_idx;
-            lv_coord_t obj_y2 = obj_y1 + obj_h;
-            if (obj_y1 < view_y1)
-                lv_obj_scroll_to_y(page, obj_y1, false);  // scroll up
-            else if (obj_y2 > view_y2)
-                lv_obj_scroll_to_y(page, obj_y2 - page_h, false);  // wrap around
         } else if (key == INPUT_KEY_ENTER) {
             lv_event_send(cur, LV_EVENT_CLICKED, NULL);
             lv_event_stop_bubbling(event);
@@ -451,25 +544,36 @@ void evt_menu_page(lv_event_t *event) {
     }
 }
 
-static void update_main_header(void) {
-    if (settings_get_mca_enabled()) {
-        lv_label_set_text(main_header, settings_get_mode(true) == MODE_PS2 ? "USB MCA: PS2" : "USB MCA: PS1");
-    } else if (settings_get_mode(true) == MODE_PS1) {
-        lv_label_set_text(main_header, "PS1 Memory Card");
-    } else if (settings_get_mode(true) == MODE_PS2){
-        if (!ps2_magicgate)
-            lv_label_set_text(main_header, "PS2: No CIV!");
-        else if (PS2_VARIANT_RETAIL == settings_get_ps2_variant())
-            lv_label_set_text(main_header, "PS2 Memory Card");
-        else if (PS2_VARIANT_PROTO == settings_get_ps2_variant())
-            lv_label_set_text(main_header, "Prototype Card");
-        else if (PS2_VARIANT_COH == settings_get_ps2_variant())
-            lv_label_set_text(main_header, "Security Dongle");
-        else if (PS2_VARIANT_SC2 == settings_get_ps2_variant())
-            lv_label_set_text(main_header, "Conquest Card");
-    } else {
-        lv_label_set_text(main_header, "USB Mode");
+static void update_main_status(void) {
+    if (!main_status)
+        return;
+
+    int mode = settings_get_mode(true);
+    const char *console = ICON_PS1;
+    if (mode == MODE_PS2) {
+        switch (settings_get_ps2_variant()) {
+            case PS2_VARIANT_PROTO: console = "PRO"; break;
+            case PS2_VARIANT_COH: console = "COH"; break;
+            case PS2_VARIANT_SC2: console = "SC2"; break;
+            default: console = ICON_PS2; break;
+        }
     }
+    if (mode == MODE_PS2 && !ps2_magicgate)
+        lv_label_set_text_fmt(main_status, "%s !CIV", console);
+    else
+        lv_label_set_text_static(main_status, console);
+
+    bool mca = settings_get_mca_enabled();
+    const char *icon = mca ? ICON_MCA : ICON_CARD;
+    uint32_t size = mode == MODE_PS2 ? ps2_cardman_get_card_size() : 128u * 1024;
+    if (size >= PS2_CARD_SIZE_1G)
+        lv_label_set_text_fmt(main_capacity, "%s%uGB", icon, (unsigned)(size >> 30));
+    else if (size >= PS2_CARD_SIZE_1M)
+        lv_label_set_text_fmt(main_capacity, "%s%uMB", icon, (unsigned)(size >> 20));
+    else if (size)
+        lv_label_set_text_fmt(main_capacity, "%s%uKB", icon, (unsigned)(size >> 10));
+    else
+        lv_label_set_text_static(main_capacity, mca ? ICON_MCA "--" : ICON_CARD "--");
 }
 
 static void evt_go_back(lv_event_t *event) {
@@ -564,7 +668,7 @@ static void evt_switch_variant(lv_event_t *event) {
 
     ps2_cardman_set_variant(variant);
 
-    update_main_header();
+    update_main_status();
 
     {
         if (settings_get_ps2_variant() == PS2_VARIANT_RETAIL)
@@ -592,7 +696,7 @@ static void evt_switch_to_ps2(lv_event_t *event) {
     gui_request_refresh();
     keystore_init();
 
-    update_main_header();
+    update_main_status();
 
     /* start at the main screen */
     ui_state = UI_STATE_MAIN;
@@ -608,7 +712,7 @@ static void evt_set_usb_mode(lv_event_t *event) {
 void gui_mca_mode_changed(void) {
     if (lbl_usb_mode)
         lv_label_set_text(lbl_usb_mode, settings_get_mca_enabled() ? "MCA>" : "Serial>");
-    update_main_header();
+    update_main_status();
     gui_request_refresh();
 }
 
@@ -633,105 +737,85 @@ static void evt_set_display_vcomh(lv_event_t *event) {
 }
 
 
-static void create_main_screen(void) {
-    lv_obj_t *lbl;
+static lv_obj_t *ui_panel(lv_obj_t *parent, int x, int y, int width, int height) {
+    lv_obj_t *panel = lv_obj_create(parent);
+    lv_obj_remove_style_all(panel);
+    lv_obj_clear_flag(panel, LV_OBJ_FLAG_SCROLLABLE);
+    lv_obj_set_pos(panel, x, y);
+    lv_obj_set_size(panel, width, height);
+    lv_obj_set_style_border_width(panel, 1, 0);
+    lv_obj_set_style_border_color(panel, COLOR_FG, 0);
+    return panel;
+}
 
-    /* Main screen listing current memcard, status, etc */
+static lv_obj_t *ui_panel_label(lv_obj_t *panel, int y, const char *text) {
+    lv_obj_t *label = ui_label_create(panel, text);
+    lv_obj_set_width(label, LV_PCT(100));
+    lv_obj_set_style_text_align(label, LV_TEXT_ALIGN_CENTER, 0);
+    lv_obj_align(label, LV_ALIGN_TOP_MID, 0, y);
+    return label;
+}
+
+static void create_main_screen(void) {
     scr_main = ui_scr_create();
     lv_obj_add_event_cb(scr_main, evt_scr_main, LV_EVENT_ALL, NULL);
-    main_header = ui_header_create(scr_main, "", true);
-    update_main_header();
+    main_status = ui_label_create_at(scr_main, 2, 1, "");
+    main_capacity = ui_label_create(scr_main, "");
+    lv_obj_set_style_text_font(main_status, &status_font, 0);
+    lv_obj_set_style_text_font(main_capacity, &status_font, 0);
+    lv_obj_align(main_capacity, LV_ALIGN_TOP_RIGHT, -2, 1);
+    update_main_status();
 
-    ui_label_create_at(scr_main, 0, 24, "Card");
+    lv_obj_t *card = ui_panel(scr_main, 1, 14, 85, 29);
+    lv_obj_t *channel = ui_panel(scr_main, 88, 14, 39, 29);
+    ui_panel_label(card, 2, "Card");
+    ui_panel_label(channel, 2, "Chan");
 
-    scr_main_idx_lbl = ui_label_create_at(scr_main, 0, 24, "");
-    lv_obj_set_align(scr_main_idx_lbl, LV_ALIGN_TOP_RIGHT);
-    lv_obj_set_width(scr_main_idx_lbl, 11 * 8);  // 11 characters, assuming 8px monospace font
-    lv_obj_set_style_text_align(scr_main_idx_lbl, LV_TEXT_ALIGN_RIGHT, LV_PART_MAIN);
+    lv_anim_init(&main_scroll_animation);
+    lv_anim_set_delay(&main_scroll_animation, 1000);
+    lv_style_init(&main_scroll_style);
+    lv_style_set_anim(&main_scroll_style, &main_scroll_animation);
+
+    scr_main_idx_lbl = ui_panel_label(card, 13, "");
     lv_label_set_long_mode(scr_main_idx_lbl, LV_LABEL_LONG_SCROLL_CIRCULAR);
+    lv_obj_add_style(scr_main_idx_lbl, &main_scroll_style, 0);
 
-    lv_anim_init(&src_main_animation_template);
-    lv_anim_set_delay(&src_main_animation_template, 1000); /*Wait 1 second to start the first scroll*/
-    lv_anim_set_repeat_count(&src_main_animation_template, 0);
+    scr_main_channel_lbl = ui_panel_label(channel, 13, "");
 
-    lv_obj_remove_style(scr_main_idx_lbl, &src_main_label_style, LV_STATE_DEFAULT);
-    lv_style_init(&src_main_label_style);
-    lv_style_set_anim(&src_main_label_style, &src_main_animation_template);  //<
-    lv_obj_add_style(scr_main_idx_lbl, &src_main_label_style, LV_STATE_DEFAULT);
-
-    lbl_channel = ui_label_create_at(scr_main, 0, 32, "Channel");
-
-    scr_main_channel_lbl = ui_label_create_at(scr_main, 0, 32, "");
-    lv_obj_set_align(scr_main_channel_lbl, LV_ALIGN_TOP_RIGHT);
-
-    src_main_title_lbl = lv_label_create(scr_main);
-    lv_obj_set_align(src_main_title_lbl, LV_ALIGN_TOP_LEFT);
-    lv_obj_set_pos(src_main_title_lbl, 0, 40);
-    lv_label_set_text(src_main_title_lbl, "");
+    src_main_title_lbl = ui_label_create_at(scr_main, 2, 44, "");
     lv_label_set_long_mode(src_main_title_lbl, LV_LABEL_LONG_SCROLL_CIRCULAR);
-    lv_obj_set_width(src_main_title_lbl, 128);
+    lv_obj_set_width(src_main_title_lbl, DISPLAY_WIDTH - 4);
+    lv_obj_add_style(src_main_title_lbl, &main_scroll_style, 0);
 
-    {
-        lv_anim_init(&src_main_animation_template);
-        lv_anim_set_delay(&src_main_animation_template, 1000); /*Wait 1 second to start the first scroll*/
-        lv_anim_set_repeat_count(&src_main_animation_template, 0);
+    ui_label_create_at(scr_main, 2, 54, "< Ch");
+    ui_label_create_at(scr_main, 48, 54, "Menu");
+    ui_label_create_at(scr_main, 94, 54, "Ch >");
 
-        /*Initialize the label style with the animation template*/
-        lv_style_init(&src_main_label_style);
-        lv_style_set_anim(&src_main_label_style, &src_main_animation_template);
-
-        lv_obj_add_style(src_main_title_lbl, &src_main_label_style, LV_STATE_DEFAULT);
-    }
-
-    lbl = lv_label_create(scr_main);
-    lv_obj_set_align(lbl, LV_ALIGN_BOTTOM_LEFT);
-    lv_obj_set_pos(lbl, 0, -2);
-    lv_label_set_text(lbl, "<");
-    lv_obj_add_style(lbl, &style_inv, 0);
-
-    lbl = lv_label_create(scr_main);
-    lv_obj_set_align(lbl, LV_ALIGN_BOTTOM_MID);
-    lv_obj_set_pos(lbl, 0, -2);
-    lv_label_set_text(lbl, "Menu");
-    lv_obj_set_width(lbl, 4 * 8 + 2);
-    lv_obj_set_style_text_align(lbl, LV_TEXT_ALIGN_CENTER, 0);
-    lv_obj_add_style(lbl, &style_inv, 0);
-
-    lbl = lv_label_create(scr_main);
-    lv_obj_set_align(lbl, LV_ALIGN_BOTTOM_RIGHT);
-    lv_obj_set_pos(lbl, 0, -2);
-    lv_label_set_text(lbl, ">");
-    lv_obj_add_style(lbl, &style_inv, 0);
+    g_write_indicator = lv_obj_create(scr_main);
+    lv_obj_remove_style_all(g_write_indicator);
+    lv_obj_set_pos(g_write_indicator, 79, 18);
+    lv_obj_set_size(g_write_indicator, 4, 4);
+    lv_obj_set_style_bg_color(g_write_indicator, COLOR_FG, 0);
+    lv_obj_set_style_bg_opa(g_write_indicator, LV_OPA_COVER, 0);
+    lv_obj_add_flag(g_write_indicator, LV_OBJ_FLAG_HIDDEN);
 }
 
 static void create_cardswitch_screen(void) {
     scr_card_switch = ui_scr_create();
+    ui_band(scr_card_switch, 0, "Loading card");
 
-    ui_header_create(scr_card_switch, "Loading card", true);
+    g_progress_pct = ui_label_create_at(scr_card_switch, 4, 15, "0%");
+    lv_obj_set_style_text_font(g_progress_pct, &number_font, 0);
 
-    static lv_style_t style_progress;
-    lv_style_init(&style_progress);
-    lv_style_set_line_width(&style_progress, 12);
-    lv_style_set_line_color(&style_progress, lv_palette_main(LV_PALETTE_BLUE));
+    ui_panel(scr_card_switch, 3, 36, DISPLAY_WIDTH - 6, 11);
+    g_progress_bar = lv_obj_create(scr_card_switch);
+    lv_obj_remove_style_all(g_progress_bar);
+    lv_obj_set_pos(g_progress_bar, 5, 38);
+    lv_obj_set_size(g_progress_bar, 0, 7);
+    lv_obj_set_style_bg_color(g_progress_bar, COLOR_FG, 0);
+    lv_obj_set_style_bg_opa(g_progress_bar, LV_OPA_COVER, 0);
 
-    g_progress_bar = lv_line_create(scr_card_switch);
-    lv_obj_set_width(g_progress_bar, DISPLAY_WIDTH);
-    lv_obj_add_style(g_progress_bar, &style_progress, 0);
-
-    g_progress_text = lv_label_create(scr_card_switch);
-    lv_obj_set_align(g_progress_text, LV_ALIGN_TOP_LEFT);
-    lv_obj_set_pos(g_progress_text, 0, DISPLAY_HEIGHT - 9);
-    lv_label_set_text(g_progress_text, "Read XXX kB/s");
-}
-
-static void create_switch_nag_screen(void) {
-    scr_switch_nag = ui_scr_create();
-
-    ui_header_create(scr_switch_nag, "Mode switch", false);
-
-    ui_label_create_at(scr_switch_nag, 0, 24, "Now unplug the");
-    ui_label_create_at(scr_switch_nag, 0, 32, "card and then");
-    ui_label_create_at(scr_switch_nag, 0, 40, "plug it back in");
+    g_progress_text = ui_label_create_at(scr_card_switch, 4, 51, "");
 }
 
 static void evt_usb_storage(lv_event_t *event) {
@@ -748,26 +832,19 @@ static void create_menu_screen(void) {
 
     menu = ui_menu_create(scr_menu);
     lv_obj_add_flag(menu, LV_OBJ_FLAG_EVENT_BUBBLE);
-    lv_obj_set_size(menu, lv_disp_get_hor_res(NULL), lv_disp_get_ver_res(NULL) - 2);
+    lv_obj_set_size(menu, DISPLAY_WIDTH, DISPLAY_HEIGHT - 2);
+    lv_obj_t *header = ui_menu_get_main_header(menu);
+    lv_obj_set_height(header, 12);
 
     lv_obj_t *cont;
 
     /* deploy submenu */
-    lv_obj_t *mode_page = ui_menu_subpage_create(menu, NULL);
-    ui_header_create(mode_page, "Mode", false);
+    lv_obj_t *mode_page = ui_menu_subpage_create(menu, "Mode");
     {
-        lv_obj_t *ps2_switch_warn = ui_menu_subpage_create(menu, NULL);
+        lv_obj_t *ps2_switch_warn = ui_menu_subpage_create(menu, "Switch to PS2");
         {
             cont = ui_menu_cont_create(ps2_switch_warn);
-            ui_label_create(cont, "Avoid insert in");
-            cont = ui_menu_cont_create(ps2_switch_warn);
-            ui_label_create(cont, "PS1 while in PS2");
-            cont = ui_menu_cont_create(ps2_switch_warn);
-            ui_label_create(cont, "mode. Safeguards");
-            cont = ui_menu_cont_create(ps2_switch_warn);
-            ui_label_create(cont, "may not prevent");
-            cont = ui_menu_cont_create(ps2_switch_warn);
-            ui_label_create(cont, "all damage.");
+            ui_label_create_grow(cont, "PS2 mode can\ndamage a PS1.");
 
             cont = ui_menu_cont_create_nav(ps2_switch_warn);
             ui_label_create(cont, "Confirm");
@@ -788,8 +865,7 @@ static void create_menu_screen(void) {
     }
 
     /* display / auto off submenu */
-    lv_obj_t *auto_off_page = ui_menu_subpage_create(menu, NULL);
-    ui_header_create(auto_off_page, "Auto off", false);
+    lv_obj_t *auto_off_page = ui_menu_subpage_create(menu, "Auto off");
     {
         auto_off_options[0].value = 0;
         auto_off_options[1].value = 5;
@@ -808,27 +884,23 @@ static void create_menu_screen(void) {
     }
 
     /* display / contrast submenu */
-    lv_obj_t *contrast_page = ui_menu_subpage_create(menu, NULL);
-    ui_header_create(contrast_page, "Contrast", false);
+    lv_obj_t *contrast_page = ui_menu_subpage_create(menu, "Contrast");
     {
 
         for (size_t i = 0; i < ARRAY_SIZE(contrast_options); i++) {
-            char text[8];
             uint8_t percentage = (uint8_t)((i + 1) * 10);
             uint8_t value = (uint8_t)((255 * percentage) / 100);
             contrast_options[i].value = value;
             contrast_options[i].label_value = percentage;
-            snprintf(text, sizeof(text), " %hhu%%", percentage);
 
             cont = ui_menu_cont_create_nav(contrast_page);
-            contrast_options[i].selection_lbl = ui_label_create_grow(cont, text);
+            contrast_options[i].selection_lbl = ui_label_create_grow(cont, NULL);
             lv_obj_add_event_cb(cont, evt_set_display_contrast, LV_EVENT_CLICKED, (void *)(intptr_t)value);
         }
     }
 
     /* display / vcomh submenu */
-    lv_obj_t *vcomh_page = ui_menu_subpage_create(menu, NULL);
-    ui_header_create(vcomh_page, "VCOMH", false);
+    lv_obj_t *vcomh_page = ui_menu_subpage_create(menu, "VCOMH");
     {
         vcomh_options[0].value = 0x00;
         vcomh_options[1].value = 0x20;
@@ -850,8 +922,7 @@ static void create_menu_screen(void) {
     }
 
     /* display config */
-    lv_obj_t *display_page = ui_menu_subpage_create(menu, NULL);
-    ui_header_create(display_page, "Display", false);
+    lv_obj_t *display_page = ui_menu_subpage_create(menu, "Display");
     {
         cont = ui_menu_cont_create_nav(display_page);
         ui_label_create_grow(cont, "Auto off");
@@ -878,8 +949,7 @@ static void create_menu_screen(void) {
     }
 
     /* ps1 */
-    lv_obj_t *ps1_page = ui_menu_subpage_create(menu, NULL);
-    ui_header_create(ps1_page, "PS1 Settings", false);
+    lv_obj_t *ps1_page = ui_menu_subpage_create(menu, "PS1 Settings");
     {
         cont = ui_menu_cont_create_nav(ps1_page);
         ui_label_create_grow_scroll(cont, "Autoboot");
@@ -898,15 +968,11 @@ static void create_menu_screen(void) {
     }
 
     /* ps2 */
-    lv_obj_t *ps2_page = ui_menu_subpage_create(menu, NULL);
-    ui_header_create(ps2_page, "PS2 Settings", false);
+    lv_obj_t *ps2_page = ui_menu_subpage_create(menu, "PS2 Settings");
     {
         /* deploy submenu */
-        lv_obj_t *civ_page = ui_menu_subpage_create(menu, NULL);
-        ui_header_create(civ_page, "Deploy CIV.bin", false);
+        lv_obj_t *civ_page = ui_menu_subpage_create(menu, "Deploy CIV.bin");
         {
-            cont = ui_menu_cont_create(civ_page);
-            ui_label_create(cont, "");
             cont = ui_menu_cont_create(civ_page);
             lbl_civ_err = ui_label_create(cont, "");
 
@@ -916,8 +982,7 @@ static void create_menu_screen(void) {
         }
 
         /* cardsize submenu */
-        lv_obj_t *cardsize_page = ui_menu_subpage_create(menu, NULL);
-        ui_header_create(cardsize_page, "Default Size", false);
+        lv_obj_t *cardsize_page = ui_menu_subpage_create(menu, "Default Size");
         {
             cardsize_options[0].value = 1;
             cardsize_options[1].value = 2;
@@ -930,21 +995,16 @@ static void create_menu_screen(void) {
 
             for (size_t i = 0; i < ARRAY_SIZE(cardsize_options); i++) {
                 uint8_t value = cardsize_options[i].value;
-                char text[10] = {};
-                if (value <= 8)
-                    snprintf(text, ARRAY_SIZE(text), "%c %u MB", settings_get_ps2_cardsize() == value ? '>' : ' ', value);
-                else
-                    snprintf(text, ARRAY_SIZE(text), "%c %u MB*", settings_get_ps2_cardsize() == value ? '>' : ' ', value);
-
                 cont = ui_menu_cont_create_nav(cardsize_page);
-                cardsize_options[i].selection_lbl = ui_label_create_grow(cont, text);
+                cardsize_options[i].selection_lbl = ui_label_create_grow(cont, NULL);
                 lv_obj_add_event_cb(cont, evt_set_ps2_cardsize, LV_EVENT_CLICKED, (void *)(intptr_t)value);
             }
         }
 
+        ui_set_cardsize();
+
         /* Variant submenu */
-        lv_obj_t *variant_page = ui_menu_subpage_create(menu, NULL);
-        ui_header_create(variant_page, "Variant", false);
+        lv_obj_t *variant_page = ui_menu_subpage_create(menu, "Variant");
         {
             cont = ui_menu_cont_create_nav(variant_page);
             ui_label_create(cont, "Retail");
@@ -974,7 +1034,7 @@ static void create_menu_screen(void) {
                 snprintf(text, ARRAY_SIZE(text), "Conquest>");
             cont = ui_menu_cont_create_nav(ps2_page);
             ui_label_create_grow(cont, "Variant");
-            lbl_ps2_variant = ui_label_create(cont, text);
+            lbl_ps2_variant = ui_label_create_value(cont, text);
             ui_menu_set_load_page_event(menu, cont, variant_page);
         }
 
@@ -1003,14 +1063,13 @@ static void create_menu_screen(void) {
                 snprintf(text, ARRAY_SIZE(text), "%u MB*>", settings_get_ps2_cardsize());
             cont = ui_menu_cont_create_nav(ps2_page);
             ui_label_create_grow(cont, "Size");
-            lbl_ps2_cardsize = ui_label_create(cont, text);
+            lbl_ps2_cardsize = ui_label_create_value(cont, text);
             ui_menu_set_load_page_event(menu, cont, cardsize_page);
         }
     }
 
     /* Info submenu */
-    lv_obj_t *info_page = ui_menu_subpage_create(menu, NULL);
-    ui_header_create(info_page, "Info", false);
+    lv_obj_t *info_page = ui_menu_subpage_create(menu, "Info");
     {
         sd_cid_t cid = sd_get_CID();
         char text[32];
@@ -1033,24 +1092,23 @@ static void create_menu_screen(void) {
         snprintf(text, sizeof(text), "%04X", cid.mid);
         cont = ui_menu_cont_create_nav(info_page);
         ui_label_create_grow_scroll(cont, "SD MID");
-        ui_label_create(cont, text);
+        ui_label_create_value(cont, text);
         memset(text, 0, sizeof(text));
 
         snprintf(text, sizeof(text), "%02X%02X", cid.oid[0], cid.oid[1]);
         cont = ui_menu_cont_create_nav(info_page);
         ui_label_create_grow_scroll(cont, "SD OID");
-        ui_label_create(cont, text);
+        ui_label_create_value(cont, text);
         memset(text, 0, sizeof(text));
 
         snprintf(text, sizeof(text), "%02d/%04d",
             cid.mdt_month, 2000 + ((cid.mdt_year_high << 4) | cid.mdt_year_low));
         cont = ui_menu_cont_create_nav(info_page);
         ui_label_create_grow_scroll(cont, "SD Date");
-        ui_label_create(cont, text);
+        ui_label_create_value(cont, text);
     }
 
-    lv_obj_t *usb_mode_page = ui_menu_subpage_create(menu, NULL);
-    ui_header_create(usb_mode_page, "USB Mode", false);
+    lv_obj_t *usb_mode_page = ui_menu_subpage_create(menu, "USB Mode");
     {
         cont = ui_menu_cont_create_nav(usb_mode_page);
         ui_label_create(cont, "Serial");
@@ -1065,9 +1123,19 @@ static void create_menu_screen(void) {
         lv_obj_add_event_cb(cont, evt_usb_storage, LV_EVENT_CLICKED, NULL);
     }
 
+    lv_obj_t *controls_page = ui_menu_subpage_create(menu, "Controls");
+    cont = ui_menu_cont_create(controls_page);
+    lv_obj_t *help = ui_label_create_grow(cont,
+        "Home tap: Chan\nHome hold: Card\nBoth: menu/home\nMenu hold L:Back\nMenu hold R: OK");
+    lv_obj_set_style_text_letter_space(help, -1, 0);
+    lv_obj_set_style_text_line_space(help, -1, 0);
+    cont = ui_menu_cont_create_nav(controls_page);
+    lv_obj_set_style_min_height(cont, 9, 0);
+    ui_label_create(cont, "Back");
+    lv_obj_add_event_cb(cont, evt_go_back, LV_EVENT_CLICKED, NULL);
+
     /* Main menu */
-    main_page = ui_menu_subpage_create(menu, NULL);
-    ui_header_create(main_page, "Main Menu", false);
+    main_page = ui_menu_subpage_create(menu, "Main Menu");
     {
         cont = ui_menu_cont_create_nav(main_page);
         ui_label_create_grow(cont, "Boot Mode");
@@ -1098,6 +1166,11 @@ static void create_menu_screen(void) {
         ui_label_create_grow_scroll(cont, "Info");
         ui_label_create(cont, ">");
         ui_menu_set_load_page_event(menu, cont, info_page);
+
+        cont = ui_menu_cont_create_nav(main_page);
+        ui_label_create_grow(cont, "Controls");
+        ui_label_create(cont, ">");
+        ui_menu_set_load_page_event(menu, cont, controls_page);
     }
 
     ui_menu_set_page(menu, main_page);
@@ -1133,10 +1206,7 @@ void gui_usb_storage(bool enabled) {
     usb_screen = enabled;
     input_flush();
     if (enabled) {
-        usb_nav_hidden = lv_obj_has_flag(g_navbar, LV_OBJ_FLAG_HIDDEN);
-        usb_activity_hidden = lv_obj_has_flag(g_activity_frame, LV_OBJ_FLAG_HIDDEN);
         lv_obj_add_flag(g_navbar, LV_OBJ_FLAG_HIDDEN);
-        lv_obj_add_flag(g_activity_frame, LV_OBJ_FLAG_HIDDEN);
         splash_load_usb();
         lv_img_cache_invalidate_src(lv_img_get_src(splash_image));
         lv_obj_invalidate(splash_image);
@@ -1144,8 +1214,6 @@ void gui_usb_storage(bool enabled) {
         oled_update_last_action_time();
         lv_refr_now(NULL);
     } else {
-        if (!usb_nav_hidden) lv_obj_clear_flag(g_navbar, LV_OBJ_FLAG_HIDDEN);
-        if (!usb_activity_hidden) lv_obj_clear_flag(g_activity_frame, LV_OBJ_FLAG_HIDDEN);
         wait_button_release = true;
         ui_state = UI_STATE_MAIN;
         refresh_gui = true;
@@ -1167,7 +1235,6 @@ static void create_ui(void) {
     create_main_screen();
     create_menu_screen();
     create_cardswitch_screen();
-    create_switch_nag_screen();
     create_splash();
 
     /* start at the main screen */
@@ -1182,16 +1249,14 @@ static void update_activity(void) {
     uint64_t time = time_us_64();
     write_occured |= (ps1_mc_data_interface_write_occured() || ps2_mc_data_interface_write_occured());
     if ((time - last_update) > 200 * 1000) {
-        // TODO: Causes a 31ms delay that causes issues with mmce fs
         if (write_occured) {
-            input_flush();
             if (!visible) {
-                lv_obj_clear_flag(g_activity_frame, LV_OBJ_FLAG_HIDDEN);
+                lv_obj_clear_flag(g_write_indicator, LV_OBJ_FLAG_HIDDEN);
                 visible = true;
             }
             last_update = time;
         } else if (visible) {
-            lv_obj_add_flag(g_activity_frame, LV_OBJ_FLAG_HIDDEN);
+            lv_obj_add_flag(g_write_indicator, LV_OBJ_FLAG_HIDDEN);
             last_update = time;
             visible = false;
         }
@@ -1201,10 +1266,7 @@ static void update_activity(void) {
 
 void gui_init(void) {
     if (!lv_is_initialized()) {
-        if ((have_oled = oled_init())) {
-            oled_clear();
-            oled_show();
-        }
+        have_oled = oled_init();
         if (settings_get_display_flipped())
             input_flip();
 
@@ -1213,8 +1275,10 @@ void gui_init(void) {
         log(LOG_INFO, "lv_init done \n");
 
         static lv_disp_draw_buf_t disp_buf;
-        static lv_color_t buf_1[DISPLAY_WIDTH * DISPLAY_HEIGHT];
-        lv_disp_draw_buf_init(&disp_buf, buf_1, NULL, DISPLAY_WIDTH * DISPLAY_HEIGHT);
+        /* Sixteen rows at a time. The OLED driver retains the complete 1-bit frame. */
+        _Static_assert(sizeof(lv_color_t) == 1, "The OLED flush uses 8-bit LVGL pixels");
+        static lv_color_t draw_buf[DISPLAY_WIDTH * 16];
+        lv_disp_draw_buf_init(&disp_buf, draw_buf, NULL, ARRAY_SIZE(draw_buf));
 
         static lv_disp_drv_t disp_drv;
         lv_disp_drv_init(&disp_drv);
@@ -1222,7 +1286,6 @@ void gui_init(void) {
         disp_drv.flush_cb = flush_cb;
         disp_drv.hor_res = DISPLAY_WIDTH;
         disp_drv.ver_res = DISPLAY_HEIGHT;
-        disp_drv.direct_mode = disp_drv.full_refresh = 1;
 
         lv_disp_t *disp;
         disp = lv_disp_drv_register(&disp_drv);
@@ -1244,7 +1307,6 @@ void gui_init(void) {
         splash_init();
 
         refresh_gui = false;
-        installing_exploit = false;
         ui_state = UI_STATE_SPLASH;
     }
 }
@@ -1266,8 +1328,7 @@ void gui_do_ps1_card_switch(void) {
 
 void gui_do_ps2_card_switch(void) {
     current_progress = 0;
-
-    update_bar();
+    displayed_progress = -1;
 
     oled_update_last_action_time();
 
@@ -1285,7 +1346,8 @@ void gui_task(void) {
         gui_tick();
         return;
     }
-    input_update_display(g_navbar);
+    if (!wait_button_release)
+        input_update_display(g_navbar);
 
     char card_name[127];
     const char *folder_name = NULL;
@@ -1298,6 +1360,7 @@ void gui_task(void) {
             case UI_STATE_SPLASH:
                 // After initial splash time - move to main screen
                 ui_state = UI_STATE_MAIN;
+                __attribute__((fallthrough));
             case UI_STATE_MAIN:
                 ui_goto_screen(scr_main);
                 break;
@@ -1326,7 +1389,7 @@ void gui_task(void) {
 
             if (displayed_card_idx != ps1_cardman_get_idx() || displayed_card_channel != ps1_cardman_get_channel() || cardman_state != ps1_cardman_get_state() ||
                 refresh_gui) {
-                update_main_header();
+                update_main_status();
                 displayed_card_idx = ps1_cardman_get_idx();
                 displayed_card_channel = ps1_cardman_get_channel();
                 folder_name = ps1_cardman_get_folder_name();
@@ -1359,11 +1422,7 @@ void gui_task(void) {
                     game_db_get_game_name(folder_name, card_name);
                 }
 
-                if (card_name[0]) {
-                    lv_label_set_text(src_main_title_lbl, card_name);
-                } else {
-                    lv_label_set_text(src_main_title_lbl, "");
-                }
+                lv_label_set_text(src_main_title_lbl, card_name);
                 splash_update_current(folder_name, cardman_state == PS1_CM_STATE_BOOT ? "BootCard" : folder_name, ps1_cardman_get_channel());
                 // Make sure to go back to main screen here in case we were on the splash screen due to a game image being shown, otherwise the screen won't update until the next timeout
                 time_screen = time_us_64();
@@ -1385,7 +1444,7 @@ void gui_task(void) {
                 displayed_card_channel = ps2_cardman_get_channel();
                 folder_name = ps2_cardman_get_folder_name();
                 cardman_state = ps2_cardman_get_state();
-                update_main_header();
+                update_main_status();
                 memset(card_name, 0, sizeof(card_name));
 
                 switch (cardman_state) {
@@ -1414,21 +1473,7 @@ void gui_task(void) {
                     game_db_get_game_name(folder_name, card_name);
                 }
 
-                if (card_name[0]) {
-                    lv_label_set_text(src_main_title_lbl, card_name);
-                    lv_anim_init(&src_main_animation_template);
-                    lv_anim_set_delay(&src_main_animation_template, 1000); /*Wait 1 second to start the first scroll*/
-                    lv_anim_set_repeat_count(&src_main_animation_template, 0);
-
-                    lv_obj_remove_style(src_main_title_lbl, &src_main_label_style, LV_STATE_DEFAULT);
-                    lv_style_init(&src_main_label_style);
-                    lv_style_set_anim(&src_main_label_style, &src_main_animation_template);
-
-                    lv_obj_add_style(src_main_title_lbl, &src_main_label_style, LV_STATE_DEFAULT);
-                } else {
-                    lv_label_set_text(src_main_title_lbl, "");
-                }
-
+                lv_label_set_text(src_main_title_lbl, card_name);
                 splash_update_current(folder_name, cardman_state == PS2_CM_STATE_BOOT ? "BootCard" : folder_name, ps2_cardman_get_channel());
 
                 refresh_gui = false;
@@ -1447,5 +1492,4 @@ void gui_task(void) {
     }
 
     gui_tick();
-    // log(LOG_TRACE, "repeat count %u, time %u\n", src_main_animation_template.repeat_cnt, src_main_animation_template.playback_time);
 }
