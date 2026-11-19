@@ -216,6 +216,7 @@ void ps1_cardman_open(void) {
     log(LOG_INFO, "Switching to card path = %s\n", path);
 
     if (!sd_exists(path)) {
+        int fd_template = sd_open(".sd2psx/ps1.mcd", O_RDONLY);
         fd = sd_open(path, O_RDWR | O_CREAT | O_TRUNC);
 
         if (fd < 0)
@@ -225,7 +226,12 @@ void ps1_cardman_open(void) {
         uint64_t cardprog_start = time_us_64();
 
         for (size_t pos = 0; pos < CARD_SIZE; pos += BLOCK_SIZE) {
-            genblock(pos, flushbuf);
+            if (fd_template >= 0) {
+                if (sd_read(fd_template, flushbuf, BLOCK_SIZE) != BLOCK_SIZE)
+                    fatal(ERR_CARDMAN, "cannot read template memcard");
+            } else {
+                genblock(pos, flushbuf);
+            }
 #if WITH_PSRAM
             psram_write_dma(pos, flushbuf, BLOCK_SIZE, NULL);
 #endif
@@ -236,6 +242,8 @@ void ps1_cardman_open(void) {
 #endif
         }
         sd_flush(fd);
+        if (fd_template >= 0)
+            sd_close(fd_template);
 
         ps1_mc_data_interface_card_changed();
 
