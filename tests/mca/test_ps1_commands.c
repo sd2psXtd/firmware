@@ -33,6 +33,7 @@ uint64_t RAM_time_us_64(void) { return 0; }
 void sleep_ms(uint32_t ms) { (void)ms; }
 void tud_task_ext(uint32_t timeout_ms, bool in_isr) { (void)timeout_ms; (void)in_isr; }
 int settings_get_mode(bool temporary) { (void)temporary; return MODE_PS1; }
+void settings_set_mode(int mode) { (void)mode; }
 int settings_get_usb_mode(bool current) { (void)current; return USB_MODE_MCA; }
 bool settings_get_mca_enabled(void) { return true; }
 int settings_get_ps2_variant(void) { return 0; }

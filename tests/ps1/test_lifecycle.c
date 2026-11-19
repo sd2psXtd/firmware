@@ -16,6 +16,7 @@ static bool mca_enabled;
 uint64_t time_us_64(void) { return 0; }
 void multicore_lockout_victim_init(void) {}
 int settings_get_mode(bool temporary) { (void)temporary; return mode; }
+void settings_set_mode(int new_mode) { mode = new_mode; }
 int settings_get_usb_mode(bool current) { (void)current; return usb_mode; }
 bool settings_get_mca_enabled(void) { return mca_enabled; }
 bool settings_get_ps1_controllercombo(void) { return false; }
