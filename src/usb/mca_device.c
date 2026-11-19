@@ -62,13 +62,30 @@ bool mca_device_profile_is_mca(void) {
     return profile_mca;
 }
 
+static void usb_session_stop(void) {
+    if (!profile_mca) {
+        stdio_set_driver_enabled(&stdio_usb, false);
+        sleep_ms(PICO_STDIO_USB_DEINIT_DELAY_MS);
+    }
+    tud_disconnect();
+    tud_deinit(0);
+    mca_protocol_reset();
+}
+
 void usb_session_init(void) {
     mca_protocol_init();
     board_init();
 }
 
 void usb_session_prepare(void) {
-    session_usb_mode = settings_get_usb_mode(true);
+    int usb_mode = settings_get_usb_mode(true);
+    if (tud_inited()) {
+        if (session_usb_mode == usb_mode)
+            return;
+        /* The SD settings reload may have changed the requested profile. */
+        usb_session_stop();
+    }
+    session_usb_mode = usb_mode;
     mca_device_init(session_usb_mode == USB_MODE_MCA, mca_protocol_callbacks());
 }
 
@@ -77,6 +94,8 @@ int usb_session_get_mode(void) {
 }
 
 void usb_session_start(void) {
+    if (tud_inited())
+        return;
     tusb_init();
     if (!profile_mca) {
         stdio_usb_init();
@@ -104,19 +123,13 @@ void usb_session_poll(void) {
     tud_task_ext(0, false);
 }
 
-void usb_session_drain(void) {
+void usb_session_end_mode(void) {
+    if (session_usb_mode == USB_MODE_UART && settings_get_usb_mode(true) == USB_MODE_UART)
+        return;
+
     if (profile_mca)
         mca_protocol_drain_reply(500);
-}
-
-void usb_session_stop(void) {
-    if (!profile_mca) {
-        stdio_set_driver_enabled(&stdio_usb, false);
-        sleep_ms(PICO_STDIO_USB_DEINIT_DELAY_MS);
-    }
-    tud_disconnect();
-    tud_deinit(0);
-    mca_protocol_reset();
+    usb_session_stop();
 }
 
 bool mca_device_send(const uint8_t *data, size_t length) {

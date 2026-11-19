@@ -2,7 +2,10 @@
 
 #include "device/usbd.h"
 #include "device/usbd_pvt.h"
+#include "pico/stdio_usb.h"
 #include "pico/stdio_usb/reset_interface.h"
+#include "settings.h"
+#include "usb/mca_protocol.h"
 
 #include <assert.h>
 #include <string.h>
@@ -22,6 +25,28 @@ static xfer_record_t transfers[128];
 static size_t transfer_count;
 static bool fail_next_xfer;
 static bool endpoint_busy[256];
+static int usb_mode;
+static bool usb_initialized;
+static unsigned disconnects, cdc_starts, cdc_stops, reply_drains;
+
+stdio_driver_t stdio_usb;
+int settings_get_usb_mode(bool current) { assert(current); return usb_mode; }
+bool tud_inited(void) { return usb_initialized; }
+bool tusb_init(void) {
+    assert(!usb_initialized);
+    usb_initialized = true;
+    return true;
+}
+bool tud_disconnect(void) { assert(usb_initialized); ++disconnects; return true; }
+bool tud_deinit(uint8_t rhport) { assert(rhport == 0); usb_initialized = false; return true; }
+bool stdio_usb_init(void) { assert(usb_initialized); ++cdc_starts; return true; }
+void stdio_set_driver_enabled(stdio_driver_t *driver, bool enabled) {
+    assert(driver == &stdio_usb && !enabled);
+    ++cdc_stops;
+}
+void sleep_ms(uint32_t ms) { (void)ms; }
+void mca_protocol_reset(void) {}
+void mca_protocol_drain_reply(uint32_t ms) { (void)ms; ++reply_drains; }
 
 bool usbd_edpt_busy(uint8_t rhport, uint8_t endpoint) {
     (void)rhport;
@@ -88,6 +113,8 @@ static const mca_device_callbacks_t callbacks = {
     .in_complete = on_in_complete,
     .bus_reset = on_bus_reset,
 };
+
+const mca_device_callbacks_t *mca_protocol_callbacks(void) { return &callbacks; }
 
 static usbd_class_driver_t const *driver(void) {
     uint8_t count = 0;
@@ -279,10 +306,41 @@ static void test_presence_ordering(void) {
     assert(transfer_count == before); /* Already delivered: no duplicate insertion. */
 }
 
+static void test_usb_session_switch(void) {
+    usb_mode = USB_MODE_UART;
+    usb_session_prepare();
+    usb_session_start();
+    usb_session_end_mode();
+    usb_session_prepare();
+    usb_session_start();
+    assert(usb_initialized && cdc_starts == 1 && cdc_stops == 0 && disconnects == 0);
+
+    /* Settings reloaded between modes can still replace the Serial profile. */
+    usb_session_end_mode();
+    usb_mode = USB_MODE_MCA;
+    usb_session_prepare();
+    assert(!usb_initialized && mca_device_profile_is_mca() && disconnects == 1);
+    assert(cdc_stops == 1);
+    usb_session_start();
+    assert(cdc_starts == 1);
+
+    usb_mode = USB_MODE_MASS;
+    usb_session_end_mode();
+    assert(!usb_initialized && reply_drains == 1 && disconnects == 2);
+    usb_session_prepare();
+    usb_session_start();
+    assert(usb_session_get_mode() == USB_MODE_MASS && cdc_starts == 2);
+
+    /* Eject ends USB before storage deinit restores the underlying profile. */
+    usb_session_end_mode();
+    assert(!usb_initialized && cdc_stops == 2 && disconnects == 3);
+}
+
 int main(void) {
     test_bulk_in_completion();
     test_reset_interface_ownership();
     test_profile_switch();
     test_presence_ordering();
+    test_usb_session_switch();
     return 0;
 }

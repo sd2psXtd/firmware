@@ -154,8 +154,7 @@ int main() {
             if (!usb_session_continue(mode_running))
                 break;
         }
-        usb_session_drain();
-        usb_session_stop();
+        usb_session_end_mode();
         mode_deinit();
 
         // ReArm PS2 retry counter

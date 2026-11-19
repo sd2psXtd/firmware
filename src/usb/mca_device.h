@@ -30,8 +30,7 @@ int usb_session_get_mode(void);
 void usb_session_start(void);
 void usb_session_poll(void);
 bool usb_session_continue(bool mode_running);
-void usb_session_drain(void);
-void usb_session_stop(void);
+void usb_session_end_mode(void);
 
 /* Task-side operations. The caller owns `data`; it must be 4-byte aligned and
  * remain valid until in_complete or bus_reset. Sending fails if the endpoint is
