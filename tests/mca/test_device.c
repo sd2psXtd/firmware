@@ -1,7 +1,9 @@
 #include "../../src/usb/mca_device.h"
+#include "../../src/usb/usb_drivers.h"
+#include "../../src/usb/usb_session.h"
 
-#include "device/usbd.h"
-#include "device/usbd_pvt.h"
+#include "device/dcd.h"
+#include "hardware/structs/usb.h"
 #include "pico/stdio_usb.h"
 #include "pico/stdio_usb/reset_interface.h"
 #include "settings.h"
@@ -13,6 +15,7 @@
 enum { EP_IN = 0x81, EP_OUT = 0x02, EP_INT = 0x83 };
 
 void tud_cdc_line_coding_cb(uint8_t interface_number, cdc_line_coding_t const *coding);
+void tud_event_hook_cb(uint8_t rhport, uint32_t eventid, bool in_isr);
 
 typedef struct {
     uint8_t endpoint;
@@ -25,6 +28,9 @@ static xfer_record_t transfers[128];
 static size_t transfer_count;
 static bool fail_next_xfer;
 static bool endpoint_busy[256];
+/* RP2040 buffer control AVAIL: arming an endpoint that is still armed in
+ * hardware is TinyUSB's panic("ep %02X was already available"). */
+static bool hw_armed[256];
 static int usb_mode;
 static bool usb_initialized;
 static unsigned disconnects, cdc_starts, cdc_stops, reply_drains;
@@ -45,12 +51,40 @@ void stdio_set_driver_enabled(stdio_driver_t *driver, bool enabled) {
     ++cdc_stops;
 }
 void sleep_ms(uint32_t ms) { (void)ms; }
+void board_init(void) {}
+bool stdio_usb_connected(void) { return false; }
+void mca_protocol_init(void) {}
+bool mca_protocol_idle(void) { return true; }
 void mca_protocol_reset(void) {}
 void mca_protocol_drain_reply(uint32_t ms) { (void)ms; ++reply_drains; }
+
+static usb_device_dpram_t dpram;
+usb_device_dpram_t *const usb_dpram = &dpram;
+
+/* Hardware-level pipe resets done from the SETUP interrupt, in call order. */
+static struct { uint8_t endpoint; bool stall; } dcd_calls[16];
+static size_t dcd_call_count;
+static unsigned clear_stall_calls[256];
+void dcd_edpt_stall(uint8_t rhport, uint8_t endpoint) {
+    assert(rhport == 0 && dcd_call_count < sizeof(dcd_calls) / sizeof(dcd_calls[0]));
+    hw_armed[endpoint] = false; /* Stalling overwrites the buffer control. */
+    dcd_calls[dcd_call_count].endpoint = endpoint;
+    dcd_calls[dcd_call_count++].stall = true;
+}
+void dcd_edpt_clear_stall(uint8_t rhport, uint8_t endpoint) {
+    assert(rhport == 0 && dcd_call_count < sizeof(dcd_calls) / sizeof(dcd_calls[0]));
+    dcd_calls[dcd_call_count].endpoint = endpoint;
+    dcd_calls[dcd_call_count++].stall = false;
+}
 
 bool usbd_edpt_busy(uint8_t rhport, uint8_t endpoint) {
     (void)rhport;
     return endpoint_busy[endpoint];
+}
+void usbd_edpt_clear_stall(uint8_t rhport, uint8_t endpoint) {
+    (void)rhport;
+    endpoint_busy[endpoint] = false;
+    ++clear_stall_calls[endpoint];
 }
 static unsigned bus_reset_calls;
 static unsigned in_complete_calls;
@@ -83,7 +117,9 @@ bool usbd_edpt_xfer(uint8_t rhport, uint8_t endpoint_address, uint8_t *buffer,
         return false;
     }
     assert(!endpoint_busy[endpoint_address]);
+    assert(!hw_armed[endpoint_address]);
     endpoint_busy[endpoint_address] = true;
+    hw_armed[endpoint_address] = true;
     return true;
 }
 
@@ -102,7 +138,14 @@ void watchdog_reboot(uint32_t pc, uint32_t sp, uint32_t delay_ms) {
     ++flash_reboot_calls;
 }
 
+static unsigned pipes_reset_calls;
+static bool last_reset_in, last_reset_out;
 static void on_bus_reset(void) { ++bus_reset_calls; }
+static void on_pipes_reset(bool in, bool out) {
+    ++pipes_reset_calls;
+    last_reset_in = in;
+    last_reset_out = out;
+}
 static void on_in_complete(bool success, uint32_t transferred) {
     ++in_complete_calls;
     last_in_success = success;
@@ -112,16 +155,13 @@ static void on_in_complete(bool success, uint32_t transferred) {
 static const mca_device_callbacks_t callbacks = {
     .in_complete = on_in_complete,
     .bus_reset = on_bus_reset,
+    .pipes_reset = on_pipes_reset,
 };
 
 const mca_device_callbacks_t *mca_protocol_callbacks(void) { return &callbacks; }
 
-static usbd_class_driver_t const *driver(void) {
-    uint8_t count = 0;
-    usbd_class_driver_t const *result = usbd_app_driver_get_cb(&count);
-    assert(result && count == 1);
-    return result;
-}
+static usbd_class_driver_t const *driver(void) { return mca_device_driver(); }
+static usbd_class_driver_t const *reset_driver(void) { return usb_reset_itf_driver(); }
 
 typedef struct {
     tusb_desc_interface_t interface_desc;
@@ -151,16 +191,17 @@ static uint16_t open_mca_interface(void) {
 
 static void setup_mca_interface(void) {
     memset(endpoint_busy, 0, sizeof(endpoint_busy));
+    memset(hw_armed, 0, sizeof(hw_armed));
     assert(open_mca_interface() == 30);
 }
 
 static void complete_in(uint32_t transferred) {
-    endpoint_busy[EP_IN] = false;
+    endpoint_busy[EP_IN] = hw_armed[EP_IN] = false;
     assert(driver()->xfer_cb(0, EP_IN, XFER_RESULT_SUCCESS, transferred));
 }
 
 static void complete_interrupt(void) {
-    endpoint_busy[EP_INT] = false;
+    endpoint_busy[EP_INT] = hw_armed[EP_INT] = false;
     assert(driver()->xfer_cb(0, EP_INT, XFER_RESULT_SUCCESS, 1));
 }
 
@@ -221,31 +262,43 @@ static void test_reset_interface_ownership(void) {
     bootsel_calls = flash_reboot_calls = bus_reset_calls = 0;
     mca_device_init(false, &callbacks);
     driver()->init();
-    assert(driver()->open(0, &reset_interface, sizeof(reset_interface)) == sizeof(reset_interface));
+    reset_driver()->init();
+    assert(driver()->open(0, &reset_interface, sizeof(reset_interface)) == 0);
+    assert(reset_driver()->open(0, &reset_interface, sizeof(reset_interface)) == sizeof(reset_interface));
 
     request.bmRequestType_bit.recipient = TUSB_REQ_RCPT_INTERFACE;
     request.wIndex = 2;
     request.bRequest = RESET_REQUEST_BOOTSEL;
     request.wValue = 0x700 | 0x35;
-    assert(driver()->control_xfer_cb(0, CONTROL_STAGE_SETUP, &request));
+    assert(!driver()->control_xfer_cb(0, CONTROL_STAGE_SETUP, &request));
+    assert(reset_driver()->control_xfer_cb(0, CONTROL_STAGE_SETUP, &request));
     assert(bootsel_calls == 1);
     assert(last_bootsel_gpio == 3);
     assert(last_bootsel_mask == 0x35);
     assert(last_bootsel_active_low);
-    assert(driver()->control_xfer_cb(0, CONTROL_STAGE_ACK, &request));
+    assert(reset_driver()->control_xfer_cb(0, CONTROL_STAGE_ACK, &request));
     request.wIndex = 1;
-    assert(!driver()->control_xfer_cb(0, CONTROL_STAGE_SETUP, &request));
+    assert(!reset_driver()->control_xfer_cb(0, CONTROL_STAGE_SETUP, &request));
 
     request.wIndex = 2;
     request.bRequest = RESET_REQUEST_FLASH;
-    assert(driver()->control_xfer_cb(0, CONTROL_STAGE_SETUP, &request));
+    assert(reset_driver()->control_xfer_cb(0, CONTROL_STAGE_SETUP, &request));
     assert(flash_reboot_calls == 1);
     tud_cdc_line_coding_cb(0, &line_coding);
     assert(bootsel_calls == 2);
 
     driver()->reset(0);
+    reset_driver()->reset(0);
     assert(bus_reset_calls == 1);
-    assert(!driver()->control_xfer_cb(0, CONTROL_STAGE_SETUP, &request));
+    assert(!reset_driver()->control_xfer_cb(0, CONTROL_STAGE_SETUP, &request));
+}
+
+static void test_driver_registration(void) {
+    uint8_t count = 0;
+    usbd_class_driver_t const *drivers = usbd_app_driver_get_cb(&count);
+    assert(count == 2);
+    assert(drivers[0].open == driver()->open);
+    assert(drivers[1].open == reset_driver()->open);
 }
 
 static void test_profile_switch(void) {
@@ -336,9 +389,192 @@ static void test_usb_session_switch(void) {
     assert(!usb_initialized && cdc_stops == 2 && disconnects == 3);
 }
 
+/* The controller received a SETUP packet: run the interrupt-time hook. */
+static void setup_received(uint8_t request_type, uint8_t request, uint16_t value, uint16_t index) {
+    tusb_control_request_t setup = {
+        .bmRequestType = request_type, .bRequest = request, .wValue = value, .wIndex = index,
+    };
+    memcpy((void *)dpram.setup_packet, &setup, sizeof(setup));
+    tud_event_hook_cb(0, DCD_EVENT_SETUP_RECEIVED, true);
+}
+
+/* tud_task processing CLEAR_FEATURE(ENDPOINT_HALT): TinyUSB marks the
+ * endpoint idle (without touching an armed buffer), then forwards the request
+ * to the endpoint's driver. */
+static void stack_clear_halt(uint8_t endpoint) {
+    tusb_control_request_t request = {
+        .bmRequestType = 0x02, .bRequest = TUSB_REQ_CLEAR_FEATURE,
+        .wValue = TUSB_REQ_FEATURE_EDPT_HALT, .wIndex = endpoint,
+    };
+    usbd_edpt_clear_stall(0, endpoint);
+    (void)driver()->control_xfer_cb(0, CONTROL_STAGE_SETUP, &request);
+}
+
+static bool dcd_reset(uint8_t endpoint) {
+    for (size_t i = 0; i + 1 < dcd_call_count; ++i)
+        if (dcd_calls[i].endpoint == endpoint && dcd_calls[i].stall &&
+            dcd_calls[i + 1].endpoint == endpoint && !dcd_calls[i + 1].stall)
+            return true;
+    return false;
+}
+
+/* Open the interface with a reply on IN, OUT armed and presence delivered. */
+static void open_busy_interface(uint8_t *reply, size_t length) {
+    transfer_count = dcd_call_count = pipes_reset_calls = in_complete_calls = 0;
+    memset(clear_stall_calls, 0, sizeof(clear_stall_calls));
+    mca_device_init(true, &callbacks);
+    driver()->init();
+    mca_device_set_presence(true);
+    setup_mca_interface();
+    complete_interrupt();
+    mca_device_receive();
+    assert(mca_device_send(reply, length));
+    assert(endpoint_busy[EP_IN] && endpoint_busy[EP_OUT] && !endpoint_busy[EP_INT]);
+}
+
+static void test_reopen_resets_all_pipes(void) {
+    static union { uint32_t alignment; uint8_t bytes[4]; } reply;
+    /* bmRequestType 0x00/0x01: standard request to the device/interface. */
+    const struct { uint8_t type, request; uint16_t value, index; } reopen[] = {
+        {0x00, TUSB_REQ_SET_CONFIGURATION, 1, 0}, /* same configuration again */
+        {0x01, TUSB_REQ_SET_INTERFACE, 0, 0},
+    };
+
+    for (size_t i = 0; i < sizeof(reopen) / sizeof(reopen[0]); ++i) {
+        open_busy_interface(reply.bytes, sizeof(reply.bytes));
+        setup_received(reopen[i].type, reopen[i].request, reopen[i].value, reopen[i].index);
+        /* Interrupt time: armed buffers dropped, toggles back to DATA0. */
+        assert(dcd_reset(EP_IN) && dcd_reset(EP_OUT) && dcd_reset(EP_INT));
+        assert(pipes_reset_calls == 0);
+
+        /* Nothing can be armed until the task has finished the reset. */
+        size_t before = transfer_count;
+        assert(!mca_device_send(reply.bytes, sizeof(reply.bytes)));
+        mca_device_receive();
+        assert(transfer_count == before);
+
+        mca_device_task();
+        assert(clear_stall_calls[EP_IN] == 1 && clear_stall_calls[EP_OUT] == 1 &&
+               clear_stall_calls[EP_INT] == 1);
+        assert(pipes_reset_calls == 1 && last_reset_in && last_reset_out);
+        assert(in_complete_calls == 0); /* The dropped reply never completes. */
+        /* The reopened interrupt pipe gets the current state again. */
+        assert(transfer_count == before + 1);
+        assert(transfers[before].endpoint == EP_INT && transfers[before].int_value == 1);
+
+        mca_device_receive();
+        assert(mca_device_send(reply.bytes, sizeof(reply.bytes)));
+        assert(transfers[transfer_count - 2].endpoint == EP_OUT);
+        assert(transfers[transfer_count - 1].endpoint == EP_IN);
+        complete_in(sizeof(reply.bytes));
+        assert(in_complete_calls == 1);
+    }
+}
+
+static void test_clear_halt_resets_one_pipe(void) {
+    static union { uint32_t alignment; uint8_t bytes[4]; } reply;
+    const struct { uint8_t endpoint; bool in, out; } halts[] = {
+        {EP_IN, true, false},
+        {EP_OUT, false, true},
+        {EP_INT, false, false},
+    };
+
+    for (size_t i = 0; i < sizeof(halts) / sizeof(halts[0]); ++i) {
+        open_busy_interface(reply.bytes, sizeof(reply.bytes));
+        if (halts[i].endpoint == EP_INT) {
+            mca_device_set_presence(false); /* Arm a report so INT is busy. */
+            mca_device_task();
+            assert(endpoint_busy[EP_INT]);
+        }
+        /* 0x02: standard request to an endpoint. */
+        setup_received(0x02, TUSB_REQ_CLEAR_FEATURE, TUSB_REQ_FEATURE_EDPT_HALT, halts[i].endpoint);
+        assert(dcd_call_count == 2 && dcd_reset(halts[i].endpoint));
+        /* The main loop may run before tud_task processes the request: the
+         * reset must wait for TinyUSB, and nothing may be armed meanwhile. */
+        mca_device_task();
+        assert(pipes_reset_calls == 0 && clear_stall_calls[halts[i].endpoint] == 0);
+        stack_clear_halt(halts[i].endpoint);
+        mca_device_task();
+        assert(clear_stall_calls[halts[i].endpoint] == 2); /* TinyUSB's and ours */
+        for (size_t e = 0; e < sizeof(halts) / sizeof(halts[0]); ++e)
+            if (halts[e].endpoint != halts[i].endpoint)
+                assert(clear_stall_calls[halts[e].endpoint] == 0);
+        if (halts[i].in || halts[i].out)
+            assert(pipes_reset_calls == 1 && last_reset_in == halts[i].in &&
+                   last_reset_out == halts[i].out);
+        else
+            assert(pipes_reset_calls == 0);
+    }
+}
+
+/* Hardware regression (#128 follow-up): CLEAR_FEATURE(OUT) while OUT was armed.
+ * When the main loop finished the reset before tud_task had processed the
+ * request, it re-armed OUT; TinyUSB then marked OUT idle and the next arm hit
+ * "ep 02 was already available", halting the device. */
+static void test_clear_halt_out_waits_for_stack(void) {
+    static union { uint32_t alignment; uint8_t bytes[4]; } reply;
+    open_busy_interface(reply.bytes, sizeof(reply.bytes));
+    complete_in(sizeof(reply.bytes));
+
+    setup_received(0x02, TUSB_REQ_CLEAR_FEATURE, TUSB_REQ_FEATURE_EDPT_HALT, EP_OUT);
+    for (int pass = 0; pass < 3; ++pass) { /* main loop passes before tud_task */
+        mca_device_task();
+        mca_device_receive();
+    }
+    assert(!hw_armed[EP_OUT]);
+    stack_clear_halt(EP_OUT);
+    mca_device_task();
+    mca_device_receive(); /* would trip the hw_armed assertion if armed twice */
+    assert(hw_armed[EP_OUT] && pipes_reset_calls == 1 && last_reset_out && !last_reset_in);
+    mca_device_receive();
+    assert(hw_armed[EP_OUT]);
+}
+
+static void test_unrelated_requests_ignored(void) {
+    static union { uint32_t alignment; uint8_t bytes[4]; } reply;
+    open_busy_interface(reply.bytes, sizeof(reply.bytes));
+
+    setup_received(0x01, TUSB_REQ_SET_INTERFACE, 0, 1);              /* other interface */
+    setup_received(0x02, TUSB_REQ_CLEAR_FEATURE, TUSB_REQ_FEATURE_EDPT_HALT, 0x84);
+    setup_received(0x02, TUSB_REQ_SET_FEATURE, TUSB_REQ_FEATURE_EDPT_HALT, EP_IN);
+    setup_received(0x02, TUSB_REQ_CLEAR_FEATURE, 1, EP_IN);          /* not ENDPOINT_HALT */
+    setup_received(0x21, TUSB_REQ_SET_INTERFACE, 0, 0);              /* class request */
+    setup_received(0x40, TUSB_REQ_SET_CONFIGURATION, 1, 0);          /* vendor request */
+    tud_event_hook_cb(0, DCD_EVENT_SETUP_RECEIVED, false);           /* not the interrupt */
+    tud_event_hook_cb(0, DCD_EVENT_SETUP_RECEIVED + 1, true);        /* other event */
+    assert(dcd_call_count == 0);
+    mca_device_task();
+    assert(pipes_reset_calls == 0 && endpoint_busy[EP_IN] && endpoint_busy[EP_OUT]);
+
+    /* Before the interface is opened, or in the Serial profile, the endpoints
+     * do not belong to us. */
+    mca_device_init(true, &callbacks);
+    driver()->init();
+    setup_received(0x00, TUSB_REQ_SET_CONFIGURATION, 1, 0);
+    mca_device_init(false, &callbacks);
+    driver()->init();
+    setup_received(0x00, TUSB_REQ_SET_CONFIGURATION, 1, 0);
+    assert(dcd_call_count == 0);
+}
+
+static void test_bus_reset_discards_pending_pipe_reset(void) {
+    static union { uint32_t alignment; uint8_t bytes[4]; } reply;
+    open_busy_interface(reply.bytes, sizeof(reply.bytes));
+    setup_received(0x00, TUSB_REQ_SET_CONFIGURATION, 0, 0);
+    driver()->reset(0); /* TinyUSB deconfigures: the endpoints are closed. */
+    mca_device_task();
+    assert(pipes_reset_calls == 0 && clear_stall_calls[EP_IN] == 0);
+}
+
 int main(void) {
     test_bulk_in_completion();
     test_reset_interface_ownership();
+    test_driver_registration();
+    test_reopen_resets_all_pipes();
+    test_clear_halt_resets_one_pipe();
+    test_clear_halt_out_waits_for_stack();
+    test_unrelated_requests_ignored();
+    test_bus_reset_discards_pending_pipe_reset();
     test_profile_switch();
     test_presence_ordering();
     test_usb_session_switch();

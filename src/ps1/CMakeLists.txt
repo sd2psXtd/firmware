@@ -15,6 +15,7 @@ target_include_directories(ps1_card PUBLIC ${CMAKE_CURRENT_SOURCE_DIR})
 target_link_libraries(ps1_card
                         PRIVATE
                             sd2psx_common
+                            sd2psx_usb
                             pico_platform_headers
                             pico_stdlib
                             pico_multicore

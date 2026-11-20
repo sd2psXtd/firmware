@@ -1,4 +1,5 @@
 #include "mca_bridge.h"
+#include "mca_protocol.h"
 #include "ps1_card_backend_mca.h"
 #include "ps2_card_backend_mca.h"
 #include "settings.h"
@@ -15,8 +16,12 @@ void (*mmceman_callback)(void);
 uint64_t time_us_64(void) { return 0; }
 int settings_get_mode(bool temporary) { (void)temporary; return MODE_PS2; }
 bool settings_get_mca_enabled(void) { return true; }
+int settings_get_ps2_variant(void) { return PS2_VARIANT_RETAIL; }
+bool ps2_cardman_is_accessible(void) { return true; }
+uint32_t ps2_cardman_get_card_size(void) { return 8u * 1024 * 1024; }
+bool ps2_mc_auth_isValid(void) { return true; }
 bool mca_protocol_idle(void) { return true; }
-void mca_protocol_set_ready(bool ready) { (void)ready; }
+void mca_protocol_attach_card(const mca_card_t *card) { (void)card; }
 void mca_protocol_switch_delay(uint32_t ms) { (void)ms; }
 bool mca_page_active(void) { return false; }
 bool mca_page_receive(uint8_t *byte) { (void)byte; assert(false); return false; }

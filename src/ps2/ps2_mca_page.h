@@ -1,8 +1,6 @@
 #pragma once
 
-#include "mca_bridge.h"
-
-#define MCA_PAGE_RAW_SIZE 528u
+#include "usb/mca_protocol.h"
 
 /* Core 1 only. Execute a complete AA52/AA57 operation using the existing PS2
  * command handlers. Intermediate SIO transactions never cross to core 0. */

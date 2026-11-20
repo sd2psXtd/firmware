@@ -1,16 +1,31 @@
 #include "settings.h"
 #include "ps2_card_backend_mca.h"
-#include "usb/mca_bridge.h"
-#include "usb/mca_page.h"
+#include "ps2_mca_page.h"
+#include "ps2/ps2_cardman.h"
+#include "ps2/card_emu/ps2_mc_auth.h"
 #include "usb/mca_protocol.h"
 #include "mmceman/ps2_mmceman.h"
 
-extern mca_bridge_t mca_bridge;
-
 static void no_op(void) {}
 
-static void startup(void) { mca_protocol_set_ready(true); }
-static void shutdown(void) { mca_protocol_set_ready(false); }
+static uint8_t card_type(void) {
+    return ps2_cardman_is_accessible() ? 2 : 0;
+}
+
+/* Page commands bypass the MagicGate handshake, so they are only offered for
+ * an authenticated retail card and pages inside the image. */
+static bool page_allowed(uint32_t page) {
+    return settings_get_ps2_variant() == PS2_VARIANT_RETAIL && ps2_mc_auth_isValid() &&
+        ((uint64_t)page + 1) * 512 <= ps2_cardman_get_card_size();
+}
+
+static const mca_card_t ps2_mca_card = {
+    .type = card_type,
+    .page_allowed = page_allowed,
+};
+
+static void startup(void) { mca_protocol_attach_card(&ps2_mca_card); }
+static void shutdown(void) { mca_protocol_attach_card(NULL); }
 
 static void finish(void) {
     mca_bridge_finish(&mca_bridge, true);
@@ -24,7 +39,7 @@ static bool begin(void) {
         if (!mca_bridge_begin(&mca_bridge))
             continue;
         ps2_card_active = true;
-        if (mca_bridge.input[1] == 0x42)
+        if (mca_bridge_command(&mca_bridge) == 0x42)
             return true;
         bool success = mca_page_execute(&mca_bridge);
         mca_bridge_finish(&mca_bridge, success);

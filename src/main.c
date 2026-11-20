@@ -16,7 +16,7 @@
 #include "pico/time.h"
 #include "sd.h"
 #include "settings.h"
-#include "usb/mca_device.h"
+#include "usb/usb_session.h"
 #include "usb/usb_storage.h"
 #if WITH_PSRAM
 #include "psram/psram.h"

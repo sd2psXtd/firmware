@@ -384,6 +384,40 @@ MCA-to-CDC also succeeded; the adapter was restored to PS1/MCA and the
 PS1 read check passed again. A full flash backup was verified before
 each installation.
 
+## Host pipe resets (#128)
+
+After leaving and re-entering the XMB memory card screen, the card sometimes
+did not appear, and leaving again froze the XMB for about five seconds before
+the card showed up. Sony's library waits for adapter events with a timeout of
+`0x4c4b40` (5,000,000) — see above — which matches the freeze.
+
+A host that reopens the adapter sends SET_CONFIGURATION (possibly with the
+current value), SET_INTERFACE or CLEAR_FEATURE(ENDPOINT_HALT). USB 2.0 requires
+both sides to reset the affected endpoints' data toggles to DATA0. TinyUSB 0.18
+does not: a repeated SET_CONFIGURATION is ignored (`usbd.c`, "Only process if
+new configure is different"), SET_INTERFACE is only acknowledged, and a cleared
+halt leaves an armed buffer in place while marking the endpoint idle. With the
+toggles out of step, the host drops the next packet as a duplicate. Whether that
+happens depends on the parity of the packets sent before the reopen, which
+explains "sometimes". Re-arming an endpoint whose buffer is still available
+also reaches TinyUSB's `panic("ep %02X was already available")`.
+
+`mca_device.c` therefore implements `tud_event_hook_cb`. At SETUP time, inside
+the USB interrupt and after that interrupt's buffer completions, it reads the
+request from DPRAM. For the requests above it stalls and clears the affected
+endpoints, which drops armed buffers and returns the toggles to DATA0. The host
+waits for the request's status stage, so this cannot race with new transfers.
+The task then clears TinyUSB's busy flags, the protocol drops any reply and
+partial request carried by those pipes, and the current presence is reported
+again on the interrupt endpoint. No arm can happen while such a reset is
+pending. TinyUSB itself is unchanged. Host tests cover every request type and
+the ignored cases. `tests/mca/reopen.py` reproduces the issue against hardware.
+The fix has not yet been confirmed on a PS3.
+
+One case remains: a host that abandons a reply without any of these requests
+and sends a new request leaves the old reply queued on IN. Dropping it then
+would require restoring the host's expected toggle inside the RP2040 port.
+
 ## Remaining uncertainties
 
 Real PS3 and PS1 console operation, retail/arcade PIO timing, all MagicGate modes,

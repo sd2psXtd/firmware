@@ -9,16 +9,17 @@ case $(uname -s) in
     Darwin) section_gc=-Wl,-dead_strip ;;
     *) section_gc=-Wl,--gc-sections ;;
 esac
-${CC:-cc} $flags -Itests/mca/stubs -Isrc -Isrc/usb src/usb/mca_protocol.c src/usb/mca_bridge.c \
+${CC:-cc} $flags -Itests/mca/stubs -Isrc -Isrc/usb -Isrc/ps2 src/usb/mca_protocol.c src/usb/mca_bridge.c \
     tests/mca/test_comms.c -o "$out/comms"
 ${CC:-cc} $flags -Itests/mca/stubs -Isrc/usb src/usb/mca_bridge.c tests/mca/test_bridge.c -o "$out/bridge"
 ${CC:-cc} $flags -Itests/mca/stubs -Isrc/usb src/usb/mca_bridge.c tests/mca/test_bridge_threads.c -o "$out/bridge_threads"
-${CC:-cc} $flags -Itests/mca/stubs -Isrc -Isrc/usb src/usb/mca_bridge.c src/usb/mca_page.c tests/mca/test_page.c -o "$out/page"
-${CC:-cc} $flags -Itests/mca/device_stubs -Itests/mca/stubs -Isrc -Isrc/usb src/usb/mca_device.c \
+${CC:-cc} $flags -Itests/mca/stubs -Isrc -Isrc/usb -Isrc/ps2 src/usb/mca_bridge.c src/ps2/ps2_mca_page.c tests/mca/test_page.c -o "$out/page"
+${CC:-cc} $flags -Itests/mca/device_stubs -Itests/mca/stubs -Isrc -Isrc/usb \
+    src/usb/mca_device.c src/usb/usb_session.c src/usb/usb_reset_itf.c \
     tests/mca/test_device.c "$section_gc" -o "$out/device"
-${CC:-cc} $flags -Itests/mca/stubs -Isrc -Isrc/usb src/usb/mca_protocol.c \
+${CC:-cc} $flags -Itests/mca/stubs -Isrc -Isrc/usb -Isrc/ps2 src/usb/mca_protocol.c \
     src/usb/mca_bridge.c tests/mca/test_protocol.c -o "$out/protocol"
-${CC:-cc} $flags -DDEBUG_USB_UART -Itests/mca/stubs -Isrc/usb \
+${CC:-cc} $flags -DDEBUG_USB_UART -Itests/mca/stubs -Isrc/usb -Isrc/ps2 \
     -Isrc src/usb/mca_protocol.c src/usb/mca_bridge.c \
     tests/mca/test_protocol.c -o "$out/protocol_debug"
 ${CC:-cc} $flags -Itests/mca/stubs -Isrc -Isrc/usb -Isrc/ps1 -Isrc/ps2 src/usb/mca_bridge.c \
@@ -27,7 +28,7 @@ ${CC:-cc} $flags -Itests/mca/stubs -Isrc src/ps2/card_emu/ps2_card_backend.c \
     tests/mca/test_selector.c "$section_gc" -o "$out/selector"
 ${CC:-cc} $flags -Wno-unused-parameter \
     -Itests/mca/command_stubs -Itests/mca/stubs -Isrc/usb -Isrc -Isrc/ps2 \
-    src/usb/mca_protocol.c src/usb/mca_bridge.c src/usb/mca_page.c \
+    src/usb/mca_protocol.c src/usb/mca_bridge.c src/ps2/ps2_mca_page.c \
     src/ps2/ps2_card_backend_mca.c src/ps2/card_emu/ps2_mc_commands.c \
     tests/mca/test_ps3mca_commands.c "$section_gc" -o "$out/ps3mca_commands"
 ${CC:-cc} $flags -Wno-unused-parameter -Wno-unused-function -Wno-unused-variable \

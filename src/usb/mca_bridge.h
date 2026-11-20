@@ -23,7 +23,7 @@ typedef enum {
  * reused until the reply completes or is discarded. Initialize only once. */
 typedef struct {
     critical_section_t lock;
-    mca_bridge_state_t state;
+    volatile mca_bridge_state_t state;
     bool cancel_requested;
     uint64_t deadline;
     uint16_t input_length;
@@ -35,6 +35,8 @@ typedef struct {
 
 void mca_bridge_init(mca_bridge_t *bridge);
 mca_bridge_state_t mca_bridge_state(mca_bridge_t *bridge);
+/* MCA command byte (40/42/52/57) of the current request. */
+static inline uint8_t mca_bridge_command(const mca_bridge_t *bridge) { return bridge->input[1]; }
 
 /* Core 0: publish the complete frame, or prepare a two-byte local reply. */
 bool mca_bridge_submit(mca_bridge_t *bridge, size_t length);

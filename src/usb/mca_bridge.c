@@ -75,6 +75,10 @@ void mca_bridge_release(mca_bridge_t *bridge) {
 }
 
 bool mca_bridge_begin(mca_bridge_t *bridge) {
+    /* Core 1 polls this while idle: only take the lock once there is work, so
+     * the wait does not keep contending with core 0 for the spinlock. */
+    if (bridge->state != MCA_BRIDGE_REQUEST)
+        return false;
     critical_section_enter_blocking(&bridge->lock);
     bool started = bridge->state == MCA_BRIDGE_REQUEST;
     if (started) {
@@ -122,7 +126,7 @@ void mca_bridge_finish(mca_bridge_t *bridge, bool success) {
         if (!success || bridge->cancel_requested) {
             error_response(bridge);
         } else {
-            if (bridge->input[1] == 0x42) {
+            if (mca_bridge_command(bridge) == 0x42) {
                 size_t length = bridge->output_length - 4;
                 bridge->output[0] = 0x55;
                 bridge->output[1] = 0x5a;

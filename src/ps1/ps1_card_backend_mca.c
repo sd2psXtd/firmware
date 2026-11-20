@@ -1,14 +1,19 @@
 #include "settings.h"
 #include "ps1_card_backend_mca.h"
-#include "usb/mca_bridge.h"
 #include "usb/mca_protocol.h"
-
-extern mca_bridge_t mca_bridge;
 
 static void no_op(void) {}
 
-static void startup(void) { mca_protocol_set_ready(true); }
-static void shutdown(void) { mca_protocol_set_ready(false); }
+static uint8_t card_type(void) { return 1; }
+
+/* PS1 cards are accessed through raw AA42 transactions only. */
+static const mca_card_t ps1_mca_card = {
+    .type = card_type,
+    .page_allowed = NULL,
+};
+
+static void startup(void) { mca_protocol_attach_card(&ps1_mca_card); }
+static void shutdown(void) { mca_protocol_attach_card(NULL); }
 
 static void finish(void) {
     mca_bridge_finish(&mca_bridge, true);

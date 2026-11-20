@@ -33,6 +33,7 @@ message(STATUS "Building ${TARGET_NAME}")
 
 add_subdirectory(database)
 add_subdirectory(src/version)
+add_subdirectory(src/usb)
 add_subdirectory(src/ps2)
 add_subdirectory(src/ps1)
 if (SD2PSX_WITH_PSRAM)
@@ -52,12 +53,6 @@ add_executable(${TARGET_NAME}
     src/wear_leveling/wear_leveling_rp2040_flash.c
 
     ext/fnv/hash_64a.c
-    src/usb/mca_bridge.c
-    src/usb/mca_device.c
-    src/usb/mca_page.c
-    src/usb/mca_protocol.c
-    src/usb/usb_descriptors.c
-    src/usb/usb_storage.c
 )
 
 target_compile_definitions(
@@ -67,7 +62,6 @@ target_compile_definitions(
 
 target_include_directories(${TARGET_NAME} PUBLIC
     ext/fnv
-    src/usb
 )
 
 target_link_libraries(${TARGET_NAME}
@@ -82,6 +76,7 @@ target_link_libraries(${TARGET_NAME}
         sd2psx_common
         ps1_card
         ps2_card
+        sd2psx_usb
         sd_fat
         tinyusb_device
         tinyusb_board

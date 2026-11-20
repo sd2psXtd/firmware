@@ -14,6 +14,7 @@
 - Fixed the PS1 backend pause and teardown lifecycle, and released the PS2 backend when entering USB mass storage (#132).
 - Fixed PS1 page writes with a bad checksum or truncated data changing the card, and the order of PS1 reads and writes (#132).
 - Fixed the reserved byte in the PS1 MMCE reset reply.
+- Fixed MCA mode losing replies after the PS3 reopens the adapter (for example when leaving and re-entering the XMB memory card screen), which could hide the card and freeze the XMB for about 5 seconds (#128).
 
 ### Changed behavior
 

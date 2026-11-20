@@ -2,9 +2,12 @@
 #include "../../src/usb/mca_device.h"
 #include "../../src/usb/mca_bridge.h"
 #include "../../src/usb/mca_protocol.h"
+#include "../../src/usb/usb_drivers.h"
 
+#include "device/dcd.h"
 #include "device/usbd.h"
 #include "device/usbd_pvt.h"
+#include "hardware/structs/usb.h"
 
 #include <assert.h>
 #include <string.h>
@@ -19,7 +22,7 @@ typedef struct {
     uint32_t length;
 } transfer_t;
 
-static transfer_t transfers[16];
+static transfer_t transfers[64];
 static size_t transfer_count;
 static uint64_t now;
 static bool endpoint_busy[256];
@@ -27,6 +30,19 @@ bool usbd_edpt_busy(uint8_t rhport, uint8_t endpoint) {
     (void)rhport;
     return endpoint_busy[endpoint];
 }
+void usbd_edpt_clear_stall(uint8_t rhport, uint8_t endpoint) {
+    (void)rhport;
+    endpoint_busy[endpoint] = false;
+}
+/* Stalling drops whatever the controller had armed on the endpoint. */
+void dcd_edpt_stall(uint8_t rhport, uint8_t endpoint) { (void)rhport; (void)endpoint; }
+void dcd_edpt_clear_stall(uint8_t rhport, uint8_t endpoint) { (void)rhport; (void)endpoint; }
+static usb_device_dpram_t dpram;
+usb_device_dpram_t *const usb_dpram = &dpram;
+void tud_event_hook_cb(uint8_t rhport, uint32_t eventid, bool in_isr);
+
+static uint8_t card_type(void) { return 2; }
+static const mca_card_t card = {card_type, NULL};
 
 uint64_t time_us_64(void) { return now; }
 void sleep_ms(uint32_t milliseconds) { now += (uint64_t)milliseconds * 1000; }
@@ -74,9 +90,7 @@ typedef struct {
 } interface_descriptor_t;
 
 static usbd_class_driver_t const *open_device(void) {
-    uint8_t count = 0;
-    usbd_class_driver_t const *driver = usbd_app_driver_get_cb(&count);
-    assert(driver && count == 1);
+    usbd_class_driver_t const *driver = mca_device_driver();
     driver->init();
     interface_descriptor_t descriptor = {
         .interface_desc = {9, 4, 0, 0, 3, 0xff, 0, 0xff, 0},
@@ -113,7 +127,7 @@ int main(void) {
     size_t first_in_index;
 
     mca_protocol_init();
-    mca_protocol_set_ready(true);
+    mca_protocol_attach_card(&card);
     mca_device_init(true, mca_protocol_callbacks());
     driver = open_device();
     mca_protocol_task(); /* The protocol explicitly arms OUT while idle. */
@@ -167,5 +181,40 @@ int main(void) {
     assert(driver->xfer_cb(0, EP_IN, XFER_RESULT_SUCCESS, 2));
     mca_protocol_task();
     assert(transfer_count == before_detect + 2);
+
+    /* The host abandons a reply (e.g. the XMB leaves the memory card screen
+     * mid-request) and clears the IN halt before talking to us again. The old
+     * reply must not be read as the answer to the next command. */
+    receive_out(driver, detect_request, sizeof(detect_request));
+    mca_protocol_task();
+    assert(mca_bridge_state(&mca_bridge) == MCA_BRIDGE_SENDING);
+    const tusb_control_request_t clear_halt = {
+        .bmRequestType = 0x02, .bRequest = TUSB_REQ_CLEAR_FEATURE,
+        .wValue = TUSB_REQ_FEATURE_EDPT_HALT, .wIndex = EP_IN,
+    };
+    memcpy((void *)dpram.setup_packet, &clear_halt, sizeof(clear_halt));
+    tud_event_hook_cb(0, DCD_EVENT_SETUP_RECEIVED, true);
+    mca_protocol_task(); /* before tud_task: the reset waits for TinyUSB */
+    assert(mca_bridge_state(&mca_bridge) == MCA_BRIDGE_SENDING);
+    usbd_edpt_clear_stall(0, EP_IN); /* tud_task: TinyUSB's own handling */
+    (void)driver->control_xfer_cb(0, 0 /* SETUP */, &clear_halt);
+    mca_protocol_task();
+    assert(mca_bridge_state(&mca_bridge) == MCA_BRIDGE_IDLE);
+    assert(!endpoint_busy[EP_IN]);
+
+    const uint8_t raw_short[] = {0xaa, 0x42, 1, 0, 0x81};
+    size_t before_raw = transfer_count;
+    receive_out(driver, raw_short, sizeof(raw_short));
+    mca_protocol_task();
+    assert(mca_bridge_begin(&mca_bridge));
+    uint8_t byte;
+    assert(mca_bridge_receive(&mca_bridge, &byte) && byte == 0x81);
+    mca_bridge_respond(&mca_bridge, 0x2b);
+    mca_bridge_finish(&mca_bridge, true);
+    mca_protocol_task();
+    assert(transfer_count > before_raw);
+    transfer_t reply = transfers[transfer_count - 1];
+    assert(reply.endpoint == EP_IN && reply.length == 5);
+    assert(reply.buffer[0] == 0x55 && reply.buffer[1] == 0x5a && reply.buffer[4] == 0x2b);
     return 0;
 }

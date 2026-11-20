@@ -1,6 +1,6 @@
 /* Framing is now private to mca_protocol.c. Test it through OUT callbacks. */
 #include "protocol_fixture.h"
-#include "mca_page.h"
+#include "ps2_mca_page.h"
 
 static void expect_invalid(const uint8_t *input, size_t length) {
     sent_length = 0;

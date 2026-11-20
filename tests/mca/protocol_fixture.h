@@ -35,6 +35,21 @@ bool ps2_cardman_is_idle(void) { return true; }
 uint32_t ps2_cardman_get_card_size(void) { return card_capacity; }
 bool ps2_mc_auth_isValid(void) { return auth_valid; }
 void mca_device_set_presence(bool present) { card_present = present; }
+/* Card provider equivalent to the firmware's PS1/PS2 backends, driven by the
+ * fixture's mode/variant/auth/capacity knobs. */
+static uint8_t fixture_card_type(void) {
+    if (card_mode != MODE_PS2)
+        return 1;
+    return card_accessible ? 2 : 0;
+}
+static bool fixture_page_allowed(uint32_t page) {
+    return card_mode == MODE_PS2 && card_variant == PS2_VARIANT_RETAIL && auth_valid &&
+        ((uint64_t)page + 1) * 512 <= card_capacity;
+}
+static const mca_card_t fixture_card = {fixture_card_type, fixture_page_allowed};
+static inline void mca_protocol_set_ready(bool ready) {
+    mca_protocol_attach_card(ready ? &fixture_card : NULL);
+}
 void mca_device_task(void) {}
 void mca_device_receive(void) {}
 bool mca_device_profile_is_mca(void) { return true; }

@@ -1,5 +1,5 @@
 #include "protocol_fixture.h"
-#include "mca_page.h"
+#include "ps2_mca_page.h"
 
 static void finish_raw(uint8_t reply) {
     mca_bridge_respond(&mca_bridge, reply);

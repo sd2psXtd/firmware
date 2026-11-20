@@ -12,7 +12,17 @@ bool tud_deinit(uint8_t rhport);
 
 #define TUSB_CLASS_VENDOR_SPECIFIC 0xff
 #define TUSB_DESC_ENDPOINT 5
+#define TUSB_REQ_RCPT_DEVICE 0
 #define TUSB_REQ_RCPT_INTERFACE 1
+#define TUSB_REQ_RCPT_ENDPOINT 2
+#define TUSB_REQ_TYPE_STANDARD 0
+#define TUSB_REQ_TYPE_CLASS 1
+#define TUSB_REQ_TYPE_VENDOR 2
+#define TUSB_REQ_CLEAR_FEATURE 1
+#define TUSB_REQ_SET_FEATURE 3
+#define TUSB_REQ_SET_CONFIGURATION 9
+#define TUSB_REQ_SET_INTERFACE 11
+#define TUSB_REQ_FEATURE_EDPT_HALT 0
 
 typedef enum {
     XFER_RESULT_SUCCESS,
@@ -46,11 +56,16 @@ typedef struct {
     uint8_t direction : 1;
 } tusb_request_type_bits_t;
 
-typedef struct {
-    tusb_request_type_bits_t bmRequestType_bit;
+/* Same 8-byte wire layout as TinyUSB's packed SETUP packet. */
+typedef struct __attribute__((packed)) {
+    union {
+        tusb_request_type_bits_t bmRequestType_bit;
+        uint8_t bmRequestType;
+    };
     uint8_t bRequest;
     uint16_t wValue;
     uint16_t wIndex;
+    uint16_t wLength;
 } tusb_control_request_t;
 
 typedef struct {

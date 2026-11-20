@@ -128,7 +128,7 @@ int main(void) {
     uint8_t write[138] = {0x81, 'W', 0, 0, 0, 2};
     uint8_t checksum = 2;
     mca_protocol_init();
-    mca_protocol_set_ready(true);
+    ps1_card_backend_mca.startup();
     ps1_card_backend = &ps1_card_backend_mca;
     flag = 8;
 

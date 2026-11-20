@@ -1,4 +1,4 @@
-#include "mca_page.h"
+#include "ps2_mca_page.h"
 #include "ps2/card_emu/ps2_mc_commands.h"
 
 #include <string.h>
@@ -50,7 +50,7 @@ static bool exchange(void (*handler)(void), size_t length, size_t ack, uint8_t t
 }
 
 bool mca_page_execute(mca_bridge_t *bridge) {
-    bool write = bridge->input[1] == 0x57;
+    bool write = mca_bridge_command(bridge) == 0x57;
     uint8_t *request = transaction.request;
     uint8_t *response = transaction.response;
     bool success = false;
