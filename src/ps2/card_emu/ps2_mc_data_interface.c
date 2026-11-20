@@ -36,6 +36,7 @@
 
 #if WITH_PSRAM
 uint8_t cache[PAGE_CACHE_SIZE * PS2_PAGE_SIZE];
+_Static_assert(sizeof(cache) >= BIGMEM_CACHE_MIN_BYTES, "shared cache too small");
 #endif
 
 #define MAX_TIME_SLICE  ( 5 * 1000 )

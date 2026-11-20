@@ -39,6 +39,8 @@ While in general this should be safe behavior, if *sd2psx* is used mainly in PS1
 If using 8MB cards, *sd2psXtd* firmware exposes the card to the PS2 while it is still being transferred to PSRAM. This enables using FMCB/PS2BBL at boot time without additional waiting scripts.
 Very helpful for PlayStation 2 models with simpler OSDSYS programs, that result on faster boot times (like PSX DESR and Arcade PS2)
 
+*Note: This applies to existing 8MB cards and to newly generated empty cards. A new card created from a [template card](configuration.md#general-template-cards) only becomes available once the template has been fully copied.*
+
 ## PS2: 1-128 MB Card Size Support
 
 Support for card sizes between 1 and 128 MB has been added. Cards larger than 8 MB rely heavily on quick SD card access, so on older or lower-quality SD cards, these larger cards may become corrupt.
