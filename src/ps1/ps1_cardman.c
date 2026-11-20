@@ -30,6 +30,7 @@
 
 #define CARD_SIZE (128 * 1024)
 #define BLOCK_SIZE 128
+#define PS1_TEMPLATE_PATH ".sd2psx/ps1.mcd"
 static uint8_t flushbuf[BLOCK_SIZE];
 static int fd = -1;
 
@@ -216,7 +217,12 @@ void ps1_cardman_open(void) {
     log(LOG_INFO, "Switching to card path = %s\n", path);
 
     if (!sd_exists(path)) {
-        int fd_template = sd_open(".sd2psx/ps1.mcd", O_RDONLY);
+        int fd_template = sd_open(PS1_TEMPLATE_PATH, O_RDONLY);
+        if (fd_template >= 0 && sd_filesize64(fd_template) != CARD_SIZE) {
+            log(LOG_WARN, "%s has invalid size, generating empty card instead\n", PS1_TEMPLATE_PATH);
+            sd_close(fd_template);
+            fd_template = -1;
+        }
         fd = sd_open(path, O_RDWR | O_CREAT | O_TRUNC);
 
         if (fd < 0)
