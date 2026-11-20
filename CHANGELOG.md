@@ -1,5 +1,11 @@
 # Changelog
 
+## Unreleased
+
+### Fixes
+
+- Fixed MCA mode losing replies after the PS3 reopens the adapter (for example when leaving and re-entering the XMB memory card screen), which could hide the card and freeze the XMB for about 5 seconds (#128).
+
 ## 1.4.0 - 2026-07-08
 
 ### Features

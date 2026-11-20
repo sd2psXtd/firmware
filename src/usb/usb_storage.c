@@ -1,5 +1,6 @@
 #include "usb_storage.h"
 #include "mca_device.h"
+#include "usb_session.h"
 #include "settings.h"
 #include "sd.h"
 #include "debug.h"

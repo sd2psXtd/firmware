@@ -1,6 +1,6 @@
 #include "settings.h"
 #include "mca_bridge.h"
-#include "mca_page.h"
+#include "ps2_mca_page.h"
 #include "mca_protocol.h"
 #include "ps2/ps2_card_backend_mca.h"
 #include "ps2/card_emu/ps2_mc_commands.h"
@@ -138,7 +138,7 @@ int main(void) {
     const uint8_t get_term[] = {0xaa, 0x42, 5, 0, 0x81, 0x28, 0, 0, 0};
     const uint8_t specs[] = {0xaa, 0x42, 13, 0, 0x81, 0x26, 0x5a, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0};
     mca_protocol_init();
-    mca_protocol_set_ready(true);
+    ps2_card_backend_mca.startup();
 
     transact(changed, sizeof(changed));
     assert(usb_reply[7] != 0x66);

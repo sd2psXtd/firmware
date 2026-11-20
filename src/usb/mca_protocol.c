@@ -1,10 +1,6 @@
 #include "mca_protocol.h"
-#include "mca_bridge.h"
-#include "mca_page.h"
 #include "pico/time.h"
 #include "tusb.h"
-#include "ps2/ps2_cardman.h"
-#include "ps2/card_emu/ps2_mc_auth.h"
 #include "settings.h"
 
 #include <string.h>
@@ -72,14 +68,15 @@ static void frame_feed(const uint8_t *data, size_t length) {
     }
 }
 
-static bool card_ready, discard_reply;
-static critical_section_t ready_lock;
+static const mca_card_t *attached_card;
+static bool discard_reply;
+static critical_section_t card_lock;
 
-static bool is_ready(void) {
-    critical_section_enter_blocking(&ready_lock);
-    bool ready = card_ready;
-    critical_section_exit(&ready_lock);
-    return ready;
+static const mca_card_t *card(void) {
+    critical_section_enter_blocking(&card_lock);
+    const mca_card_t *current = attached_card;
+    critical_section_exit(&card_lock);
+    return current;
 }
 static uint64_t frame_deadline;
 #ifdef DEBUG_USB_UART
@@ -90,12 +87,11 @@ static const uint8_t debug_exit_packet[] = {'M', 'C', 'A', '!'};
 static uint8_t card_type(void) {
     /* Stop admitting new operations during a switch to storage; work already
      * owned by the bridge still drains through the normal protocol task. */
-    if (settings_get_usb_mode(true) == USB_MODE_MASS || !is_ready() ||
+    const mca_card_t *current = card();
+    if (settings_get_usb_mode(true) == USB_MODE_MASS || !current ||
         mca_bridge_cancelled(&mca_bridge))
         return 0;
-    if (settings_get_mode(true) != MODE_PS2)
-        return 1;
-    return ps2_cardman_is_accessible() ? 2 : 0;
+    return current->type();
 }
 
 static void out_received(const uint8_t *data, uint16_t length) {
@@ -120,37 +116,52 @@ static void in_complete(bool success, uint32_t transferred) {
     mca_bridge_release(&mca_bridge);
 }
 
-static void bus_reset(void) {
+static void pipes_reset(bool in, bool out) {
     /* Accepted operations finish, including a page write's commit. Their old
      * reply is discarded; the worker's buffers remain untouched until then. */
-    discard_reply = true;
-    mca_bridge_release(&mca_bridge);
-    frame_reset();
+    if (in) {
+        discard_reply = true;
+        mca_bridge_release(&mca_bridge);
+    }
+    /* A partially received request will never be completed. */
+    if (out) {
+        frame_reset();
 #ifdef DEBUG_USB_UART
-    debug_exit_requested = false;
+        debug_exit_requested = false;
 #endif
+    }
 }
+
+static void bus_reset(void) { pipes_reset(true, true); }
 
 static const mca_device_callbacks_t callbacks = {
     .out_received = out_received,
     .in_complete = in_complete,
     .bus_reset = bus_reset,
+    .pipes_reset = pipes_reset,
 };
 
 void mca_protocol_init(void) {
-    critical_section_init(&ready_lock);
+    critical_section_init(&card_lock);
     mca_bridge_init(&mca_bridge);
     frame_reset();
-    card_ready = discard_reply = false;
+    attached_card = NULL;
+    discard_reply = false;
 #ifdef DEBUG_USB_UART
     debug_exit_requested = false;
 #endif
 }
 
-void mca_protocol_set_ready(bool ready) {
-    critical_section_enter_blocking(&ready_lock);
-    card_ready = ready;
-    critical_section_exit(&ready_lock);
+void mca_protocol_attach_card(const mca_card_t *card_to_attach) {
+    critical_section_enter_blocking(&card_lock);
+    attached_card = card_to_attach;
+    critical_section_exit(&card_lock);
+}
+
+bool mca_protocol_service(bool running) {
+    if (mca_device_profile_is_mca() && (running || !mca_protocol_idle()))
+        mca_protocol_task();
+    return running;
 }
 
 bool mca_protocol_idle(void) {
@@ -180,8 +191,9 @@ void mca_protocol_switch_delay(uint32_t milliseconds) {
 }
 
 static void process_frame(void) {
-    uint8_t command = mca_bridge.input[1];
+    uint8_t command = mca_bridge_command(&mca_bridge);
     uint8_t type = card_type();
+    const mca_card_t *current = card();
     discard_reply = false;
     if (frame.result == FRAME_INVALID) {
         mca_bridge_reply(&mca_bridge, 0xaf);
@@ -189,11 +201,10 @@ static void process_frame(void) {
         mca_bridge_reply(&mca_bridge, type);
     } else {
         bool valid = command == 0x42 && type;
-        if ((command == 0x52 || command == 0x57) && type == 2 &&
-            settings_get_ps2_variant() == PS2_VARIANT_RETAIL && ps2_mc_auth_isValid()) {
+        if ((command == 0x52 || command == 0x57) && type && current && current->page_allowed) {
             uint32_t page = (uint32_t)mca_bridge.input[3] | ((uint32_t)mca_bridge.input[4] << 8) |
                 ((uint32_t)mca_bridge.input[5] << 16) | ((uint32_t)mca_bridge.input[6] << 24);
-            valid = ((uint64_t)page + 1) * 512 <= ps2_cardman_get_card_size();
+            valid = current->page_allowed(page);
         }
         if (!valid || !mca_bridge_submit(&mca_bridge, frame.length))
             mca_bridge_reply(&mca_bridge, 0xaf);
@@ -205,7 +216,7 @@ void mca_protocol_task(void) {
 #ifdef DEBUG_USB_UART
     if (debug_exit_requested) {
         debug_exit_requested = false;
-        mca_protocol_set_ready(false);
+        mca_protocol_attach_card(NULL);
         frame_reset();
         settings_set_mca_enabled(false);
     }

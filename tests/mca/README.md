@@ -20,7 +20,9 @@ for the removed `mca_comms`/Core 0 page scheduler:
 - `page`: synchronous Core 1 page execution with mocked PS2 command handlers;
   checks chunking, checksums, ACKs, terminators, commit, cancellation and recovery.
 - `device`, `device_protocol`: endpoint ownership/backpressure, reset-interface
-  handling, presence ordering, profile selection, and complete USB round trips.
+  handling, presence ordering, profile selection, complete USB round trips, and
+  host pipe resets (SET_CONFIGURATION, SET_INTERFACE, CLEAR_FEATURE(HALT)) that
+  must drop armed transfers and return the data toggles to DATA0.
 - `protocol`, `protocol_debug`: readiness/storage transitions, authorization,
   timeout recovery, reset/discard behavior, reply draining, and debug exit.
 - `backends`, `selector`: PS1/PS2 backend boundaries, MMCEMAN continuation bytes,
@@ -34,3 +36,6 @@ for the removed `mca_comms`/Core 0 page scheduler:
 The host mocks implement only the SDK/USB/storage boundaries needed by these
 tests. They do not emulate physical PIO timing. Device hardware tests and firmware
 builds remain necessary; `tests/mca/mca.py` is the separate hardware-facing tool.
+`tests/mca/reopen.py` reproduces the PS3 reopen issue (#128) against a connected
+adapter in MCA mode: it reopens the pipes after an odd and an even number of
+replies and checks that the next request is still answered.

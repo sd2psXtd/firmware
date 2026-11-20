@@ -42,7 +42,6 @@ wear_leveling_status_t wear_leveling_read(uint32_t address, void *value, size_t 
 
 bool mca_device_profile_is_mca(void) { return mca_profile; }
 bool mca_protocol_idle(void) { return true; }
-void mca_protocol_set_ready(bool ready) { (void)ready; }
 void mca_protocol_switch_delay(uint32_t milliseconds) { (void)milliseconds; }
 
 uint64_t time_us_64(void) { return 100; }

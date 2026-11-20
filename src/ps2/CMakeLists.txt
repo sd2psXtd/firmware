@@ -11,6 +11,7 @@ add_library(ps2_card STATIC
                 ${CMAKE_CURRENT_SOURCE_DIR}/card_emu/ps2_card_backend_pio.c
                 ${CMAKE_CURRENT_SOURCE_DIR}/card_emu/ps2_card_backend.c
                 ${CMAKE_CURRENT_SOURCE_DIR}/ps2_card_backend_mca.c
+                ${CMAKE_CURRENT_SOURCE_DIR}/ps2_mca_page.c
                 ${CMAKE_CURRENT_SOURCE_DIR}/history_tracker/ps2_history_tracker.c
 
                 ${CMAKE_CURRENT_SOURCE_DIR}/ps2_cardman.c
@@ -23,6 +24,7 @@ target_include_directories(ps2_card
 
 target_link_libraries(ps2_card PRIVATE
             sd2psx_common
+            sd2psx_usb
             pico_stdlib
             hardware_sync
             hardware_pio
