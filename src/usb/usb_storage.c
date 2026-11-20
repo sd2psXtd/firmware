@@ -17,8 +17,6 @@ static bool eject_pending, finished;
 static uint32_t sectors;
 
 void usb_storage_init(void) {
-    /* The previous USB session has stopped; allow the host to see disconnect. */
-    sleep_ms(20);
     if (!sd_unmount())
         fatal(ERR_SDCARD, "USB storage: SD handover failed");
     sectors = sd_sector_count();

@@ -20,6 +20,8 @@ static void usb_session_stop(void) {
         sleep_ms(PICO_STDIO_USB_DEINIT_DELAY_MS);
     }
     tud_disconnect();
+    /* Let the host see the disconnect before the next profile connects. */
+    sleep_ms(20);
     tud_deinit(0);
     mca_protocol_reset();
 }
