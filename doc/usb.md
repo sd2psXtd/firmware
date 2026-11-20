@@ -11,7 +11,7 @@ The **USB Mode** submenu offers **Serial** (normal operation with CDC), **PS3 MC
 > [!CAUTION]
 > The RP2040's USB 1.1 Full Speed link is limited to 12 Mbit/s before protocol and SD-card overhead, so file transfers are substantially slower.
 
-Select **USB Mode → Mass** in the device menu to access the entire microSD card from a computer. Card emulation stops while the USB icon is displayed, and buttons are ignored. Eject the drive on the computer to return to normal operation; suspension, inactivity, and unplugging are not eject events.
+Select **USB Mode → Mass** in the device menu or enter `set mode mass` in the serial terminal to access the entire microSD card from a computer. Card emulation stops while the USB icon is displayed, and buttons are ignored. Eject the drive on the computer to return to normal operation; suspension, inactivity, and unplugging are not eject events.
 
 CDC remains available in Mass mode, with `help` and `version` commands. Commands that access files or change device state are rejected while storage owns the card. USB re-enumerates on entry and exit, so reopen the serial terminal when changing sessions. On exit the firmware remounts the card and restarts the previous console mode and USB profile.
 
@@ -33,7 +33,7 @@ card up
 card down
 set card <idx> [channel <idx>]
 set game <id> [channel <idx>]
-set mode <ps1|ps2>
+set mode <ps1|ps2|mca|mass>
 set variant <retail|proto|conquest|arcade>
 ```
 

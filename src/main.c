@@ -16,7 +16,7 @@
 #include "pico/time.h"
 #include "sd.h"
 #include "settings.h"
-#include "usb/mca_device.h"
+#include "usb/usb_session.h"
 #include "usb/usb_storage.h"
 #if WITH_PSRAM
 #include "psram/psram.h"
@@ -154,8 +154,7 @@ int main() {
             if (!usb_session_continue(mode_running))
                 break;
         }
-        usb_session_drain();
-        usb_session_stop();
+        usb_session_end_mode();
         mode_deinit();
 
         // ReArm PS2 retry counter

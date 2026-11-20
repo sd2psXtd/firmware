@@ -38,6 +38,7 @@ typedef enum {
     SERIAL_INPUT_CMD_PS1_MODE,
     SERIAL_INPUT_CMD_PS2_MODE,
     SERIAL_INPUT_CMD_MCA_MODE,
+    SERIAL_INPUT_CMD_MASS_MODE,
     SERIAL_INPUT_CMD_PS2_VARIANT_RETAIL,
     SERIAL_INPUT_CMD_PS2_VARIANT_PROTO,
     SERIAL_INPUT_CMD_PS2_VARIANT_SC2,
@@ -81,7 +82,7 @@ static const char help_text[] =
     "  card down                           - Card down\n"
     "  set card <idx> [channel <idx>]      - Set card with optional channel\n"
     "  set game <id> [channel <idx>]       - Set game with optional channel\n"
-    "  set mode <mode>                     - Set mode: ps1, ps2, mca (disconnects USB serial)\n"
+    "  set mode <mode>                     - Set mode: ps1, ps2, mca, mass\n"
     "  set variant <variant>               - Set PS2 variant: retail, proto, conquest, arcade\n";
 
 static char in_buffer[SERIAL_INPUT_BUFFER_SIZE];
@@ -351,9 +352,11 @@ static void parse_command(char* input, serial_input_cmd_data_t* cmd_data) {
             cmd_data->cmd = SERIAL_INPUT_CMD_PS2_MODE;
         } else if (strcmp(argv[2], "mca") == 0) {
             cmd_data->cmd = SERIAL_INPUT_CMD_MCA_MODE;
+        } else if (strcmp(argv[2], "mass") == 0) {
+            cmd_data->cmd = SERIAL_INPUT_CMD_MASS_MODE;
         } else {
             cmd_data->cmd = SERIAL_INPUT_CMD_INVALID;
-            cmd_data->error = "Mode must be one of: ps1, ps2, mca";
+            cmd_data->error = "Mode must be one of: ps1, ps2, mca, mass";
         }
     } else if ((argc == 3) && (strcmp(argv[0], "set") == 0) && (strcmp(argv[1], "variant") == 0)) {
         if (strcmp(argv[2], "retail") == 0) {
@@ -486,6 +489,10 @@ static void execute_command(const serial_input_cmd_data_t* cmd_data) {
             gui_mca_mode_changed();
             #endif
             break;
+        case SERIAL_INPUT_CMD_MASS_MODE:
+            printf("Switching USB to Mass Storage (eject to return)\n");
+            settings_set_usb_mode(USB_MODE_MASS);
+            break;
         case SERIAL_INPUT_CMD_PS2_VARIANT_RETAIL:
             printf("Set PS2 Variant: Retail\n");
             settings_set_ps2_variant(PS2_VARIANT_RETAIL);
@@ -564,11 +571,13 @@ static void submit_line(void) {
     in_len = 0;
     in_buffer[0] = '\0';
 
+#if DEBUG_USB_UART
+    int usb_mode = settings_get_usb_mode(true);
+#endif
     execute_command(&cmd_data);
 #if DEBUG_USB_UART
-    if (cmd_data.cmd == SERIAL_INPUT_CMD_MCA_MODE && settings_get_mca_enabled()) {
-        /* CDC disappeared with the Pico USB profile. Start a fresh prompt
-         * when the GUI later switches back to Pico CDC. */
+    if (usb_mode != settings_get_usb_mode(true)) {
+        /* Start a fresh prompt when a terminal reopens CDC. */
         prompt_started = false;
         return;
     }
@@ -580,8 +589,7 @@ void serial_input_process(void) {
     int charin;
 
 #if DEBUG_USB_UART
-    /* After switching back from MCA, wait for a terminal to reopen CDC
-     * before printing the first prompt. */
+    /* Wait for a terminal to open CDC before printing the first prompt. */
     if (!prompt_started && !stdio_usb_connected())
         return;
 #endif

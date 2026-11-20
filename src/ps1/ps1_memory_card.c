@@ -37,12 +37,12 @@ static bool backend_mode;
 
 
 #define receiveOrNextCmd(cmd)          \
-    if ((ps1_card_backend->recv_mc(cmd) == PS1_RECEIVE_RESET) || !ps1_card_active) \
+    if ((ps1_card_backend->recv_mc(cmd) != PS1_RECEIVE_OK) || !ps1_card_active) \
     { \
     return;}
 
 #define receiveOrNextCntrl(cmd)          \
-    if ((ps1_card_backend->recv_cntrl(cmd) == PS1_RECEIVE_RESET) || !ps1_card_active) \
+    if ((ps1_card_backend->recv_cntrl(cmd) != PS1_RECEIVE_OK) || !ps1_card_active) \
     { \
     return;}
 
@@ -108,6 +108,8 @@ static void __time_critical_func(mc_cmd_read)(bool long_read) {
     respondOrNextCmd(0x5D);       receiveOrNextCmd(&_);
     respondOrNextCmd(page_msb);   receiveOrNextCmd(&_);
     page = (page_msb << 8) | page_lsb;
+    if (page >= 1024U)
+        return;
     ps1_mc_data_interface_setup_read_page(page);
     respondOrNextCmd(page_lsb);   receiveOrNextCmd(&_);
     do {
@@ -118,7 +120,10 @@ static void __time_critical_func(mc_cmd_read)(bool long_read) {
             chk ^= curr_page[offset];
             receiveOrNextCmd(&_)
         }
-        page++;
+        if (!long_read)
+            break;
+        if (++page >= 1024U)
+            return;
         ps1_mc_data_interface_setup_read_page(page);
     } while (long_read);
     respondOrNextCmd(chk);        receiveOrNextCmd(&_);
@@ -149,6 +154,7 @@ static void __time_critical_func(mc_cmd_write)(void) {
     uint8_t prev;
     uint8_t chk = 0;
     uint8_t _;
+    uint8_t write_buffer[PS1_PAGE_SIZE];
     flag = 0;
 
     respondOrNextCmd(0x5A);       receiveOrNextCmd(&_);
@@ -159,15 +165,21 @@ static void __time_critical_func(mc_cmd_write)(void) {
     prev = page_lsb;
     for (offset = 0; offset < PS1_PAGE_SIZE; offset++) {
         respondOrNextCmd(prev);   receiveOrNextCmd(&in);
-        ps1_mc_data_interface_write_byte(((page_msb * 256) + page_lsb) * PS1_PAGE_SIZE + offset, in);
+        write_buffer[offset] = in;
         chk ^= in;
         prev = in;
     }
     respondOrNextCmd(prev);           receiveOrNextCmd(&in);
     respondOrNextCmd(0x5C);           receiveOrNextCmd(&_);
     respondOrNextCmd(0x5D);           receiveOrNextCmd(&_);
-    if (in == chk) {
-        uint16_t page = (page_msb * 256) + page_lsb;
+    uint16_t page = (page_msb * 256) + page_lsb;
+    if (page >= 1024U) {
+        respondOrNextCmd(0xFF);
+    } else if (in == chk) {
+        /* An interrupted read may still own the shared PSRAM page buffer. */
+        ps1_mc_data_interface_wait_for_byte(PS1_PAGE_SIZE - 1U);
+        for (offset = 0; offset < PS1_PAGE_SIZE; ++offset)
+            ps1_mc_data_interface_write_byte(page * PS1_PAGE_SIZE + offset, write_buffer[offset]);
         ps1_mc_data_interface_write_mc(page);
         respondOrNextCmd(0x47);
     } else {
@@ -243,7 +255,7 @@ static void __time_critical_func(mc_mmce_reset)(void) {
     uint8_t _;
     respondOrNextCmd(0x00);   receiveOrNextCmd(&_);
     respondOrNextCmd(0x00);   receiveOrNextCmd(&_);
-    respondOrNextCmd(0x20);   receiveOrNextCmd(&_);
+    respondOrNextCmd(0x00);   receiveOrNextCmd(&_);
     respondOrNextCmd(0xFF);   receiveOrNextCmd(&_);
     ps1_mmce_reset(false);
 }
@@ -360,10 +372,19 @@ static void __time_critical_func(mc_main_loop)(void) {
         if (0x81 == ch) { /* Command is for MC - process! */
             ps1_card_backend->respond(flag);
 
-            if (ps1_card_backend->recv_mc(&ch) == PS1_RECEIVE_RESET)
+            if (ps1_card_backend->recv_mc(&ch) != PS1_RECEIVE_OK)
                 continue;
 
             switch (ch) {
+                case 0x11: {
+                    if (settings_get_mode(false) != MODE_PS1) {
+                        log(LOG_INFO, "Switching to PS2 mode due to MC command.\n");
+                        ps1_card_backend->respond(0x2B);
+                        ps1_card_backend->respond(0x66);
+                        settings_set_mode(MODE_PS2);
+                    }
+                    break;
+                }
                 case 0x20: mc_mmce_ping(); break;
                 case 0x21: mc_mmce_set_game_id(); break;
                 case 0x22: mc_mmce_prev_channel(); break;
@@ -382,7 +403,7 @@ static void __time_critical_func(mc_main_loop)(void) {
         } else if ((0x21 == ch) && !ps2_multitap) {
             ps1_card_backend->respond(0x00);
 
-            if (PS1_RECEIVE_RESET == ps1_card_backend->recv_mc(&ch))
+            if (PS1_RECEIVE_OK != ps1_card_backend->recv_mc(&ch))
                 continue;
 
             if (0x53 == ch) {
@@ -408,13 +429,16 @@ static void __no_inline_not_in_flash_func(mc_main)(void) {
         ps1_card_backend->shutdown();
 
         log(LOG_TRACE, "%s exit\n", __func__);
+        /* Mass storage is a temporary USB override: neither the console mode
+           nor the saved MCA flag necessarily changes when entering it. */
         if (settings_get_mode(true) != MODE_PS1 ||
-            settings_get_mca_enabled() != backend_mode) {
-            log(LOG_TRACE, "Mode or variant changed, exiting memcard core\n");
+            settings_get_mca_enabled() != backend_mode ||
+            settings_get_usb_mode(true) == USB_MODE_MASS) {
+            log(LOG_TRACE, "Mode or USB profile changed, exiting memcard core\n");
             return;
         } else {
             mc_exit_response = 1;
-            log(LOG_TRACE, "Mode still PS1, reinitializing memcard core\n");
+            log(LOG_TRACE, "Card worker paused for re-entry\n");
         }
     }
 }

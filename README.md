@@ -56,7 +56,7 @@ PMC+ and PMCZero now support using the onboard buttons. They are assigned in the
 ## Documentation
 
 - [PS1 and PS2 features](doc/features.md) — game ID switching, card sizes, console variants, controller shortcuts, and more.
-- [Configuration](doc/configuration.md) — settings file, per-card options, and Game2Folder mapping.
+- [Configuration](doc/configuration.md) — settings file, per-card options, template cards, and Game2Folder mapping.
 - [USB interfaces](doc/usb.md) — USB mass storage, PS3 Memory Card Adaptor emulation, and USB-CDC commands.
 - [Display customization](doc/customization.md) — startup splash and card images.
 
@@ -70,7 +70,7 @@ PMC+ and PMCZero now support using the onboard buttons. They are assigned in the
 - **@Mena / PhenomMods**: for providing hardware to some team members ❤️
 - **BitFunX**: for providing PSXMemcard and PSXMemcard Gen2 Hardware for dev ❤️
 - **@mathewbeall**: for arcade fixes ❤️
-- **@wark**: for USB mass storage inspiration ❤️
+- **@warksmith**: for USB mass storage inspiration ❤️
 - **@max-las**: for SD-related fixes ❤️
 - **All Testers**: ripto, Vapor, seewood, john3d, rippenbiest, ... ❤️
 - **@niemasd**: For his [*GameDB-PSX*](https://github.com/niemasd/GameDB-PSX) database - Game naming and ID on PS1 would not be possible without it! ❤️

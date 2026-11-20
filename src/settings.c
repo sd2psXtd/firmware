@@ -519,8 +519,13 @@ void settings_set_mode(int mode) {
     if (mode == MODE_TEMP_PS1) {
         tempmode = MODE_TEMP_PS1;
         return;
-    } else if (mode != MODE_PS1 && mode != MODE_PS2)
+    } else if (mode != MODE_PS1 && mode != MODE_PS2) {
         return;
+    }
+    else if ((tempmode == MODE_TEMP_PS1) && (mode == MODE_PS2)) {
+        tempmode = MODE_PS2;
+        return;
+    }
 
     if (mode != settings_get_mode(true)) {
         /* clear old mode, then set what was passed in */

@@ -1,6 +1,6 @@
 #include "settings.h"
 #include "mca_bridge.h"
-#include "mca_comms.h"
+#include "ps2_mca_page.h"
 #include "mca_protocol.h"
 #include "ps2/ps2_card_backend_mca.h"
 #include "ps2/card_emu/ps2_mc_commands.h"
@@ -20,11 +20,12 @@ uint8_t term = 0xff;
 /* The read fixture uses only 0xff card bytes and its first 0x77 ECC byte. */
 const uint8_t EccTable[256] = {[0x77] = 0x44};
 
-static uint8_t usb_reply[MCA_FRAME_MAX];
+static uint8_t usb_reply[MCA_BRIDGE_TX_CAPACITY];
 static size_t usb_reply_length;
 static uint8_t card_page[PS2_PAGE_SIZE];
 static volatile ps2_mcdi_page_t page = {.data = card_page};
 static unsigned commits;
+static bool reset_on_commit;
 
 uint64_t time_us_64(void) { return 0; }
 void sleep_us(uint64_t us) { (void)us; }
@@ -32,6 +33,7 @@ void sleep_ms(uint32_t ms) { (void)ms; }
 void tud_task_ext(uint32_t timeout_ms, bool in_isr) { (void)timeout_ms; (void)in_isr; }
 int settings_get_mode(bool temporary) { (void)temporary; return 1; }
 int settings_get_usb_mode(bool current) { (void)current; return USB_MODE_MCA; }
+bool settings_get_mca_enabled(void) { return true; }
 int settings_get_ps2_variant(void) { return 0; }
 bool ps2_cardman_is_accessible(void) { return true; }
 bool ps2_cardman_is_idle(void) { return true; }
@@ -49,11 +51,16 @@ volatile ps2_mcdi_page_t *ps2_mc_data_interface_get_page(uint32_t p) {
 void ps2_mc_data_interface_wait_for_byte(uint32_t offset) { (void)offset; }
 void ps2_mc_data_interface_write_mc(uint32_t p, void *data) {
     assert(p == 7);
+    if (reset_on_commit) {
+        reset_on_commit = false;
+        mca_protocol_callbacks()->bus_reset();
+    }
     memcpy(card_page, data, sizeof(card_page));
     ++commits;
 }
 void mca_device_set_presence(bool present) { (void)present; }
 void mca_device_task(void) {}
+void mca_device_receive(void) {}
 bool mca_device_send(const uint8_t *data, size_t length) {
     assert(length <= sizeof(usb_reply));
     memcpy(usb_reply, data, length);
@@ -99,6 +106,7 @@ static void transact(const uint8_t *request, size_t length) {
 
 static void page_transfer(const uint8_t *request, size_t length) {
     const mca_device_callbacks_t *callbacks = mca_protocol_callbacks();
+    bool discard_reply = reset_on_commit;
     usb_reply_length = 0;
     for (size_t pos = 0; pos < length;) {
         size_t bytes = length - pos;
@@ -107,10 +115,17 @@ static void page_transfer(const uint8_t *request, size_t length) {
         pos += bytes;
         mca_protocol_task();
     }
-    for (unsigned i = 0; i < 7; ++i) {
-        assert(!usb_reply_length);
-        execute_card_command();
-        mca_protocol_task();
+    assert(!usb_reply_length && mca_bridge_begin(&mca_bridge));
+    /* High-level page execution now stays entirely on Core 1. Its I/O still
+       routes through the real backend and memory-card command handlers. */
+    bool success = mca_page_execute(&mca_bridge);
+    assert(success);
+    mca_bridge_finish(&mca_bridge, success);
+    mca_protocol_task();
+    if (discard_reply) {
+        assert(!reset_on_commit && usb_reply_length == 0);
+        assert(mca_bridge_state(&mca_bridge) == MCA_BRIDGE_IDLE);
+        return; /* Reset during commit discarded the old connection's reply. */
     }
     assert(usb_reply_length && usb_reply[0] == 0x55 && usb_reply[1] == 0x5a);
     callbacks->in_complete(true, usb_reply_length);
@@ -123,7 +138,7 @@ int main(void) {
     const uint8_t get_term[] = {0xaa, 0x42, 5, 0, 0x81, 0x28, 0, 0, 0};
     const uint8_t specs[] = {0xaa, 0x42, 13, 0, 0x81, 0x26, 0x5a, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0};
     mca_protocol_init();
-    mca_protocol_set_ready(true);
+    ps2_card_backend_mca.startup();
 
     transact(changed, sizeof(changed));
     assert(usb_reply[7] != 0x66);
@@ -205,21 +220,8 @@ int main(void) {
     const mca_device_callbacks_t *callbacks = mca_protocol_callbacks();
     memset(page_write + 7, 0x3c, 528);
     usb_reply_length = 0;
-    for (size_t pos = 0; pos < sizeof(page_write);) {
-        size_t bytes = sizeof(page_write) - pos;
-        if (bytes > 64) bytes = 64;
-        callbacks->out_received(page_write + pos, bytes);
-        pos += bytes;
-        mca_protocol_task();
-    }
-    for (unsigned i = 0; i < 6; ++i) {
-        execute_card_command();
-        mca_protocol_task();
-    }
-    assert(commits == 2 && mca_bridge_state(&mca_bridge) == MCA_BRIDGE_REQUEST);
-    callbacks->bus_reset();
-    execute_card_command();
-    mca_protocol_task();
+    reset_on_commit = true;
+    page_transfer(page_write, sizeof(page_write));
     assert(commits == 3 && usb_reply_length == 0);
     assert(mca_bridge_state(&mca_bridge) == MCA_BRIDGE_IDLE);
     for (unsigned i = 0; i < sizeof(card_page); ++i) assert(card_page[i] == 0x3c);

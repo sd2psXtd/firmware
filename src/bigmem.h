@@ -1,11 +1,6 @@
 #include <inttypes.h>
 #include <stdint.h>
 
-#if WITH_PSRAM
-    #define CACHE_SIZE  512 * 45
-#else
-    #define CACHE_SIZE 1024 * 128
-#endif
 typedef union {
     struct {
         uint16_t dirty_heap[1024];
@@ -22,4 +17,11 @@ typedef union {
 
 
 extern bigmem_t bigmem;
-extern uint8_t cache[CACHE_SIZE];
+/*
+ * Shared byte cache: the PS2 page cache on PSRAM builds, the PS1 card buffer otherwise.
+ * Both definitions are guaranteed to be at least this large (checked at compile time),
+ * so idle phases (e.g. PS2 template card copy) may borrow it as scratch space.
+ */
+#define BIGMEM_CACHE_MIN_BYTES (16 * 1024)
+
+extern uint8_t cache[];

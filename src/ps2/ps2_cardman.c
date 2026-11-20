@@ -22,6 +22,7 @@
 #include "settings.h"
 #include "util.h"
 #include "card_config.h"
+#include "bigmem.h"
 
 #if LOG_LEVEL_PS2_CM == 0
     #define log(x...)
@@ -30,6 +31,14 @@
 #endif
 
 #define BLOCK_SIZE   (512)
+/*
+ * Template cards are copied in chunks through the shared page cache (see bigmem.h),
+ * which is idle while the card is inaccessible. Every supported card size is a
+ * multiple of this chunk size.
+ */
+#define TEMPLATE_CHUNK_SIZE  (16 * BLOCK_SIZE)
+_Static_assert(TEMPLATE_CHUNK_SIZE <= BIGMEM_CACHE_MIN_BYTES, "template chunk exceeds shared cache");
+_Static_assert(PS2_CARD_SIZE_512K % TEMPLATE_CHUNK_SIZE == 0, "card sizes must be chunk multiples");
 
 #define CARD_HOME_ARCADE     "MemoryCards/COH"
 #define CARD_HOME_CONQUEST   "MemoryCards/SC2"
@@ -55,7 +64,10 @@ int current_read_sector = 0, priority_sector = -1;
 #define MAX_PREFIX_LENGTH    (4)
 #define MAX_PATH_LENGTH      (256)
 
+#define TEMPLATE_PATH        ".sd2psx/ps2.mcd"
+
 #define MAX_SLICE_LENGTH     (30 * 1000)
+#define MAX_SLICE_LENGTH_MCA     (500)
 
 
 static int card_variant;
@@ -69,6 +81,7 @@ static char cardhome[CARD_HOME_LENGTH];
 static uint64_t cardprog_start;
 static int cardman_sectors_done;
 static uint32_t cardprog_pos;
+static int template_fd = -1;
 
 static ps2_cardman_state_t cardman_state;
 
@@ -286,7 +299,7 @@ static void build_superblock(uint8_t *buf) {
     wr32(&buf[0x040], (uint32_t)CARD_BACKUP_BLOCK1);  // Backup block 1
     wr32(&buf[0x044], (uint32_t)CARD_BACKUP_BLOCK2);  // Backup block 2
 
-    for (int i = 0; i < CARD_IFC_LENGTH; i++) {
+    for (size_t i = 0; i < CARD_IFC_LENGTH; i++) {
         wr32(&buf[0x050 + i * 4], (uint32_t)(CARD_RESERVED_CLUSTERS + i));
     }
 
@@ -301,7 +314,7 @@ static void build_superblock(uint8_t *buf) {
     wr32(&buf[0x170], (uint32_t)(((CARD_CLUST_CNT / 1000) * 1000) + 1));
 }
 
-uint8_t blockRoot[1024] = {
+static const uint8_t blockRoot[1024] = {
     0x27, 0x84, 0x00, 0x00, 0x02, 0x00, 0x00, 0x00, 0x00, 0x29, 0x00, 0x06, 0x0C, 0x01, 0xD0, 0x07, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x29,
     0x00, 0x06, 0x0C, 0x01, 0xD0, 0x07, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
     0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x2E, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
@@ -432,7 +445,7 @@ static void ps2_cardman_continue(void) {
 #if WITH_PSRAM
             uint8_t thisIter = 0;
             log(LOG_TRACE, "%s:%u\n", __func__, __LINE__);
-            while ((ps2_mmceman_fs_idle()) && (time_us_64() - slice_start < MAX_SLICE_LENGTH)) {
+            while ((ps2_mmceman_fs_idle()) && (time_us_64() - slice_start < (settings_get_mca_enabled() ? MAX_SLICE_LENGTH_MCA : MAX_SLICE_LENGTH))) {
                 log(LOG_TRACE, "Slice!\n");
 
                 ps2_dirty_lock();
@@ -478,9 +491,15 @@ static void ps2_cardman_continue(void) {
         }
     } else if (cardman_operation == CARDMAN_CREATE) {
         uint64_t slice_start = time_us_64();
-        while ((ps2_mmceman_fs_idle()) && (time_us_64() - slice_start < MAX_SLICE_LENGTH)) {
-            cardprog_pos = cardman_sectors_done * BLOCK_SIZE;
+        const int sectors_per_chunk = template_fd >= 0 ? TEMPLATE_CHUNK_SIZE / BLOCK_SIZE : 1;
+        while ((ps2_mmceman_fs_idle()) && (time_us_64() - slice_start < (settings_get_mca_enabled() ? MAX_SLICE_LENGTH_MCA : MAX_SLICE_LENGTH))) {
+            cardprog_pos = (uint32_t)cardman_sectors_done * BLOCK_SIZE;
             if (cardprog_pos >= card_size) {
+                // Finished creating new image
+                if (template_fd >= 0) {
+                    sd_close(template_fd);
+                    template_fd = -1;
+                }
                 sd_flush(cardman_fd);
                 log(LOG_INFO, "OK!\n");
 
@@ -494,9 +513,30 @@ static void ps2_cardman_continue(void) {
 
                 break;
             }
-            if (ps2_mc_data_interface_get_sdmode()) {
+            if (template_fd >= 0) {
+                /* The page cache is unused while the card is inaccessible (see ps2_cardman_is_accessible). */
+                uint8_t* chunk = cache;
+                if (sd_read(template_fd, chunk, TEMPLATE_CHUNK_SIZE) != TEMPLATE_CHUNK_SIZE ||
+                    sd_write(cardman_fd, chunk, TEMPLATE_CHUNK_SIZE) != TEMPLATE_CHUNK_SIZE) {
+                    ps2_cardman_close();
+                    fatal(ERR_CARDMAN, "cannot copy PS2 template memcard");
+                }
+#if WITH_PSRAM
+                if (!ps2_mc_data_interface_get_sdmode()) {
+                    ps2_dirty_lock();
+                    psram_write_dma(cardprog_pos, chunk, TEMPLATE_CHUNK_SIZE, NULL);
+                    psram_wait_for_dma();
+                    for (uint32_t s = 0; s < TEMPLATE_CHUNK_SIZE / BLOCK_SIZE; s++)
+                        ps2_cardman_mark_sector_available(cardprog_pos / BLOCK_SIZE + s);
+                    ps2_dirty_unlock();
+                }
+#endif
+            } else if (ps2_mc_data_interface_get_sdmode()) {
                 genblock(cardprog_pos, flushbuf);
-                sd_write(cardman_fd, flushbuf, BLOCK_SIZE);
+                if (sd_write(cardman_fd, flushbuf, BLOCK_SIZE) != BLOCK_SIZE) {
+                    ps2_cardman_close();
+                    fatal(ERR_CARDMAN, "cannot init memcard");
+                }
             } else {
 #if WITH_PSRAM
                 ps2_dirty_lock();
@@ -516,9 +556,8 @@ static void ps2_cardman_continue(void) {
             if (cardman_cb)
                 cardman_cb(100U * (uint64_t)cardprog_pos / (uint64_t)card_size, cardman_operation == CARDMAN_IDLE);
 
-            cardman_sectors_done++;
+            cardman_sectors_done += sectors_per_chunk;
         }
-        sd_flush(cardman_fd);
 
     } else if (cardman_cb) {
         cardman_cb(100, true);
@@ -561,18 +600,28 @@ static void ps2_cardman_initializePSRAMCard(void) {
 #endif
 
 static void ps2_cardman_createCard(char* path) {
-    card_size = card_config_get_ps2_cardsize(folder_name, (cardman_state == PS2_CM_STATE_BOOT) ? "BootCard" : folder_name) * 1024 * 1024;
-    if (card_size == 0U) {
-        card_size = settings_get_ps2_cardsize() * 1024 * 1024;
+    template_fd = sd_open(TEMPLATE_PATH, O_RDONLY);
+    if (template_fd >= 0) {
+        uint64_t size = sd_filesize64(template_fd);
+        if (size > PS2_CARD_SIZE_2G || !ps2_check_cardsize((uint32_t)size)) {
+            log(LOG_WARN, "%s has invalid size %llu, generating empty card instead\n", TEMPLATE_PATH, (unsigned long long)size);
+            sd_close(template_fd);
+            template_fd = -1;
+        }
+    }
+    if (template_fd >= 0) {
+        /* The template's size takes precedence over the configured card size. */
+        card_size = (uint32_t)sd_filesize64(template_fd);
+        log(LOG_INFO, "using template %s (%lu KB)\n", TEMPLATE_PATH, (unsigned long)(card_size / 1024));
+    } else {
+        card_size = card_config_get_ps2_cardsize(folder_name, (cardman_state == PS2_CM_STATE_BOOT) ? "BootCard" : folder_name) * 1024 * 1024;
+        if (card_size == 0U)
+            card_size = settings_get_ps2_cardsize() * 1024 * 1024;
     }
     cardman_fd = sd_open(path, O_RDWR | O_CREAT | O_TRUNC);
     cardman_sectors_done = 0;
     cardprog_pos = 0;
-    if (card_size > PS2_CARD_SIZE_8M) {
-        ps2_mc_data_interface_set_sdmode(true);
-    } else {
-        ps2_mc_data_interface_set_sdmode(!PSRAM_AVAILABLE);
-    }
+    ps2_mc_data_interface_set_sdmode(!PSRAM_AVAILABLE || card_size > PS2_CARD_SIZE_8M);
 
     if (cardman_fd < 0)
         fatal(ERR_CARDMAN, "cannot open for creating new card");
@@ -582,7 +631,7 @@ static void ps2_cardman_createCard(char* path) {
     if (cardman_cb)
         cardman_cb(0, false);
 #if WITH_PSRAM
-    if (card_size <= PS2_CARD_SIZE_8M) {
+    if (template_fd < 0 && card_size <= PS2_CARD_SIZE_8M) {
         ps2_cardman_initializePSRAMCard();
     }
 #endif
@@ -685,11 +734,18 @@ void ps2_cardman_open(void) {
 }
 
 void ps2_cardman_close(void) {
-    if (cardman_fd < 0)
+    if (cardman_fd < 0 && template_fd < 0)
         return;
-    ps2_cardman_flush();
-    sd_close(cardman_fd);
-    cardman_fd = -1;
+    if (cardman_fd >= 0) {
+        ps2_cardman_flush();
+        sd_close(cardman_fd);
+        cardman_fd = -1;
+    }
+    if (template_fd >= 0) {
+        cardman_operation = CARDMAN_UNKNOWN;
+        sd_close(template_fd);
+        template_fd = -1;
+    }
     current_read_sector = 0;
     priority_sector = -1;
 #if WITH_PSRAM
@@ -888,7 +944,11 @@ bool __time_critical_func(ps2_cardman_is_accessible)(void) {
     // SD: / IDLE   => X
     // SD: / CREATE => X
     // SD: / OPEN   => X
-    if (cardman_operation == CARDMAN_UNKNOWN)
+    /*
+     * Keep the card inaccessible while its template data is being copied: the copy
+     * borrows the page cache, so no card commands may use it until the copy finishes.
+     */
+    if (cardman_operation == CARDMAN_UNKNOWN || template_fd >= 0)
         return false;
     else if (ps2_mc_data_interface_get_sdmode())
         return (cardman_operation != CARDMAN_CREATE);

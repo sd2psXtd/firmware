@@ -5,3 +5,5 @@ keys.c
 gamedbps*.dat
 src/version/version.c
 *.uf2
+.env
+*/__pycache__

@@ -1,4 +1,5 @@
 #include "mca_device.h"
+#include "usb_session.h"
 #include "settings.h"
 
 #include "pico/stdio_usb/reset_interface.h"
@@ -9,10 +10,6 @@
 #define MCA_PID 0x02ea
 #define PICO_VID 0x2e8a
 #define PICO_CDC_PID 0x000a
-
-#define MCA_EP_IN  0x81
-#define MCA_EP_OUT 0x02
-#define MCA_EP_INT 0x83
 
 #define CDC_EP_NOTIF 0x81
 #define CDC_EP_OUT   0x02

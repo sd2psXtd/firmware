@@ -20,7 +20,7 @@
 
 
 #if LOG_LEVEL_PS2_MC == 0
-#define log(x...)
+#define log(x...) ((void)0)
 #else
 #define log(level, fmt, x...) LOG_PRINT(LOG_LEVEL_PS2_MC, level, fmt, ##x)
 #endif

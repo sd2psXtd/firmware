@@ -1,8 +1,8 @@
 #include "settings.h"
 #include "mca_bridge.h"
-#include "mca_comms.h"
 #include "mca_protocol.h"
 #include "ps1/ps1_memory_card.c"
+#include "ps1/ps1_card_backend_mca.h"
 #include "ps1/ps1_mc_data_interface.h"
 #include "bigmem.h"
 #include "ps1/ps1_dirty.h"
@@ -10,10 +10,11 @@
 #include <pthread.h>
 #include <sched.h>
 #include <string.h>
+#include <unistd.h>
 
 extern mca_bridge_t mca_bridge;
 ps1_memory_card_backend_t ps1_card_backend_pio;
-static uint8_t usb_reply[MCA_FRAME_MAX];
+static uint8_t usb_reply[MCA_BRIDGE_TX_CAPACITY];
 static size_t usb_reply_length;
 static const uint8_t *pio_input;
 static size_t pio_input_length, pio_input_pos, pio_reply_length;
@@ -32,7 +33,9 @@ uint64_t RAM_time_us_64(void) { return 0; }
 void sleep_ms(uint32_t ms) { (void)ms; }
 void tud_task_ext(uint32_t timeout_ms, bool in_isr) { (void)timeout_ms; (void)in_isr; }
 int settings_get_mode(bool temporary) { (void)temporary; return MODE_PS1; }
+void settings_set_mode(int mode) { (void)mode; }
 int settings_get_usb_mode(bool current) { (void)current; return USB_MODE_MCA; }
+bool settings_get_mca_enabled(void) { return true; }
 int settings_get_ps2_variant(void) { return 0; }
 bool ps2_cardman_is_accessible(void) { return true; }
 bool ps2_cardman_is_idle(void) { return true; }
@@ -40,6 +43,7 @@ uint32_t ps2_cardman_get_card_size(void) { return 8u * 1024 * 1024; }
 bool ps2_mc_auth_isValid(void) { return true; }
 void mca_device_set_presence(bool present) { (void)present; }
 void mca_device_task(void) {}
+void mca_device_receive(void) {}
 bool mca_device_send(const uint8_t *data, size_t length) {
     assert(length <= sizeof(usb_reply));
     memcpy(usb_reply, data, length);
@@ -55,18 +59,17 @@ void ps1_mmce_next_idx(bool delay) { (void)delay; }
 void ps1_mmce_switch_bootcard(bool delay) { (void)delay; }
 void ps1_mmce_reset(bool delay) { (void)delay; }
 static size_t transact(const uint8_t *sio, size_t length) {
-    uint8_t request[MCA_FRAME_MAX] = {0xaa, 0x42};
+    uint8_t request[MCA_BRIDGE_RX_CAPACITY] = {0xaa, 0x42};
     const mca_device_callbacks_t *callbacks = mca_protocol_callbacks();
     uint8_t byte;
-    assert(length <= MCA_RAW_MAX);
+    assert(length <= MCA_BRIDGE_BUFFER_MAX);
     request[2] = (uint8_t)length;
     request[3] = (uint8_t)(length >> 8);
     memcpy(request + 4, sio, length);
     usb_reply_length = 0;
     callbacks->out_received(request, (uint16_t)(length + 4));
     mca_protocol_task();
-    assert(ps1_card_backend_mca_wait());
-    assert(ps1_card_backend->recv_mc(&byte) == PS1_RECEIVE_OK && byte == 0x81);
+    assert(ps1_card_backend->receive_first(&byte) == PS1_RECEIVE_OK && byte == 0x81);
     ps1_card_backend->respond(flag);
     assert(ps1_card_backend->recv_mc(&byte) == PS1_RECEIVE_OK);
     switch (byte) {
@@ -76,7 +79,7 @@ static size_t transact(const uint8_t *sio, size_t length) {
         case 'W': mc_cmd_write(); break;
         default: assert(false);
     }
-    ps1_card_backend_mca_finish();
+    ps1_card_backend->finish();
     mca_protocol_task();
     assert(usb_reply_length >= 4);
     assert(usb_reply[0] == 0x55 && usb_reply[1] == 0x5a);
@@ -97,21 +100,13 @@ static void pio_respond(uint8_t byte) {
     pio_reply[pio_reply_length++] = byte;
 }
 
-static uint8_t (*original_mca_receive)(uint8_t *);
-static unsigned loop_received;
-static uint8_t loop_receive(uint8_t *byte) {
-    uint8_t result = original_mca_receive(byte);
-    if (result == PS1_RECEIVE_OK && ++loop_received == 141)
-        ps1_mc_exit_request = 1;
-    return result;
-}
 static void *run_card_loop(void *unused) {
     (void)unused;
     mc_main_loop();
     return NULL;
 }
 static void loop_transact(const uint8_t *sio, size_t length) {
-    uint8_t request[MCA_FRAME_MAX] = {0xaa, 0x42};
+    uint8_t request[MCA_BRIDGE_RX_CAPACITY] = {0xaa, 0x42};
     const mca_device_callbacks_t *callbacks = mca_protocol_callbacks();
     request[2] = (uint8_t)length;
     request[3] = (uint8_t)(length >> 8);
@@ -127,12 +122,13 @@ static void loop_transact(const uint8_t *sio, size_t length) {
 }
 
 int main(void) {
+    alarm(15);
     uint8_t id[10] = {0x81, 'S'};
     uint8_t read[140] = {0x81, 'R', 0, 0, 0, 2};
     uint8_t write[138] = {0x81, 'W', 0, 0, 0, 2};
     uint8_t checksum = 2;
     mca_protocol_init();
-    mca_protocol_set_ready(true);
+    ps1_card_backend_mca.startup();
     ps1_card_backend = &ps1_card_backend_mca;
     flag = 8;
 
@@ -218,9 +214,6 @@ int main(void) {
     /* Exercise the actual dispatch loop after Sony's optional 81 58 probe. */
     pthread_t core1;
     const uint8_t probe[5] = {0x81, 0x58};
-    original_mca_receive = ps1_card_backend_mca.recv_mc;
-    ps1_card_backend_mca.recv_mc = loop_receive;
-    loop_received = 0;
     ps1_mc_exit_request = 0;
     assert(pthread_create(&core1, NULL, run_card_loop, NULL) == 0);
     loop_transact(probe, sizeof(probe));
@@ -229,8 +222,9 @@ int main(void) {
     assert(usb_reply_length == 144 && usb_reply[6] == 0x5a && usb_reply[7] == 0x5d);
     assert(memcmp(usb_reply + 14, card_page, PS1_PAGE_SIZE) == 0);
     assert(usb_reply[143] == 0x47);
+    ps1_mc_exit_request = 1;
     assert(pthread_join(core1, NULL) == 0);
-    ps1_card_backend_mca.recv_mc = original_mca_receive;
     critical_section_deinit(&mca_bridge.lock);
+    alarm(0);
     return 0;
 }

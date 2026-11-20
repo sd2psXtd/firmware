@@ -6,6 +6,7 @@
 
 #include "ps1/ps1_cardman.h"
 #include "ps1/ps1_mmce.h"
+#include "ps1/ps1_card_backend.h"
 #include "settings.h"
 #include "wear_leveling/wear_leveling.h"
 #include "sd.h"
@@ -41,7 +42,6 @@ wear_leveling_status_t wear_leveling_read(uint32_t address, void *value, size_t 
 
 bool mca_device_profile_is_mca(void) { return mca_profile; }
 bool mca_protocol_idle(void) { return true; }
-void mca_protocol_set_ready(bool ready) { (void)ready; }
 void mca_protocol_switch_delay(uint32_t milliseconds) { (void)milliseconds; }
 
 uint64_t time_us_64(void) { return 100; }
@@ -64,15 +64,19 @@ void ps1_cardman_open(void) {}
 void ps1_memory_card_exit(void) {}
 void ps1_memory_card_enter(void) {}
 void ps1_mc_data_interface_flush(void) {}
+static bool backend_idle(void) { return true; }
+ps1_memory_card_backend_t *ps1_card_backend_get(void) {
+    static ps1_memory_card_backend_t backend = {
+        .idle = backend_idle, .switch_delay = mca_protocol_switch_delay,
+    };
+    return &backend;
+}
 
 static void load_persistent_mode(int mode) {
     memset(saved_settings, 0, sizeof(saved_settings));
-    /* SETTINGS_VERSION_MAGIC in settings.c; sys_flags is byte 14. */
-    saved_settings[0] = 0x07;
-    saved_settings[1] = 0x00;
-    saved_settings[2] = 0xCD;
-    saved_settings[3] = 0xAA;
-    saved_settings[14] = (uint8_t)mode;
+    /* Let production code initialize/serialize its own versioned layout. */
+    settings_init();
+    settings_set_mode(mode);
     settings_init();
 }
 
@@ -94,7 +98,7 @@ int main(void) {
     settings_set_mode(MODE_TEMP_PS1);
     reset_with_profile(false);
     assert(settings_get_mode(false) == MODE_PS2);
-    assert(settings_get_mode(true) == MODE_PS1);
+    assert(settings_get_mode(true) == MODE_PS2);
 
     load_persistent_mode(MODE_PS1);
     unsigned before = default_card_switches;

@@ -1,265 +1,126 @@
-#include "../../src/usb/mca_page.h"
-
+#include "ps2_mca_page.h"
 #include <assert.h>
 #include <string.h>
 
-enum {
-    TEST_SIO_IDENTIFIER = 0x81,
-    TEST_SIO_SET_WRITE_ADDRESS = 0x22,
-    TEST_SIO_SET_READ_ADDRESS = 0x23,
-    TEST_SIO_WRITE_DATA = 0x42,
-    TEST_SIO_READ_DATA = 0x43,
-    TEST_SIO_COMMIT = 0x81,
-    TEST_ACK = 0x2b,
-    TEST_TERM = 0x7e,
-};
+enum { TEST_TERM = 0x7e, BAD_ACK = 1, BAD_TERM, BAD_EDC, SHORT_REPLY, CANCEL };
+static mca_bridge_t bridge;
+static uint64_t now;
+static unsigned transactions, offset, fault, fault_at;
+static bool writing;
+static uint8_t data[MCA_PAGE_RAW_SIZE];
+uint64_t time_us_64(void) { return now; }
 
-static uint8_t test_edc(const uint8_t *bytes, size_t length) {
+static uint8_t edc(const uint8_t *bytes, size_t length) {
     uint8_t result = 0;
-    for (size_t i = 0; i < length; ++i)
-        result ^= bytes[i];
+    for (size_t i = 0; i < length; ++i) result ^= bytes[i];
     return result;
 }
-
-static size_t consume_request(mca_bridge_t *bridge, uint8_t *request) {
-    uint8_t byte;
-    size_t length = bridge->input_length;
-
-    assert(mca_bridge_state(bridge) == MCA_BRIDGE_REQUEST);
-    assert(bridge->input_offset == 4);
-    assert(mca_bridge_core1_begin(bridge));
-    for (size_t i = 0; i < length; ++i) {
-        assert(mca_bridge_core1_receive(bridge, &byte));
-        request[i] = byte;
-    }
-    assert(!mca_bridge_core1_receive(bridge, &byte));
+static size_t request(uint8_t *bytes) {
+    size_t length = 2;
+    assert(mca_page_active());
+    while (length < 134 && mca_page_receive(bytes + length)) ++length;
+    ++transactions;
     return length;
 }
-
-static void publish_reply(mca_bridge_t *bridge, const uint8_t *reply, size_t length) {
-    for (size_t i = 0; i < length; ++i)
-        assert(mca_bridge_core1_respond(bridge, reply[i]));
-    assert(mca_bridge_core1_finish(bridge));
-}
-
-static void emulate_page(mca_bridge_t *bridge, bool write, const uint8_t *write_data,
-                         uint8_t *read_data, uint32_t page_number) {
-    uint8_t request[140];
-    uint8_t reply[140];
-    uint16_t offset = 0;
-    uint16_t transactions = 0;
-    mca_page_result_t result;
-
-    while (true) {
-        size_t request_length = consume_request(bridge, request);
-        memset(reply, 0, sizeof(reply));
-        assert(request[0] == TEST_SIO_IDENTIFIER);
-        if (transactions == 0) {
-            assert(request_length == 9);
-            assert(request[1] == (write ? TEST_SIO_SET_WRITE_ADDRESS : TEST_SIO_SET_READ_ADDRESS));
-            assert(request[2] == (uint8_t)page_number);
-            assert(request[3] == (uint8_t)(page_number >> 8));
-            assert(request[4] == (uint8_t)(page_number >> 16));
-            assert(request[5] == (uint8_t)(page_number >> 24));
-            assert(request[6] == test_edc(request + 2, 4));
-            reply[0] = reply[1] = 0xff;
-            reply[7] = TEST_ACK;
-            reply[8] = TEST_TERM;
-            publish_reply(bridge, reply, 9);
-        } else if (request[1] == (write ? TEST_SIO_WRITE_DATA : TEST_SIO_READ_DATA)) {
-            uint16_t chunk = request[2];
-            assert(chunk > 0 && chunk <= 128);
-            assert(request_length == chunk + 6);
-            assert(offset + chunk <= MCA_PAGE_RAW_SIZE);
-            reply[0] = reply[1] = 0xff;
-            if (write) {
-                assert(memcmp(request + 3, write_data + offset, chunk) == 0);
-                assert(request[3 + chunk] == test_edc(request + 3, chunk));
-                reply[request_length - 2] = TEST_ACK;
-            } else {
-                reply[3] = TEST_ACK;
-                for (uint16_t i = 0; i < chunk; ++i) {
-                    read_data[offset + i] = (uint8_t)((offset + i) * 37u + 11u);
-                    reply[4 + i] = read_data[offset + i];
-                }
-                reply[4 + chunk] = test_edc(reply + 4, chunk);
-            }
-            reply[request_length - 1] = TEST_TERM;
-            offset += chunk;
-            publish_reply(bridge, reply, request_length);
-        } else {
-            assert(request[1] == TEST_SIO_COMMIT);
-            assert(request_length == 4);
-            assert(offset == MCA_PAGE_RAW_SIZE);
-            reply[0] = reply[1] = 0xff;
-            reply[2] = TEST_ACK;
-            reply[3] = TEST_TERM;
-            publish_reply(bridge, reply, 4);
-        }
-
-        result = mca_page_task(bridge, 100);
-        ++transactions;
-        if (result == MCA_PAGE_READ_DONE) {
-            assert(!write);
-            assert(transactions == 7); /* address, five chunks, commit */
-            return;
-        }
-        if (result == MCA_PAGE_WRITE_DONE) {
-            assert(write);
-            assert(transactions == 7);
-            return;
-        }
-        assert(result == MCA_PAGE_PENDING);
+static void reply(uint8_t *bytes, size_t length, size_t ack) {
+    if (transactions == fault_at) {
+        if (fault == BAD_ACK) bytes[ack] = 0;
+        if (fault == BAD_TERM) bytes[length - 1] ^= 1;
+        if (fault == BAD_EDC) bytes[length - 2] ^= 1;
+        if (fault == SHORT_REPLY) --length;
+        if (fault == CANCEL) mca_bridge_poll_timeout(&bridge, bridge.deadline);
     }
+    for (size_t i = 2; i < length; ++i) mca_page_respond(bytes[i]);
+    now += 100;
 }
-
-static void test_read_page(void) {
-    mca_bridge_t bridge;
+static void address(bool write) {
+    uint8_t input[134] = {0}, output[9] = {0};
+    assert(write == writing && request(input) == 9 && transactions == 1);
+    assert(input[2] == 0x78 && input[3] == 0x56 && input[4] == 0x34 && input[5] == 0x12);
+    assert(input[6] == edc(input + 2, 4));
+    output[7] = 0x2b;
+    output[8] = TEST_TERM;
+    reply(output, sizeof(output), 7);
+}
+void ps2_mc_cmd_setReadAddress(void) { address(false); }
+void ps2_mc_cmd_setWriteAddress(void) { address(true); }
+void ps2_mc_cmd_readData(void) {
+    uint8_t input[134] = {0}, output[134] = {0};
+    size_t length = request(input), chunk = input[2];
+    assert(!writing && chunk && chunk <= 128 && length == chunk + 6);
+    assert(offset + chunk <= sizeof(data));
+    output[3] = 0x2b;
+    memcpy(output + 4, data + offset, chunk);
+    output[chunk + 4] = edc(output + 4, chunk);
+    output[chunk + 5] = TEST_TERM;
+    offset += chunk;
+    reply(output, length, 3);
+}
+void ps2_mc_cmd_writeData(void) {
+    uint8_t input[134] = {0}, output[134] = {0};
+    size_t length = request(input), chunk = input[2];
+    assert(writing && chunk && chunk <= 128 && length == chunk + 6);
+    assert(offset + chunk <= sizeof(data));
+    assert(input[chunk + 3] == edc(input + 3, chunk));
+    memcpy(data + offset, input + 3, chunk);
+    offset += chunk;
+    output[chunk + 4] = 0x2b;
+    output[chunk + 5] = TEST_TERM;
+    reply(output, length, chunk + 4);
+}
+void ps2_mc_cmd_commitData(void) {
+    uint8_t input[134] = {0}, output[] = {0xff, 0xff, 0x2b, TEST_TERM};
+    assert(request(input) == 4 && transactions == 7 && offset == sizeof(data));
+    reply(output, sizeof(output), 2);
+}
+static void check_page(bool write, unsigned failure, unsigned phase) {
+    uint8_t input[MCA_PAGE_RAW_SIZE + 9] = {0xaa, write ? 0x57 : 0x52, 3, 0x78, 0x56, 0x34, 0x12};
     uint8_t expected[MCA_PAGE_RAW_SIZE];
-    size_t response_length;
-    uint8_t *response;
-
-    mca_bridge_init(&bridge);
-    assert(mca_page_start(&bridge, false, 0x12345678, NULL, 0));
-    emulate_page(&bridge, false, NULL, expected, 0x12345678);
-
+    for (unsigned i = 0; i < sizeof(expected); ++i) expected[i] = (uint8_t)(i * 37 + 11);
+    writing = write;
+    transactions = offset = 0;
+    fault = failure;
+    fault_at = phase;
+    size_t length = write ? sizeof(input) : 9;
+    input[length - 2] = 0x55;
+    input[length - 1] = 0x2b;
+    if (write) {
+        memcpy(input + 7, expected, sizeof(expected));
+        memset(data, 0, sizeof(data));
+    } else memcpy(data, expected, sizeof(data));
+    memcpy(bridge.input, input, length);
+    assert(mca_bridge_submit(&bridge, length) && mca_bridge_begin(&bridge));
+    bool success = mca_page_execute(&bridge);
+    assert(!mca_page_active() && success == (failure == 0));
+    mca_bridge_finish(&bridge, success);
     assert(mca_bridge_state(&bridge) == MCA_BRIDGE_RESPONSE);
-    response = mca_bridge_core0_response_buffer(&bridge, &response_length);
-    assert(response == bridge.output + 4);
-    assert(response_length == MCA_PAGE_RAW_SIZE);
-    assert(response_length + 4 == 532);
-    assert(response - 4 == bridge.output);
-    assert((uintptr_t)(response - 4) % 4 == 0);
-    assert(response[-4] == 0x55 && response[-3] == 0x5a);
-    assert(response[-2] == 0x10 && response[-1] == 0x02);
-    assert(memcmp(response, expected, sizeof(expected)) == 0);
-    assert(mca_page_read_data(&bridge) == bridge.input + MCA_PAGE_STAGE_OFFSET);
-    assert(memcmp(mca_page_read_data(&bridge), expected, sizeof(expected)) == 0);
-    /* The caller keeps the response until USB IN completion. */
-    assert(mca_bridge_core0_release_response(&bridge));
-    assert(mca_bridge_state(&bridge) == MCA_BRIDGE_IDLE);
-    critical_section_deinit(&bridge.lock);
+    if (failure) {
+        assert(transactions == phase);
+        assert(bridge.output_length == 2 && bridge.output[1] == 0xaf);
+    } else {
+        assert(transactions == 7 && bridge.output[0] == 0x55 && bridge.output[1] == 0x5a);
+        if (write) {
+            assert(bridge.output_length == 2 && memcmp(data, expected, sizeof(data)) == 0);
+        } else {
+            assert(bridge.output_length == sizeof(data) + 4);
+            assert(bridge.output[2] == 0x10 && bridge.output[3] == 2);
+            assert(memcmp(bridge.output + 4, expected, sizeof(data)) == 0);
+        }
+    }
+    mca_bridge_release(&bridge);
 }
-
-static void test_write_page(void) {
-    mca_bridge_t bridge;
-    uint8_t write_data[MCA_PAGE_RAW_SIZE];
-    size_t response_length;
-    uint8_t *response;
-
-    for (size_t i = 0; i < sizeof(write_data); ++i)
-        write_data[i] = (uint8_t)(i ^ (i >> 2));
-    mca_bridge_init(&bridge);
-    assert(mca_page_start(&bridge, true, 42, write_data, 0));
-    assert(memcmp(bridge.input + MCA_PAGE_STAGE_OFFSET, write_data, sizeof(write_data)) == 0);
-    emulate_page(&bridge, true, write_data, NULL, 42);
-
-    response = mca_bridge_core0_response_buffer(&bridge, &response_length);
-    assert(response && response_length == 2);
-    assert(response[0] == 0x55 && response[1] == 0x5a);
-    assert(mca_bridge_state(&bridge) == MCA_BRIDGE_RESPONSE);
-    assert(mca_bridge_core0_release_response(&bridge));
-    critical_section_deinit(&bridge.lock);
-}
-
-static void test_cancellation_and_timeout(void) {
-    mca_bridge_t bridge;
-    uint8_t byte;
-
-    mca_bridge_init(&bridge);
-    assert(mca_page_start(&bridge, false, 1, NULL, 0));
-    mca_page_reset(&bridge);
-    assert(mca_page_task(&bridge, 1) == MCA_PAGE_PENDING);
-    assert(mca_bridge_core1_begin(&bridge));
-    assert(!mca_bridge_core1_receive(&bridge, &byte));
-    assert(!mca_bridge_core1_finish(&bridge));
-    assert(mca_bridge_state(&bridge) == MCA_BRIDGE_IDLE);
-    assert(mca_page_task(&bridge, 2) == MCA_PAGE_CANCELLED);
-
-    assert(mca_page_start(&bridge, false, 2, NULL, 0));
-    assert(mca_page_task(&bridge, MCA_PAGE_REPLY_TIMEOUT_US + 1) == MCA_PAGE_PENDING);
-    assert(mca_bridge_state(&bridge) == MCA_BRIDGE_REQUEST);
-    assert(!mca_page_start(&bridge, false, 3, NULL, MCA_PAGE_REPLY_TIMEOUT_US + 2));
-    assert(mca_bridge_core1_begin(&bridge));
-    assert(!mca_bridge_core1_receive(&bridge, &byte));
-    assert(!mca_bridge_core1_finish(&bridge));
-    assert(mca_page_task(&bridge, MCA_PAGE_REPLY_TIMEOUT_US + 3) == MCA_PAGE_FAILED);
-    critical_section_deinit(&bridge.lock);
-}
-
-static void test_bad_reply_edc(void) {
-    mca_bridge_t bridge;
-    uint8_t request[140];
-    uint8_t reply[140] = {0};
-    size_t length;
-
-    mca_bridge_init(&bridge);
-    assert(mca_page_start(&bridge, false, 7, NULL, 0));
-    length = consume_request(&bridge, request);
-    assert(length == 9);
-    reply[0] = reply[1] = 0xff;
-    reply[7] = TEST_ACK;
-    reply[8] = TEST_TERM;
-    publish_reply(&bridge, reply, 9);
-    assert(mca_page_task(&bridge, 1) == MCA_PAGE_PENDING);
-
-    length = consume_request(&bridge, request);
-    assert(request[1] == TEST_SIO_READ_DATA);
-    uint16_t chunk = request[2];
-    reply[0] = reply[1] = 0xff;
-    reply[3] = TEST_ACK;
-    reply[4 + chunk] = 1; /* Deliberately wrong XOR checksum. */
-    reply[5 + chunk] = TEST_TERM;
-    publish_reply(&bridge, reply, chunk + 6);
-    assert(mca_page_task(&bridge, 2) == MCA_PAGE_FAILED);
-    assert(mca_bridge_state(&bridge) == MCA_BRIDGE_IDLE);
-    assert(mca_page_read_data(&bridge) == NULL);
-    critical_section_deinit(&bridge.lock);
-}
-
-static void test_bad_ack_and_term(void) {
-    mca_bridge_t bridge;
-    uint8_t request[140];
-    uint8_t reply[140] = {0};
-    size_t length;
-
-    mca_bridge_init(&bridge);
-    assert(mca_page_start(&bridge, false, 9, NULL, 0));
-    length = consume_request(&bridge, request);
-    assert(length == 9);
-    reply[0] = reply[1] = 0xff;
-    reply[7] = 0x00; /* Invalid address ACK. */
-    reply[8] = TEST_TERM;
-    publish_reply(&bridge, reply, 9);
-    assert(mca_page_task(&bridge, 1) == MCA_PAGE_FAILED);
-    assert(mca_bridge_state(&bridge) == MCA_BRIDGE_IDLE);
-
-    memset(reply, 0, sizeof(reply));
-    assert(mca_page_start(&bridge, false, 10, NULL, 2));
-    length = consume_request(&bridge, request);
-    reply[0] = reply[1] = 0xff;
-    reply[7] = TEST_ACK;
-    reply[8] = TEST_TERM;
-    publish_reply(&bridge, reply, 9);
-    assert(mca_page_task(&bridge, 3) == MCA_PAGE_PENDING);
-
-    length = consume_request(&bridge, request);
-    uint16_t chunk = request[2];
-    reply[0] = reply[1] = 0xff;
-    reply[3] = TEST_ACK;
-    reply[4 + chunk] = 0;
-    reply[5 + chunk] = 0; /* Invalid transaction terminator. */
-    publish_reply(&bridge, reply, chunk + 6);
-    assert(mca_page_task(&bridge, 4) == MCA_PAGE_FAILED);
-    assert(mca_bridge_state(&bridge) == MCA_BRIDGE_IDLE);
-    critical_section_deinit(&bridge.lock);
-}
-
 int main(void) {
-    test_read_page();
-    test_write_page();
-    test_cancellation_and_timeout();
-    test_bad_reply_edc();
-    test_bad_ack_and_term();
+    mca_bridge_init(&bridge);
+    check_page(false, 0, 0);
+    check_page(true, 0, 0);
+    check_page(false, BAD_ACK, 1);
+    check_page(false, BAD_ACK, 2);
+    check_page(false, BAD_TERM, 2);
+    check_page(false, BAD_EDC, 2);
+    check_page(true, SHORT_REPLY, 2);
+    check_page(false, CANCEL, 2);
+    check_page(false, BAD_ACK, 7);
+    check_page(true, 0, 0); /* Recovery after each failed operation. */
+    critical_section_deinit(&bridge.lock);
     return 0;
 }

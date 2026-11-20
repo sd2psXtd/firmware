@@ -286,7 +286,6 @@ static void ps2_pio_deinit(void) {
     gpio_set_oeover(PIN_PSX_DAT, GPIO_OVERRIDE_LOW);
     cmd_reader = (pio_t){0};
     dat_writer = (pio_t){0};
-    ps2_host_confirmed = false;
     ps2_card_active = false;
     ps2_pio_initialized = false;
 }
@@ -380,8 +379,8 @@ static void pio_set_irq_callback(gpio_irq_callback_t callback) {
 }
 
 static void pio_set_irq_enabled_with_callback(uint gpio, uint32_t events, bool enabled, gpio_irq_callback_t callback) {
-    gpio_set_irq_enabled(gpio, events, enabled);
     pio_set_irq_callback(callback);
+    gpio_set_irq_enabled(gpio, events, enabled);
     if (enabled)
         irq_set_enabled(IO_IRQ_BANK0, true);
 }
