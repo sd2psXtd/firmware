@@ -255,7 +255,7 @@ static void __time_critical_func(mc_mmce_reset)(void) {
     uint8_t _;
     respondOrNextCmd(0x00);   receiveOrNextCmd(&_);
     respondOrNextCmd(0x00);   receiveOrNextCmd(&_);
-    respondOrNextCmd(0x20);   receiveOrNextCmd(&_);
+    respondOrNextCmd(0x00);   receiveOrNextCmd(&_);
     respondOrNextCmd(0xFF);   receiveOrNextCmd(&_);
     ps1_mmce_reset(false);
 }
