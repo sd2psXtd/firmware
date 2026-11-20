@@ -1,5 +1,48 @@
 # Changelog
 
+## Unreleased
+
+### Features
+
+- Added template cards: new PS1 and PS2 cards are created as a copy of `.sd2psx/ps1.mcd` or `.sd2psx/ps2.mcd` when present (#90, #134).
+- Added the `set mode mass` serial command to switch to USB mass storage, for devices without buttons such as the PSxMemCard Gen1 (#129).
+- Added an experimental automatic switch from PS1 back to PS2 mode when a PS2 accesses the card, e.g. for a DKWDRV and FMCB workflow (#130).
+
+### Fixes
+
+- Fixed the PS2 card disappearing in MCA mode while it was still being loaded, which could cause boot loops on the PS3 (#128).
+- Fixed the PS1 backend pause and teardown lifecycle, and released the PS2 backend when entering USB mass storage (#132).
+- Fixed PS1 page writes with a bad checksum or truncated data changing the card, and the order of PS1 reads and writes (#132).
+- Fixed the reserved byte in the PS1 MMCE reset reply.
+
+### Changed behavior
+
+- Switching between modes is faster: USB is only restarted when the USB profile changes.
+- Reduced RAM usage, including the buffer used to create template cards.
+
+## 1.5.0 - 2026-11-13
+
+### Features
+
+- Added PS3 Memory Card Adaptor emulation for accessing PS1 and PS2 cards over USB (#122).
+- Added USB mass storage mode for accessing the microSD card from a computer. Thanks to @warksmith for the inspiration! (#123)
+- Added support for GPT and superfloppy SD card layouts, with faster mounting (#112).
+- Added separate MaxChannels settings for PS1 and PS2, and automatic formatting for PS2 cards smaller than 8 MB (#121).
+- Added `version`, `ls`, and `stat` serial commands. Thanks to @mathewbeall! (#106)
+
+### Fixes
+
+- Improved PS1 protection when the device is connected in PS2 mode, and fixed potential save corruption in some games. Thanks to @max-las! (#103, #105)
+- Improved arcade compatibility and card-switch handling: arcade variants no longer need a second console reset after a card switch. Thanks to @mathewbeall for the merged fix and work on the card-switch problem! (#104, #107)
+- Fixed PS1 ACK timing and first-run reset behavior, PS2 game ID detection, and several card-switch and MMCEMAN issues (#59, #97, #115).
+- Fixed potential card corruption when switching from PS2 to PS1 mode.
+- Improved SD card error messages.
+
+### Changed behavior
+
+- Reorganized the documentation (#124).
+- Updated the splash screens, including a new USB mass storage splash. Thanks to @Berion!
+
 ## 1.4.0 - 2026-07-08
 
 ### Features
