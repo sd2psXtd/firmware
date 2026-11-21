@@ -1,10 +1,10 @@
 #include "../../src/usb/mca_device.h"
 #include "../../src/usb/usb_drivers.h"
+#include "../../src/usb/usb_serial.h"
 #include "../../src/usb/usb_session.h"
 
 #include "device/dcd.h"
 #include "hardware/structs/usb.h"
-#include "pico/stdio_usb.h"
 #include "pico/stdio_usb/reset_interface.h"
 #include "settings.h"
 #include "usb/mca_protocol.h"
@@ -33,9 +33,8 @@ static bool endpoint_busy[256];
 static bool hw_armed[256];
 static int usb_mode;
 static bool usb_initialized;
-static unsigned disconnects, cdc_starts, cdc_stops, reply_drains;
-
-stdio_driver_t stdio_usb;
+static unsigned disconnects, cdc_starts, cdc_stops, reply_drains, main_loop_polls;
+static bool serial_background;
 int settings_get_usb_mode(bool current) { assert(current); return usb_mode; }
 bool tud_inited(void) { return usb_initialized; }
 bool tusb_init(void) {
@@ -45,14 +44,23 @@ bool tusb_init(void) {
 }
 bool tud_disconnect(void) { assert(usb_initialized); ++disconnects; return true; }
 bool tud_deinit(uint8_t rhport) { assert(rhport == 0); usb_initialized = false; return true; }
-bool stdio_usb_init(void) { assert(usb_initialized); ++cdc_starts; return true; }
-void stdio_set_driver_enabled(stdio_driver_t *driver, bool enabled) {
-    assert(driver == &stdio_usb && !enabled);
+void usb_serial_start(bool background) {
+    assert(usb_initialized);
+    serial_background = background;
+    ++cdc_starts;
+}
+void usb_serial_stop(void) {
+    assert(usb_initialized);
+    serial_background = false;
     ++cdc_stops;
+}
+bool usb_serial_in_background(void) { return serial_background; }
+void tud_task_ext(uint32_t timeout_ms, bool in_isr) {
+    assert(timeout_ms == 0 && !in_isr && usb_initialized);
+    ++main_loop_polls;
 }
 void sleep_ms(uint32_t ms) { (void)ms; }
 void board_init(void) {}
-bool stdio_usb_connected(void) { return false; }
 void mca_protocol_init(void) {}
 bool mca_protocol_idle(void) { return true; }
 void mca_protocol_reset(void) {}
@@ -359,6 +367,27 @@ static void test_presence_ordering(void) {
     assert(transfer_count == before); /* Already delivered: no duplicate insertion. */
 }
 
+/* Boot: the Serial profile starts from the flash settings, before any mode. */
+static void test_usb_session_init(void) {
+    usb_mode = USB_MODE_MCA;
+    usb_session_init();
+    assert(!usb_initialized && cdc_starts == 0);
+
+    usb_mode = USB_MODE_UART;
+    usb_session_init();
+    assert(usb_initialized && cdc_starts == 1 && serial_background);
+    /* The mode loop's prepare/start keeps the running session. */
+    usb_session_prepare();
+    usb_session_start();
+    assert(usb_initialized && cdc_starts == 1 && disconnects == 0);
+
+    usb_session_end_mode();
+    usb_mode = USB_MODE_MCA;
+    usb_session_prepare();
+    assert(!usb_initialized && cdc_stops == 1 && disconnects == 1);
+    cdc_starts = cdc_stops = disconnects = 0;
+}
+
 static void test_usb_session_switch(void) {
     usb_mode = USB_MODE_UART;
     usb_session_prepare();
@@ -367,6 +396,10 @@ static void test_usb_session_switch(void) {
     usb_session_prepare();
     usb_session_start();
     assert(usb_initialized && cdc_starts == 1 && cdc_stops == 0 && disconnects == 0);
+    /* Serial is serviced in the background: the main loop must not poll. */
+    assert(serial_background);
+    usb_session_poll();
+    assert(main_loop_polls == 0);
 
     /* Settings reloaded between modes can still replace the Serial profile. */
     usb_session_end_mode();
@@ -375,14 +408,19 @@ static void test_usb_session_switch(void) {
     assert(!usb_initialized && mca_device_profile_is_mca() && disconnects == 1);
     assert(cdc_stops == 1);
     usb_session_start();
-    assert(cdc_starts == 1);
+    assert(cdc_starts == 1 && !serial_background);
+    usb_session_poll();
+    assert(main_loop_polls == 1);
 
     usb_mode = USB_MODE_MASS;
     usb_session_end_mode();
     assert(!usb_initialized && reply_drains == 1 && disconnects == 2);
     usb_session_prepare();
     usb_session_start();
-    assert(usb_session_get_mode() == USB_MODE_MASS && cdc_starts == 2);
+    /* Mass storage has CDC stdio too, but stays main-loop polled. */
+    assert(usb_session_get_mode() == USB_MODE_MASS && cdc_starts == 2 && !serial_background);
+    usb_session_poll();
+    assert(main_loop_polls == 2);
 
     /* Eject ends USB before storage deinit restores the underlying profile. */
     usb_session_end_mode();
@@ -577,6 +615,7 @@ int main(void) {
     test_bus_reset_discards_pending_pipe_reset();
     test_profile_switch();
     test_presence_ordering();
+    test_usb_session_init();
     test_usb_session_switch();
     return 0;
 }
