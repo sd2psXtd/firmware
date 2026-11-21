@@ -1,24 +1,20 @@
 #include "usb_session.h"
 
 #include "bsp/board.h"
-#include "config.h"
 #include "mca_device.h"
 #include "mca_protocol.h"
 #include "pico/bootrom.h"
-#include "pico/stdio.h"
-#include "pico/stdio_usb.h"
 #include "pico/time.h"
 #include "settings.h"
 #include "tusb.h"
 #include "usb_drivers.h"
+#include "usb_serial.h"
 
 static int session_usb_mode;
 
 static void usb_session_stop(void) {
-    if (!mca_device_profile_is_mca()) {
-        stdio_set_driver_enabled(&stdio_usb, false);
-        sleep_ms(PICO_STDIO_USB_DEINIT_DELAY_MS);
-    }
+    if (!mca_device_profile_is_mca())
+        usb_serial_stop();
     tud_disconnect();
     /* Let the host see the disconnect before the next profile connects. */
     sleep_ms(20);
@@ -29,6 +25,12 @@ static void usb_session_stop(void) {
 void usb_session_init(void) {
     mca_protocol_init();
     board_init();
+    /* Bring up the Serial port right away (serviced in the background) using
+     * the flash settings; the SD settings reload restarts it only if the
+     * profile changes. MCA and mass storage start right before their mode. */
+    usb_session_prepare();
+    if (session_usb_mode == USB_MODE_UART)
+        usb_session_start();
 }
 
 void usb_session_prepare(void) {
@@ -51,22 +53,10 @@ void usb_session_start(void) {
     if (tud_inited())
         return;
     tusb_init();
-    if (!mca_device_profile_is_mca()) {
-        stdio_usb_init();
-#if DEBUG_USB_UART
-        static bool startup_waited;
-        if (!startup_waited) {
-            uint64_t end = time_us_64() + (uint64_t)DEBUG_STARTUP_DELAY_MS * 1000;
-            while (!stdio_usb_connected() && time_us_64() < end) {
-                tud_task_ext(0, false);
-                sleep_ms(1);
-            }
-            if (DEBUG_STARTUP_DELAY_MS > 0 && stdio_usb_connected())
-                sleep_ms(PICO_STDIO_USB_POST_CONNECT_WAIT_DELAY_MS);
-            startup_waited = true;
-        }
-#endif
-    }
+    /* Serial is serviced in the background; mass storage (CDC + MSC) stays
+     * main-loop polled because its MSC callbacks access the SD card. */
+    if (!mca_device_profile_is_mca())
+        usb_serial_start(session_usb_mode == USB_MODE_UART);
 }
 
 bool usb_session_continue(bool mode_running) {
@@ -74,7 +64,8 @@ bool usb_session_continue(bool mode_running) {
 }
 
 void usb_session_poll(void) {
-    tud_task_ext(0, false);
+    if (!usb_serial_in_background())
+        tud_task_ext(0, false);
 }
 
 void usb_session_end_mode(void) {
