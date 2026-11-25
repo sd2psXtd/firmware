@@ -18,6 +18,8 @@
 #include "ps2_mmceman_debug.h"
 #include "card_emu/ps2_mc_internal.h"
 
+#define MMCE_WRITE_UART_FD 0x8B
+
 #if LOG_LEVEL_MMCEMAN_FS == 0
 #define log(x...)
 #else
@@ -197,14 +199,23 @@ void ps2_mmceman_fs_run(void)
             if (write_size == 0)
                 write_size = 4096;
 
-            log(LOG_INFO, "Writing: %u to sd\n", write_size);
-            op_data.rv = sd_write(op_data.fd, (void*)op_data.buffer[0], write_size);
-            sd_flush(op_data.fd); //flush data
+            if (op_data.fd != MMCE_WRITE_UART_FD) {
+                log(LOG_INFO, "Writing: %u to sd\n", write_size);
+                op_data.rv = sd_write(op_data.fd, (void*)op_data.buffer[0], write_size);
+                sd_flush(op_data.fd); //flush data
 
-            op_data.bytes_written += op_data.rv;
-            log(LOG_INFO, "Wrote: %i, progress: %u of %u\n", op_data.rv, op_data.bytes_written, op_data.length);
+                op_data.bytes_written += op_data.rv;
+                log(LOG_INFO, "Wrote: %i, progress: %u of %u\n", op_data.rv, op_data.bytes_written, op_data.length);
+            } else {
+                op_data.bytes_written += write_size;
+                char *cptr = &op_data.buffer[0];
 
-            mmceman_fs_operation = MMCEMAN_FS_NONE;
+                for (int i = 0; i < write_size; i++)
+                    printf("%c", *cptr++);
+
+                memset(&op_data.buffer[0], 0, write_size);
+            }
+                mmceman_fs_operation = MMCEMAN_FS_NONE;
         break;
 
         case MMCEMAN_FS_LSEEK:
