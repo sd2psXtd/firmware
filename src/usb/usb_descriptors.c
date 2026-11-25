@@ -15,10 +15,14 @@
 #define CDC_EP_OUT   0x02
 #define CDC_EP_IN    0x82
 
+/*
+ * The Serial and storage profiles match pico-sdk's stdio_usb descriptors,
+ * including bcdUSB 2.1 with the Microsoft OS 2.0 descriptor (see below).
+ */
 static tusb_desc_device_t const desc_pico_device = {
     .bLength = sizeof(tusb_desc_device_t),
     .bDescriptorType = TUSB_DESC_DEVICE,
-    .bcdUSB = 0x0200,
+    .bcdUSB = 0x0210,
     .bDeviceClass = TUSB_CLASS_MISC,
     .bDeviceSubClass = MISC_SUBCLASS_COMMON,
     .bDeviceProtocol = MISC_PROTOCOL_IAD,
@@ -35,7 +39,7 @@ static tusb_desc_device_t const desc_pico_device = {
 /* Separate PID avoids hosts caching the CDC-only configuration. */
 static tusb_desc_device_t const desc_storage_device = {
     .bLength = sizeof(tusb_desc_device_t), .bDescriptorType = TUSB_DESC_DEVICE,
-    .bcdUSB = 0x0200, .bDeviceClass = TUSB_CLASS_MISC,
+    .bcdUSB = 0x0210, .bDeviceClass = TUSB_CLASS_MISC,
     .bDeviceSubClass = MISC_SUBCLASS_COMMON, .bDeviceProtocol = MISC_PROTOCOL_IAD,
     .bMaxPacketSize0 = 64, .idVendor = PICO_VID, .idProduct = 0x000b,
     .bcdDevice = 0x0100, .iManufacturer = 1, .iProduct = 2,
@@ -132,4 +136,59 @@ uint16_t const *tud_descriptor_string_cb(uint8_t index, uint16_t langid) {
     }
     desc[0] = (TUSB_DESC_STRING << 8) | (2 * len + 2);
     return desc;
+}
+
+/*
+ * Microsoft OS 2.0 descriptor, as pico-sdk's stdio_usb sends it when it owns
+ * TinyUSB: Windows binds WinUSB to the reset interface (picotool reboot works
+ * without a manual driver install). Windows requires it once bcdUSB is 2.1.
+ * The reset interface is interface 2 in both the Serial and storage profiles.
+ */
+#define MS_OS_20_VENDOR_CODE 1
+#define MS_OS_20_DESC_LEN    (0x0A + 0x08 + 0x14 + 0x80)
+#define BOS_TOTAL_LEN        (TUD_BOS_DESC_LEN + TUD_BOS_MICROSOFT_OS_DESC_LEN)
+
+static uint8_t const desc_bos[] = {
+    TUD_BOS_DESCRIPTOR(BOS_TOTAL_LEN, 1),
+    TUD_BOS_MS_OS_20_DESCRIPTOR(MS_OS_20_DESC_LEN, MS_OS_20_VENDOR_CODE),
+};
+TU_VERIFY_STATIC(sizeof(desc_bos) == BOS_TOTAL_LEN, "Incorrect BOS size");
+
+static uint8_t const desc_ms_os_20[] = {
+    /* Set header: length, type, Windows version (8.1+), total length */
+    U16_TO_U8S_LE(0x000A), U16_TO_U8S_LE(MS_OS_20_SET_HEADER_DESCRIPTOR),
+    U32_TO_U8S_LE(0x06030000), U16_TO_U8S_LE(MS_OS_20_DESC_LEN),
+    /* Function subset header: length, type, first interface, reserved, length */
+    U16_TO_U8S_LE(0x0008), U16_TO_U8S_LE(MS_OS_20_SUBSET_HEADER_FUNCTION), ITF_RESET, 0,
+    U16_TO_U8S_LE(0x08 + 0x14 + 0x80),
+    /* Compatible ID: WINUSB */
+    U16_TO_U8S_LE(0x0014), U16_TO_U8S_LE(MS_OS_20_FEATURE_COMPATBLE_ID),
+    'W', 'I', 'N', 'U', 'S', 'B', 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+    /* Registry property: DeviceInterfaceGUID (REG_SZ) */
+    U16_TO_U8S_LE(0x0080), U16_TO_U8S_LE(MS_OS_20_FEATURE_REG_PROPERTY),
+    U16_TO_U8S_LE(0x0001), U16_TO_U8S_LE(0x0028),
+    'D', 0, 'e', 0, 'v', 0, 'i', 0, 'c', 0, 'e', 0, 'I', 0, 'n', 0, 't', 0, 'e', 0,
+    'r', 0, 'f', 0, 'a', 0, 'c', 0, 'e', 0, 'G', 0, 'U', 0, 'I', 0, 'D', 0, 0, 0,
+    U16_TO_U8S_LE(0x004E),
+    /* {bc7398c1-73cd-4cb7-98b8-913a8fca7bf6}, pico-sdk's reset interface GUID */
+    '{', 0, 'b', 0, 'c', 0, '7', 0, '3', 0, '9', 0, '8', 0, 'c', 0, '1', 0, '-', 0,
+    '7', 0, '3', 0, 'c', 0, 'd', 0, '-', 0, '4', 0, 'c', 0, 'b', 0, '7', 0, '-', 0,
+    '9', 0, '8', 0, 'b', 0, '8', 0, '-', 0, '9', 0, '1', 0, '3', 0, 'a', 0, '8', 0,
+    'f', 0, 'c', 0, 'a', 0, '7', 0, 'b', 0, 'f', 0, '6', 0, '}', 0, 0, 0,
+};
+TU_VERIFY_STATIC(sizeof(desc_ms_os_20) == MS_OS_20_DESC_LEN, "Incorrect MS OS 2.0 size");
+
+uint8_t const *tud_descriptor_bos_cb(void) {
+    return mca_device_profile_is_mca() ? NULL : desc_bos;
+}
+
+/* TinyUSB routes all vendor-type requests here; MCA uses standard requests only. */
+bool tud_vendor_control_xfer_cb(uint8_t rhport, uint8_t stage, tusb_control_request_t const *request) {
+    if (stage != CONTROL_STAGE_SETUP)
+        return true;
+    if (mca_device_profile_is_mca() ||
+        request->bmRequestType_bit.recipient != TUSB_REQ_RCPT_DEVICE ||
+        request->bRequest != MS_OS_20_VENDOR_CODE || request->wIndex != 7)
+        return false;
+    return tud_control_xfer(rhport, request, (void *)(uintptr_t)desc_ms_os_20, sizeof(desc_ms_os_20));
 }

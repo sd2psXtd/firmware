@@ -8,6 +8,7 @@
 
 add_library(sd2psx_usb STATIC
     ${CMAKE_CURRENT_SOURCE_DIR}/usb_session.c
+    ${CMAKE_CURRENT_SOURCE_DIR}/usb_serial.c
     ${CMAKE_CURRENT_SOURCE_DIR}/usb_descriptors.c
     ${CMAKE_CURRENT_SOURCE_DIR}/usb_reset_itf.c
     ${CMAKE_CURRENT_SOURCE_DIR}/usb_storage.c

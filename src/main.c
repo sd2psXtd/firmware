@@ -145,8 +145,11 @@ int main() {
             mode_deinit = ps1_deinit;
         }
 
-        mode_init();
+        /* Enumerate as early as possible. Class requests are only handled
+         * from usb_session_poll(), i.e. after mode_init() has finished (SD
+         * handover for mass storage, card backend for MCA). */
         usb_session_start();
+        mode_init();
         while (true) {
             usb_session_poll();
             debug_task();

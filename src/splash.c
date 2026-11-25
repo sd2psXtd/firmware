@@ -5,6 +5,7 @@
 #include <stdint.h>
 #include <string.h>
 #include "hardware/flash.h"
+#include "hardware/sync.h"
 #include "hardware/regs/addressmap.h"
 #include "pico/multicore.h"
 #include "pico/platform.h"
@@ -153,8 +154,10 @@ bool custom_boot_splash_available = false;
 static void __not_in_flash_func(splash_deploy)(uint8_t* buff, size_t size) {
     if (multicore_lockout_victim_is_initialized(1))
         multicore_lockout_start_blocking();
+    uint32_t ints = save_and_disable_interrupts();
     flash_range_erase(FLASH_OFF_SPLASH, 4096);
     flash_range_program(FLASH_OFF_SPLASH, buff, size);
+    restore_interrupts(ints);
     if (multicore_lockout_victim_is_initialized(1))
         multicore_lockout_end_blocking();
 }
