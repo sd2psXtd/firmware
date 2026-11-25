@@ -13,6 +13,9 @@
 #include "mmceman/ps2_mmceman_fs.h"
 #include "ps2_card_backend.h"
 #include "ps2_mc_data_interface.h"
+#include "ps2_memory_card.h"
+#include "game_db/game_db.h"
+#include "ps1/ps1_mmce.h"
 
 #include <hardware/watchdog.h>
 #include <settings.h>
@@ -39,7 +42,59 @@ static volatile int mc_exit_response, mc_enter_request, mc_enter_response;
 static int memcard_variant;
 static bool backend_mode;
 
+/* Raw PS1 Game ID captured on core 1 while in PS2 mode, handed to core 0 via
+ * the pending flag. Core 1 only writes the buffer while nothing is pending. */
+static volatile uint8_t ps1_gameid_raw[UINT8_MAX];
+static volatile bool ps1_gameid_pending;
+
 ps2_memory_card_backend_t* ps2_card_backend = NULL;
+
+void __time_critical_func(ps2_memory_card_set_ps1_gameid)(const uint8_t* const game_id, uint8_t length) {
+    /* Keep the pending Game ID intact until core 0 has copied it */
+    if (ps1_gameid_pending)
+        return;
+
+    if (length > (UINT8_MAX - 1))
+        length = UINT8_MAX - 1;
+
+    for (uint8_t i = 0; i < length; i++)
+        ps1_gameid_raw[i] = game_id[i];
+    ps1_gameid_raw[length] = 0x00;
+
+    ps1_gameid_pending = true;
+}
+
+void ps2_memory_card_process_ps1_gameid(void) {
+    uint8_t game_id[UINT8_MAX];
+    char sanitized_game_id[12] = {0};
+
+    if (!ps1_gameid_pending)
+        return;
+
+    for (int i = 0; i < UINT8_MAX; i++)
+        game_id[i] = ps1_gameid_raw[i];
+    ps1_gameid_pending = false;
+    game_id[UINT8_MAX - 1] = 0x00;
+
+    log(LOG_INFO, "PS1 Raw Game ID in PS2 mode: %s\n", (const char*)game_id);
+
+    /* Last byte stays 0x00 so the result is always terminated */
+    game_db_extract_title_id(game_id, sanitized_game_id, UINT8_MAX, sizeof(sanitized_game_id) - 1);
+
+    if (!game_db_sanity_check_title_id(sanitized_game_id)) {
+        log(LOG_WARN, "PS1 Game ID %s invalid, ignoring\n", sanitized_game_id);
+        return;
+    }
+
+    log(LOG_INFO, "PS1 Game ID %s received in PS2 mode, switching to PS1\n", sanitized_game_id);
+    /* Switch first so the PS1 game database is used for the lookup */
+    settings_set_mode(MODE_TEMP_PS1);
+    /* Lets PS1 mode open the Game ID card right away for known games */
+    (void)game_db_update_game(sanitized_game_id);
+    /* Queue the ID for PS1 mode as well, so IDs missing from the database
+     * still get their own card, exactly as in PS1 mode */
+    (void)ps1_mmce_set_gameid(game_id);
+}
 
 const uint8_t EccTable[] = {
     0x00, 0x87, 0x96, 0x11, 0xa5, 0x22, 0x33, 0xb4, 0xb4, 0x33, 0x22, 0xa5, 0x11, 0x96, 0x87, 0x00, 0xc3, 0x44, 0x55, 0xd2, 0x66, 0xe1, 0xf0, 0x77, 0x77, 0xf0,

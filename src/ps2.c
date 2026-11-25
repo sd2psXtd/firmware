@@ -93,6 +93,7 @@ void ps2_init(void) {
 }
 
 bool ps2_task(void) {
+    ps2_memory_card_process_ps1_gameid();
     bool backend_running = ps2_card_backend_task();
     ps2_mmceman_task();
     ps2_cardman_task();
@@ -143,6 +144,7 @@ bool ps2_task(void) {
 void ps2_deinit(void) {
 
     ps2_memory_card_exit();
+    ps2_memory_card_process_ps1_gameid();
     while (ps2_mc_data_interface_write_occured())
         ps2_mc_data_interface_task();
     multicore_reset_core1();
