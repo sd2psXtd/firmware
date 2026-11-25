@@ -1,5 +1,14 @@
 # Changelog
 
+## 1.5.2 - 2026-11-25
+
+### Fixes
+
+- Fixed USB serial startup so the port can connect while the memory card is loading (#136).
+- Restored automatic WinUSB driver binding for `picotool` reboot on Windows in USB serial and mass storage modes (#136).
+- Improved USB detection at startup and gave hosts time to detect the disconnect when switching USB profiles (#136).
+- Protected flash writes from interrupts when installing a PS2 CIV key or a custom boot splash (#136).
+
 ## 1.5.1 - 2026-11-20
 
 ### Features
